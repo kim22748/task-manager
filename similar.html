@@ -143,7 +143,7 @@ function tokenize(text,raw){
     if(/[가-힣]/.test(w)&&w.length>2){
       const j2=JOSA2.find(j=>w.endsWith(j)&&w.length-j.length>=2);
       if(j2)w=w.slice(0,-j2.length);
-      else{const j1=JOSA1.find(j=>w.endsWith(j)&&w.length-j.length>=2&&raw.has(w.slice(0,-j.length)));if(j1)w=w.slice(0,-j1.length)}
+      else{const j1=JOSA1.find(j=>w.endsWith(j)&&w.length-j.length>=2&&(raw.has(w.slice(0,-j.length))||(raw.stems[w.slice(0,-j.length)]||0)>=2));if(j1)w=w.slice(0,-j1.length)}
     }
     if(w.length<2||/^\d+$/.test(w)||STOP.has(w))return;
     out.push(w);
@@ -155,6 +155,9 @@ const docText=t=>[S.title?t.title:'',S.memo?t.memo:''].join(' ');
 function compute(){
   const scope=tasks.filter(t=>S.scope==='all'||t.registered);
   const raw=new Set(scope.flatMap(t=>words(docText(t))));
+  // 같은 어간에 서로 다른 조사가 붙은 단어가 2개 이상이면(예: 대시보드를·대시보드는) 어간으로 합친다
+  raw.stems={};
+  raw.forEach(w=>JOSA1.forEach(j=>{if(w.endsWith(j)&&w.length-j.length>=2){const s=w.slice(0,-j.length);raw.stems[s]=(raw.stems[s]||0)+1}}));
   const docs=scope.map(t=>({t,id:String(t.id),tok:tokenize(docText(t),raw)}));
   const N=docs.length,df={};
   docs.forEach(d=>{d.set=new Set(d.tok);d.set.forEach(w=>df[w]=(df[w]||0)+1)});
