@@ -12,8 +12,8 @@
   aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
   aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
   aside a.on{background:var(--primary);color:#fff}
-  aside a.sub{padding:8px 24px 8px 44px;font-size:13px}
-  aside a.sub.on{background:var(--primary);color:#fff}
+  aside a.child{padding:8px 24px 8px 44px;font-size:13px;color:rgba(255,255,255,.75)}
+  aside a.child.on{background:var(--primary);color:#fff}
   .main{flex:1;min-width:0}
   header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
   header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
@@ -76,7 +76,7 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="sub" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="on" href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="on" href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
   <header>유사과제 탐색<small id="mode"></small></header>
   <div class="content">
