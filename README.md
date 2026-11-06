@@ -15,6 +15,7 @@
 - 과제 영구 저장: `server.py`가 `data/tasks.json` 파일에 저장 (서버 없이 열면 브라우저 localStorage 임시 저장)
 - 대시보드(`dashboard.html`): 단계별 건수·평균 진행률·최근 7일 등록 추이·최근 변경 이력·최근 과제
 - 과제 진행률(`progress.html`): 단계별 현황, 전체/담당자별 평균 진행률, 단계별 과제 목록
+- AI 과제 등록(`ai-projects.html`, 좌측 메뉴 '과제 목록' 하위): 명칭·목적·분류·단계·과제책임자·소속부서·접근권한범위 등록 게시판. 신규작성/수정은 같은 Modal 창을 사용하고, 수정은 기존 자료를 덮어씀
 
 ## 실행
 ```bash
@@ -33,9 +34,12 @@ python3 server.py
 | `index.html` | 과제 목록 화면 |
 | `dashboard.html` | 대시보드 화면 |
 | `progress.html` | 과제 진행률 화면 |
+| `ai-projects.html` | AI 과제 등록 화면 |
 | `storage.js` | 저장 모듈 (서버 API ↔ localStorage 자동 전환) |
+| `ai-storage.js` | AI 과제 저장 모듈 (`/api/ai-projects` ↔ localStorage) |
 | `server.py` | 저장 서버 + REST API (`/api/tasks`) |
 | `data/tasks.json` | 저장된 과제 데이터 |
+| `data/ai_projects.json` | 저장된 AI 과제 데이터 |
 
 ## 다음 단계(예정)
 - 부서 필드와 부서·담당자별 현황

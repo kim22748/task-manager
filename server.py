@@ -13,6 +13,11 @@ API:
                                (변경 내용은 history 에 자동 기록됩니다)
     DELETE /api/tasks/<id>     과제 삭제
     POST   /api/tasks/import   여러 과제 한 번에 가져오기 (localStorage 이전용)
+
+    GET    /api/ai-projects        AI 과제 목록 (data/ai_projects.json)
+    POST   /api/ai-projects        AI 과제 등록
+    PUT    /api/ai-projects/<id>   AI 과제 수정 (등록 때와 같은 항목 전체)
+    DELETE /api/ai-projects/<id>   AI 과제 삭제
 """
 
 import argparse
@@ -28,6 +33,10 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "data" / "tasks.json"
+AI_DATA_FILE = BASE_DIR / "data" / "ai_projects.json"
+AI_CATEGORIES = ["개발", "법률", "노사", "IT"]
+AI_STAGES = ["기획중", "개발중", "승인요청", "승인검토중", "활용중", "활용종료"]
+AI_ACCESS = ["전사", "소속부서", "사용자별 지정"]
 STATUSES = {"todo", "doing", "done"}
 PRIORITIES = {"high", "mid", "low"}
 MAX_TITLE = 200
@@ -174,6 +183,54 @@ class TaskStore:
             return added
 
 
+class AIProjectStore:
+    """AI 과제(등록 게시판) 저장소. TaskStore 와 같은 방식(임시 파일 → rename)으로 저장합니다."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.lock = threading.Lock()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
+            self._write([])
+
+    _read = TaskStore._read
+    _write = TaskStore._write
+    _new_id = TaskStore._new_id
+
+    def list(self):
+        with self.lock:
+            return self._read()
+
+    def create(self, fields):
+        with self.lock:
+            items = self._read()
+            now = datetime.now().astimezone().isoformat(timespec="seconds")
+            item = {"id": self._new_id(items), **fields, "createdAt": now, "updatedAt": now}
+            items.insert(0, item)
+            self._write(items)
+            return item
+
+    def update(self, item_id, fields):
+        with self.lock:
+            items = self._read()
+            for it in items:
+                if it["id"] == item_id:
+                    it.update(fields)
+                    it["updatedAt"] = datetime.now().astimezone().isoformat(timespec="seconds")
+                    self._write(items)
+                    return it
+            return None
+
+    def delete(self, item_id):
+        with self.lock:
+            items = self._read()
+            kept = [it for it in items if it["id"] != item_id]
+            if len(kept) == len(items):
+                return False
+            self._write(kept)
+            return True
+
+
 class ValidationError(Exception):
     pass
 
@@ -250,7 +307,35 @@ def clean_extra(body):
     return out
 
 
+def clean_ai_project(body):
+    """AI 과제 등록·수정 입력을 검증해 저장할 항목만 돌려줍니다 (모든 항목 필수)."""
+    def text(key, label, limit):
+        v = body.get(key)
+        if not isinstance(v, str) or not v.strip():
+            raise ValidationError(f"{label}을(를) 입력하세요.")
+        if len(v.strip()) > limit:
+            raise ValidationError(f"{label}은(는) {limit}자 이하로 입력하세요.")
+        return v.strip()
+
+    def choice(key, label, allowed):
+        v = body.get(key)
+        if v not in allowed:
+            raise ValidationError(f"{label} 값이 올바르지 않습니다.")
+        return v
+
+    return {
+        "title": text("title", "명칭", MAX_TITLE),
+        "purpose": text("purpose", "목적", 2000),
+        "category": choice("category", "분류", AI_CATEGORIES),
+        "stage": choice("stage", "단계", AI_STAGES),
+        "ownerName": text("ownerName", "과제책임자 이름", 50),
+        "ownerDept": text("ownerDept", "과제책임자 소속부서", 100),
+        "access": choice("access", "접근권한범위", AI_ACCESS),
+    }
+
+
 store = TaskStore(DATA_FILE)
+ai_store = AIProjectStore(AI_DATA_FILE)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -300,6 +385,8 @@ class Handler(SimpleHTTPRequestHandler):
         route = self._route()
         if route == "/api/tasks":
             return self._handle(lambda: self._json(HTTPStatus.OK, store.list()))
+        if route == "/api/ai-projects":
+            return self._handle(lambda: self._json(HTTPStatus.OK, ai_store.list()))
         if route.startswith("/data") or route.endswith(".py"):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         return super().do_GET()
@@ -331,9 +418,23 @@ class Handler(SimpleHTTPRequestHandler):
 
         if route == "/api/tasks":
             return self._handle(create)
+        if route == "/api/ai-projects":
+            return self._handle(lambda: self._json(HTTPStatus.CREATED, ai_store.create(clean_ai_project(self._body()))))
         if route == "/api/tasks/import":
             return self._handle(import_many)
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def do_PUT(self):
+        if not self._route().startswith("/api/ai-projects/"):
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+        def update():
+            item = ai_store.update(self._task_id(), clean_ai_project(self._body()))
+            if item is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "AI 과제를 찾을 수 없습니다."})
+            self._json(HTTPStatus.OK, item)
+
+        self._handle(update)
 
     def do_PATCH(self):
         if not self._route().startswith("/api/tasks/"):
@@ -362,11 +463,13 @@ class Handler(SimpleHTTPRequestHandler):
         self._handle(update)
 
     def do_DELETE(self):
-        if not self._route().startswith("/api/tasks/"):
+        route = self._route()
+        if not (route.startswith("/api/tasks/") or route.startswith("/api/ai-projects/")):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+        target = ai_store if route.startswith("/api/ai-projects/") else store
 
         def delete():
-            if store.delete(self._task_id()):
+            if target.delete(self._task_id()):
                 self._json(HTTPStatus.NO_CONTENT)
             else:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})

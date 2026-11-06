@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · AI 과제 등록</title>
+<style>
+  /* index.html 과 같은 Ant Design Pro 스타일 */
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  aside a.child{padding:8px 24px 8px 44px;font-size:13px;color:rgba(255,255,255,.75)}
+  aside a.child.on{background:var(--primary);color:#fff}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
+  .content{padding:24px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;margin-bottom:16px}
+  .stat b{display:block;font-size:28px;margin-top:4px}
+  .stat span{color:var(--sub);font-size:14px}
+  input,select,textarea,button{font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  textarea{resize:vertical;width:100%}
+  button{cursor:pointer}
+  button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .toolbar .grow{flex:1}
+  .toolbar input[type=search]{min-width:200px;max-width:260px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:top}
+  th{background:#fafafa;font-weight:600;white-space:nowrap}
+  .tablewrap{overflow-x:auto}
+  .tablewrap table{min-width:900px}
+  .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .purpose{display:block;color:var(--sub);font-size:12px;margin-top:2px;max-width:340px;white-space:pre-wrap}
+  td .act{white-space:nowrap}
+  td .act button{margin-left:4px}
+  .empty{text-align:center;color:var(--sub);padding:32px}
+  .notice{border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:14px}
+  .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice[hidden]{display:none}
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
+  .overlay[hidden]{display:none}
+  .modal{background:#fff;border-radius:8px;width:100%;max-width:560px;max-height:100%;display:flex;flex-direction:column;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+  .modal h2{margin:0;padding:16px 24px;font-size:16px;border-bottom:1px solid var(--border)}
+  .modal form{padding:16px 24px;overflow-y:auto}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:14px;margin-bottom:4px}
+  .field label i{color:#ff4d4f;font-style:normal;margin-right:2px}
+  .field input,.field select{width:100%}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field.invalid input,.field.invalid select,.field.invalid textarea{border-color:#ff4d4f}
+  .msg{color:#ff4d4f;font-size:12px;margin-top:2px;display:none}
+  .field.invalid .msg{display:block}
+  .foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+  .radios{display:flex;gap:16px;flex-wrap:wrap}
+  .radios label{display:flex;align-items:center;gap:4px;margin:0}
+  .radios input{width:auto}
+  @media(max-width:640px){aside{display:none}.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child on" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
+<div class="main">
+  <header>AI 과제 등록<small id="mode"></small></header>
+  <div class="content">
+    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8000</code>으로 접속하세요.</div>
+    <div class="notice err" id="err" hidden></div>
+    <div class="stats" id="stats"></div>
+    <div class="card">
+      <div class="toolbar">
+        <select id="fCategory" title="분류"></select>
+        <select id="fStage" title="단계"></select>
+        <input id="q" type="search" placeholder="명칭·목적·책임자·부서 검색">
+        <span class="grow"></span>
+        <button class="p" id="btnNew" type="button">신규작성</button>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>명칭 / 목적</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>접근권한범위</th><th>수정일</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- 신규작성 / 수정 공용 Modal -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h2 id="mTitle">AI 과제 신규작성</h2>
+    <form id="form" novalidate>
+      <div class="field"><label for="title"><i>*</i>명칭</label>
+        <input id="title" maxlength="200" placeholder="AI 과제의 타이틀"><div class="msg">명칭을 입력하세요.</div></div>
+      <div class="field"><label for="purpose"><i>*</i>목적</label>
+        <textarea id="purpose" rows="4" maxlength="2000" placeholder="AI 과제를 만든 목적이나 활용하고 싶은 이유를 설명해 주세요."></textarea><div class="msg">목적을 입력하세요.</div></div>
+      <div class="row2">
+        <div class="field"><label for="category"><i>*</i>분류</label><select id="category"></select><div class="msg">분류를 선택하세요.</div></div>
+        <div class="field"><label for="stage"><i>*</i>단계</label><select id="stage"></select><div class="msg">단계를 선택하세요.</div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="ownerName"><i>*</i>과제책임자 이름</label><input id="ownerName" maxlength="50"><div class="msg">과제책임자 이름을 입력하세요.</div></div>
+        <div class="field"><label for="ownerDept"><i>*</i>과제책임자 소속부서</label><input id="ownerDept" maxlength="100"><div class="msg">소속부서를 입력하세요.</div></div>
+      </div>
+      <div class="field" id="accessField"><label><i>*</i>접근권한범위</label>
+        <div class="radios" id="access"></div><div class="msg">접근권한범위를 선택하세요.</div></div>
+      <div class="notice err" id="mErr" hidden></div>
+      <div class="foot"><button type="button" id="btnCancel">취소</button><button type="submit" class="p" id="btnSave">등록</button></div>
+    </form>
+  </div>
+</div>
+
+<script src="ai-storage.js"></script>
+<script>
+const CATEGORIES=['개발','법률','노사','IT'];
+const STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+const ACCESS=['전사','소속부서','사용자별 지정'];
+const STAGE_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
+let items=[],editingId=null,saving=false;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const showError=msg=>{const el=$('err');el.textContent=msg||'';el.hidden=!msg};
+const fmtDate=s=>{const d=new Date(s);return isNaN(d)?'-':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const opts=(list,sel)=>list.map(v=>`<option value="${v}"${v===sel?' selected':''}>${v}</option>`).join('');
+
+// ---------- 목록 ----------
+function visible(){
+  const q=$('q').value.trim().toLowerCase(),c=$('fCategory').value,s=$('fStage').value;
+  return items.filter(t=>(!c||t.category===c)&&(!s||t.stage===s)&&
+    (!q||[t.title,t.purpose,t.ownerName,t.ownerDept].some(v=>(v||'').toLowerCase().includes(q))))
+    .sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+function render(){
+  $('stats').innerHTML=`<div class="card stat"><span>전체</span><b>${items.length}</b></div>`+
+    STAGES.map(s=>`<div class="card stat"><span>${s}</span><b>${items.filter(t=>t.stage===s).length}</b></div>`).join('');
+  const list=visible();
+  $('rows').innerHTML=list.length?list.map(t=>`<tr>
+    <td>${esc(t.title)}<span class="purpose">${esc(t.purpose)}</span></td>
+    <td>${esc(t.category)}</td>
+    <td><span class="tag" style="background:${STAGE_COLOR[t.stage]||'#8c8c8c'}">${esc(t.stage)}</span></td>
+    <td>${esc(t.ownerName)}</td><td>${esc(t.ownerDept)}</td><td>${esc(t.access)}</td>
+    <td>${fmtDate(t.updatedAt)}</td>
+    <td class="act"><button data-edit="${t.id}">수정</button><button data-del="${t.id}">삭제</button></td></tr>`).join('')
+    :`<tr><td colspan="8" class="empty">${items.length?'조건에 맞는 AI 과제가 없습니다.':'등록된 AI 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
+}
+async function reload(){try{items=await AIStorage.list()}catch(e){showError('목록을 불러오지 못했습니다: '+e.message)}render()}
+
+// ---------- Modal (신규작성·수정 공용) ----------
+const FIELDS=['title','purpose','category','stage','ownerName','ownerDept'];
+const radioVal=()=>{const r=document.querySelector('input[name=access]:checked');return r?r.value:''};
+function clearInvalid(){document.querySelectorAll('.field.invalid').forEach(f=>f.classList.remove('invalid'));$('mErr').hidden=true}
+function openModal(id){
+  editingId=id||null;
+  const t=editingId?items.find(x=>x.id==editingId):null;
+  if(editingId&&!t){showError('수정할 AI 과제를 찾을 수 없습니다.');return}
+  $('mTitle').textContent=t?'AI 과제 수정':'AI 과제 신규작성';
+  $('btnSave').textContent=t?'수정 저장':'등록';
+  $('title').value=t?t.title:'';
+  $('purpose').value=t?t.purpose:'';
+  $('category').innerHTML=(t?'':'<option value="">선택</option>')+opts(CATEGORIES,t&&t.category);
+  $('stage').innerHTML=(t?'':'')+opts(STAGES,t?t.stage:STAGES[0]);
+  $('ownerName').value=t?t.ownerName:'';
+  $('ownerDept').value=t?t.ownerDept:'';
+  $('access').innerHTML=ACCESS.map(a=>`<label><input type="radio" name="access" value="${a}"${t?(t.access===a?' checked':''):(a===ACCESS[0]?' checked':'')}>${a}</label>`).join('');
+  clearInvalid();
+  $('overlay').hidden=false;
+  $('title').focus();
+}
+function closeModal(){if(saving)return;$('overlay').hidden=true;editingId=null}
+$('form').onsubmit=async e=>{
+  e.preventDefault();
+  if(saving)return;
+  const f={};FIELDS.forEach(k=>f[k]=$(k).value.trim());f.access=radioVal();
+  clearInvalid();
+  let ok=true;
+  [...FIELDS,'access'].forEach(k=>{
+    if(!f[k]){ok=false;(k==='access'?$('accessField'):$(k).closest('.field')).classList.add('invalid')}
+  });
+  if(!ok){return}
+  saving=true;$('btnSave').disabled=true;
+  try{
+    if(editingId)await AIStorage.update(editingId,f);else await AIStorage.create(f);
+    saving=false;$('overlay').hidden=true;editingId=null;showError('');
+    await reload();
+  }catch(err){$('mErr').textContent='저장하지 못했습니다: '+err.message;$('mErr').hidden=false}
+  finally{saving=false;$('btnSave').disabled=false}
+};
+$('btnNew').onclick=()=>openModal(null);
+$('btnCancel').onclick=closeModal;
+$('overlay').addEventListener('mousedown',e=>{if(e.target===$('overlay'))closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('overlay').hidden)closeModal()});
+
+document.addEventListener('click',async e=>{
+  const d=e.target.dataset;
+  if(d.edit)openModal(d.edit);
+  if(d.del&&confirm('이 AI 과제를 삭제할까요?')){
+    try{await AIStorage.remove(d.del);showError('')}catch(err){showError('삭제하지 못했습니다: '+err.message)}
+    reload();
+  }
+});
+['q'].forEach(id=>$(id).oninput=render);
+$('fCategory').onchange=$('fStage').onchange=render;
+
+(async()=>{
+  $('fCategory').innerHTML='<option value="">분류 전체</option>'+opts(CATEGORIES);
+  $('fStage').innerHTML='<option value="">단계 전체</option>'+opts(STAGES);
+  items=await AIStorage.init();
+  const server=AIStorage.mode==='server';
+  $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
+  $('warn').hidden=server;
+  render();
+})();
+</script>
+</body>
+</html>
