@@ -47,6 +47,17 @@
   td .act{white-space:nowrap}
   td .act button{margin-left:4px;cursor:pointer}
   .tablewrap{overflow-x:auto}
+  .tablewrap table{min-width:860px}
+  td select[data-id]{min-width:76px}
+  .pbar{display:flex;align-items:center;gap:8px;min-width:120px}
+  .pbar .bar{flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
+  .pbar .bar i{display:block;height:100%;background:var(--primary)}
+  .pbar span{font-size:12px;color:var(--sub);width:34px;text-align:right}
+  tr.hist td{background:#fafafa;padding:8px 16px 12px}
+  .tl{list-style:none;margin:0;padding:0 0 0 12px;border-left:2px solid #e6e6e6}
+  .tl li{position:relative;padding:3px 0 3px 12px;font-size:13px;display:block;border:0}
+  .tl li:before{content:"";position:absolute;left:-18px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--primary)}
+  .tl time{color:var(--sub);margin-right:8px;font-size:12px}
   header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
   @media(max-width:640px){aside{display:none}}
 </style>
@@ -78,7 +89,7 @@
         </select>
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>마감일</th><th>우선순위</th><th>상태</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>담당자</th><th>마감일</th><th>우선순위</th><th>진행률</th><th>단계</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </div>
@@ -86,9 +97,10 @@
 </div>
 <script src="storage.js"></script>
 <script>
-const STATUS={todo:['대기','var(--todo)'],doing:['진행중','var(--doing)'],done:['완료','var(--done)']};
+const STATUS={todo:['검토','var(--todo)'],doing:['진행','var(--doing)'],done:['종료','var(--done)']};
+const fmtAt=s=>{const d=new Date(s);return isNaN(d)?'':`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
 const PRI={high:['높음','p-high',0],mid:['보통','p-mid',1],low:['낮음','p-low',2]};
-let tasks=[],filter='all',query='',sort='new',editing=null;
+let tasks=[],filter='all',query='',sort='new',editing=null,openHist=new Set();
 const $=id=>document.getElementById(id);
 const showError=msg=>{const el=$('err');el.textContent=msg||'';el.hidden=!msg};
 // 저장소 호출을 감싸서: 성공하면 목록을 다시 읽고, 실패하면 오류를 화면에 보여 준다
@@ -121,12 +133,17 @@ function visible(){
   };
   return l.sort(by[sort]);
 }
+function histRow(t){
+  const h=(t.history||[]).slice().reverse();
+  return `<tr class="hist"><td colspan="7">${h.length?`<ul class="tl">${h.map(x=>`<li><time>${fmtAt(x.at)}</time>${esc(x.text)}</li>`).join('')}</ul>`:'<span class="sub">기록된 이력이 없습니다. 이후 변경부터 기록됩니다.</span>'}</td></tr>`;
+}
 function row(t){
   if(editing==t.id)return `<tr>
     <td><input id="e-title" value="${esc(t.title)}"><input id="e-memo" value="${esc(t.memo)}" placeholder="메모" style="margin-top:4px"></td>
     <td><input id="e-assignee" value="${esc(t.assignee)}"></td>
     <td><input id="e-due" type="date" value="${esc(t.due)}"></td>
     <td><select id="e-priority">${Object.entries(PRI).map(([k,[n]])=>`<option value="${k}" ${(t.priority||'mid')===k?'selected':''}>${n}</option>`).join('')}</select></td>
+    <td><input id="e-progress" type="number" min="0" max="100" step="5" value="${+t.progress||0}" title="진행률(%)"></td>
     <td></td>
     <td class="act"><button class="p" data-save="${t.id}">저장</button><button data-cancel="1">취소</button></td></tr>`;
   const d=dday(t),p=PRI[t.priority]||PRI.mid;
@@ -134,8 +151,9 @@ function row(t){
     <td>${esc(t.assignee)||'-'}</td>
     <td>${d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'}</td>
     <td><span class="tag ${p[1]}">${p[0]}</span></td>
+    <td><div class="pbar"><div class="bar"><i style="width:${+t.progress||0}%"></i></div><span>${+t.progress||0}%</span></div></td>
     <td><select data-id="${t.id}">${Object.entries(STATUS).map(([k,[n]])=>`<option value="${k}" ${t.s===k?'selected':''}>${n}</option>`).join('')}</select></td>
-    <td class="act"><button data-edit="${t.id}">수정</button><button data-del="${t.id}">삭제</button></td></tr>`;
+    <td class="act"><button data-hist="${t.id}">이력${(t.history||[]).length?' '+t.history.length:''}</button><button data-edit="${t.id}">수정</button><button data-del="${t.id}">삭제</button></td></tr>${openHist.has(String(t.id))?histRow(t):''}`;
 }
 function render(){
   const cnt=k=>tasks.filter(t=>t.s===k).length;
@@ -148,7 +166,7 @@ function render(){
     [['all','전체'],...Object.entries(STATUS).map(([k,[n]])=>[k,n])]
     .map(([k,n])=>`<button class="${filter===k?'on':''}" data-f="${k}">${n}</button>`).join('');
   const list=visible();
-  $('rows').innerHTML=list.length?list.map(row).join(''):'<tr><td colspan="6" class="empty">표시할 과제가 없습니다.</td></tr>';
+  $('rows').innerHTML=list.length?list.map(row).join(''):'<tr><td colspan="7" class="empty">표시할 과제가 없습니다.</td></tr>';
 }
 $('f').onsubmit=e=>{
   e.preventDefault();
@@ -163,15 +181,16 @@ document.addEventListener('click',e=>{
   if(d.f){filter=d.f;render()}
   if(d.del){if(confirm('이 과제를 삭제할까요?'))persist(()=>TaskStorage.remove(d.del))}
   if(d.edit){editing=d.edit;render()}
+  if(d.hist){openHist.has(d.hist)?openHist.delete(d.hist):openHist.add(d.hist);render()}
   if(d.cancel){editing=null;render()}
   if(d.save){
     const title=$('e-title').value.trim();if(!title){showError('과제 이름을 입력하세요.');return}
-    const f={title,memo:$('e-memo').value.trim(),assignee:$('e-assignee').value.trim(),due:$('e-due').value,priority:$('e-priority').value};
+    const f={title,memo:$('e-memo').value.trim(),assignee:$('e-assignee').value.trim(),due:$('e-due').value,priority:$('e-priority').value,progress:Math.min(100,Math.max(0,Math.round(+$('e-progress').value||0)))};
     editing=null;persist(()=>TaskStorage.update(d.save,f));
   }
 });
 document.addEventListener('change',e=>{
-  if(e.target.dataset.id){const id=e.target.dataset.id,s=e.target.value;persist(()=>TaskStorage.update(id,{s}))}
+  if(e.target.dataset.id){const id=e.target.dataset.id,s=e.target.value;persist(()=>TaskStorage.update(id,s==='done'?{s,progress:100}:{s}))}
 });
 (async()=>{
   tasks=await TaskStorage.init();

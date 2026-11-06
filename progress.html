@@ -41,31 +41,32 @@
 </div>
 <script src="storage.js"></script>
 <script>
-const STATUS={todo:['대기','#bfbfbf'],doing:['진행중','#1677ff'],done:['완료','#52c41a']};
+const STATUS={todo:['검토','#bfbfbf'],doing:['진행','#1677ff'],done:['종료','#52c41a']};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pct=(n,t)=>t?Math.round(n/t*100):0;
-const bar=(list)=>{const t=list.length;return `<div class="bar">${['done','doing','todo'].map(k=>`<i style="width:${pct(list.filter(x=>x.s===k).length,t)}%;background:${STATUS[k][1]}"></i>`).join('')}</div>`};
-const text=list=>{const c=k=>list.filter(x=>x.s===k).length;return `완료 ${c('done')} · 진행 ${c('doing')} · 대기 ${c('todo')}`};
+const avg=l=>l.length?Math.round(l.reduce((s,t)=>s+(+t.progress||0),0)/l.length):0;
+const bar=l=>`<div class="bar"><i style="width:${avg(l)}%;background:#1677ff"></i></div>`;
+const text=list=>{const c=k=>list.filter(x=>x.s===k).length;return `종료 ${c('done')} · 진행 ${c('doing')} · 검토 ${c('todo')}`};
 function render(tasks){
   const app=document.getElementById('app');
   if(!tasks.length){app.innerHTML='<div class="card empty">등록된 과제가 없습니다. <a href="index.html">과제 목록</a>에서 추가해 보세요.</div>';return}
   const total=tasks.length,done=tasks.filter(t=>t.s==='done').length;
+  const stageCard=['todo','doing','done'].map(k=>{const l=tasks.filter(t=>t.s===k);return `<div style="flex:1;min-width:140px;border:1px solid #f0f0f0;border-radius:8px;padding:12px 16px"><div class="sub"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STATUS[k][1]};margin-right:6px"></i>${STATUS[k][0]}${k==='done'?' (사후관리)':''}</div><div style="font-size:26px;font-weight:600">${l.length}건</div><div class="sub">평균 진행률 ${avg(l)}%</div></div>`}).join('<div style="align-self:center;color:#bfbfbf">→</div>');
   const groups={};
   tasks.forEach(t=>{const k=(t.assignee||'').trim()||'담당자 미지정';(groups[k]=groups[k]||[]).push(t)});
   const names=Object.keys(groups).sort((a,b)=>(a==='담당자 미지정')-(b==='담당자 미지정')||a.localeCompare(b,'ko'));
-  const legend=`<div class="legend">${Object.values(STATUS).map(([n,c])=>`<span><i style="background:${c}"></i>${n}</span>`).join('')}</div>`;
-  app.innerHTML=`
+    app.innerHTML=`
+  <div class="card"><h2>단계별 현황</h2><div style="display:flex;gap:12px;flex-wrap:wrap">${stageCard}</div></div>
   <div class="card"><h2>전체 진행률</h2>
-    <div class="rate">${bar(tasks)}<strong>${pct(done,total)}%</strong></div>
-    <div class="sub" style="margin-top:8px">완료 ${done}건 / 전체 ${total}건 (${text(tasks)})</div>
-    ${legend}
+    <div class="rate">${bar(tasks)}<strong>${avg(tasks)}%</strong></div>
+    <div class="sub" style="margin-top:8px">과제별 진행률의 평균 · 종료 ${done}건 / 전체 ${total}건 (${text(tasks)})</div>
   </div>
   <div class="card"><h2>담당자별 진행률</h2>
-    ${names.map(n=>{const l=groups[n];return `<div class="row"><span>${esc(n)}</span>${bar(l)}<span class="num">${pct(l.filter(x=>x.s==='done').length,l.length)}% · ${l.length}건</span></div>`}).join('')}
-    ${legend}
+    ${names.map(n=>{const l=groups[n];return `<div class="row"><span>${esc(n)}</span>${bar(l)}<span class="num">${avg(l)}% · ${l.length}건</span></div>`}).join('')}
+    <div class="sub" style="margin-top:8px">담당자별 과제 진행률 평균</div>
   </div>
-  <div class="card"><h2>과제별 상태</h2>
-    ${['doing','todo','done'].map(k=>{const l=tasks.filter(t=>t.s===k);return `<div style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STATUS[k][1]};margin-right:6px"></i>${STATUS[k][0]} ${l.length}건</div>${l.length?l.map(t=>`<div class="row" style="grid-template-columns:1fr 120px 120px"><span>${esc(t.title)}</span><span class="sub">${esc(t.assignee||'담당자 미지정')}</span><span class="sub">${t.due?'마감 '+esc(t.due):'마감일 없음'}</span></div>`).join(''):'<div class="sub">없음</div>'}</div>`}).join('')}
+  <div class="card"><h2>단계별 과제 목록</h2>
+    ${['doing','todo','done'].map(k=>{const l=tasks.filter(t=>t.s===k);return `<div style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STATUS[k][1]};margin-right:6px"></i>${STATUS[k][0]} ${l.length}건</div>${l.length?l.map(t=>`<div class="row" style="grid-template-columns:1fr 150px 120px 120px"><span>${esc(t.title)}</span><span class="pbar" style="display:flex;align-items:center;gap:6px"><span class="bar" style="height:8px;flex:1"><i style="width:${+t.progress||0}%;background:#1677ff"></i></span><span class="sub" style="width:34px;text-align:right">${+t.progress||0}%</span></span><span class="sub">${esc(t.assignee||'담당자 미지정')}</span><span class="sub">${t.due?'마감 '+esc(t.due):'마감일 없음'}</span></div>`).join(''):'<div class="sub">없음</div>'}</div>`}).join('')}
   </div>`;
 }
 TaskStorage.init().then(render).catch(()=>render([]));

@@ -50,12 +50,15 @@
 </div>
 <script src="storage.js"></script>
 <script>
-const STATUS={todo:['대기','var(--todo)','#bfbfbf'],doing:['진행중','var(--doing)','#1677ff'],done:['완료','var(--done)','#52c41a']};
+const STATUS={todo:['검토','var(--todo)','#bfbfbf'],doing:['진행','var(--doing)','#1677ff'],done:['종료','var(--done)','#52c41a']};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function render(tasks){
 const total=tasks.length;
 const cnt=k=>tasks.filter(t=>t.s===k).length;
 const pct=n=>total?Math.round(n/total*100):0;
+const avgProg=total?Math.round(tasks.reduce((s,t)=>s+(+t.progress||0),0)/total):0;
+const fmtAt=s=>{const d=new Date(s);return isNaN(d)?'':`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
+const feed=tasks.flatMap(t=>(t.history||[]).map(h=>({t,h}))).reverse().sort((a,b)=>new Date(b.h.at)-new Date(a.h.at)).slice(0,8);
 const dleft=t=>(t.due&&t.s!=='done')?Math.round((new Date(t.due+'T00:00:00')-new Date(new Date().setHours(0,0,0,0)))/864e5):null;
 const overdue=tasks.filter(t=>dleft(t)!==null&&dleft(t)<0).length;
 const soon=tasks.filter(t=>dleft(t)!==null&&dleft(t)>=0&&dleft(t)<=3).length;
@@ -78,15 +81,16 @@ document.getElementById('app').innerHTML=`
   <div class="card stat"><span>전체 과제</span><b>${total}</b></div>
   ${Object.entries(STATUS).map(([k,[n,c]])=>`<div class="card stat"><span>${n}</span><b style="color:${k==='todo'?'inherit':c}">${cnt(k)}</b></div>`).join('')}
   <div class="card stat"><span>마감 지연</span><b style="color:${overdue?'#ff4d4f':'inherit'}">${overdue}</b></div>
+  <div class="card stat"><span>평균 진행률</span><b style="color:var(--primary)">${avgProg}%</b></div>
   <div class="card stat"><span>마감 임박(3일)</span><b style="color:${soon?'#fa8c16':'inherit'}">${soon}</b></div>
 </div>
 <div class="card">
-  <h2>전체 진행률</h2>
+  <h2>전체 진행률 <span class="sub">(종료 과제 비율)</span></h2>
   <div class="rate">
     <div class="bar">${Object.entries(STATUS).reverse().map(([k,[,,c]])=>`<i style="width:${pct(cnt(k))}%;background:${c}"></i>`).join('')}</div>
     <strong>${pct(cnt('done'))}%</strong>
   </div>
-  <div class="sub" style="margin-top:8px">완료 ${cnt('done')}건 / 전체 ${total}건</div>
+  <div class="sub" style="margin-top:8px">종료 ${cnt('done')}건 / 전체 ${total}건 · 과제별 진행률 평균 ${avgProg}%</div>
 </div>
 <div class="grid2">
   <div class="card"><h2>상태별 비율</h2>
@@ -98,6 +102,9 @@ document.getElementById('app').innerHTML=`
   <div class="card"><h2>최근 7일 등록</h2>
     <div class="chart">${days.map((d,i)=>`<div class="col"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/max*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
   </div>
+</div>
+<div class="card"><h2>최근 변경 이력</h2>
+  ${feed.length?`<ul>${feed.map(({t,h})=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(h.text)}</span></span><span class="sub">${fmtAt(h.at)}</span></li>`).join('')}</ul>`:'<div class="empty">아직 기록된 변경 이력이 없습니다.</div>'}
 </div>
 <div class="card"><h2>최근 등록 과제</h2>
   ${recent.length?`<ul>${recent.map(t=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(t.date||'')}</span></span><span class="tag" style="background:${(STATUS[t.s]||STATUS.todo)[1]}">${(STATUS[t.s]||STATUS.todo)[0]}</span></li>`).join('')}</ul>`

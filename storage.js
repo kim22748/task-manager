@@ -16,6 +16,27 @@ const TaskStorage = (() => {
   const readLocal = () => { try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || []; } catch (e) { return []; } };
   const writeLocal = tasks => { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(tasks)); } catch (e) {} };
 
+  // ---- 변경 이력 (임시 저장 모드용. 서버 모드는 server.py 가 같은 형식으로 기록) ----
+  const STAGE = { todo: '검토', doing: '진행', done: '종료' };
+  const PRI_L = { high: '높음', mid: '보통', low: '낮음' };
+  const TRACK = [
+    ['s', '단계', v => STAGE[v] || v],
+    ['progress', '진행률', v => v + '%'],
+    ['assignee', '담당자', v => v || '없음'],
+    ['due', '마감일', v => v || '없음'],
+    ['priority', '우선순위', v => PRI_L[v] || v],
+    ['title', '과제명', v => v],
+    ['memo', '메모', v => v || '없음'],
+  ];
+  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : (o[k] ?? ''));
+  function describe(before, fields) {
+    return TRACK
+      .filter(([k]) => k in fields && norm(before, k) !== norm(fields, k))
+      .map(([k, label, f]) => `${label}: ${f(norm(before, k))} → ${f(norm(fields, k))}`)
+      .join(' / ');
+  }
+  const stamp = text => ({ at: new Date().toISOString(), text });
+
   // ---- 서버 API ----
   async function request(method, url, body) {
     const res = await fetch(url, {
@@ -59,7 +80,7 @@ const TaskStorage = (() => {
       return mode === 'server' ? request('GET', API) : readLocal();
     },
 
-    /** fields: { title, assignee?, due?, priority?, memo? } (문자열만 넘기면 제목으로 처리) */
+    /** fields: { title, assignee?, due?, priority?, memo?, progress? } (문자열만 넘기면 제목으로 처리) */
     async create(fields) {
       if (typeof fields === 'string') fields = { title: fields };
       if (mode === 'server') return request('POST', API, fields);
@@ -67,6 +88,7 @@ const TaskStorage = (() => {
       const task = {
         id: Date.now(), title: fields.title, s: 'todo', date: new Date().toISOString().slice(0, 10),
         assignee: fields.assignee || '', due: fields.due || '', priority: fields.priority || 'mid', memo: fields.memo || '',
+        progress: fields.progress || 0, history: [stamp('과제 등록')],
       };
       tasks.unshift(task); writeLocal(tasks);
       return task;
@@ -76,7 +98,12 @@ const TaskStorage = (() => {
       if (mode === 'server') return request('PATCH', `${API}/${id}`, fields);
       const tasks = readLocal();
       const t = tasks.find(x => x.id == id);
-      if (t) { Object.assign(t, fields); writeLocal(tasks); }
+      if (t) {
+        const text = describe(t, fields);
+        Object.assign(t, fields);
+        if (text) t.history = [...(t.history || []), stamp(text)].slice(-100);
+        writeLocal(tasks);
+      }
       return t;
     },
 

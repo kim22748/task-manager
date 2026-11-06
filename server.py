@@ -9,7 +9,8 @@
 API:
     GET    /api/tasks          과제 목록
     POST   /api/tasks          과제 생성   {"title": "...", "assignee", "due": "YYYY-MM-DD", "priority": "high|mid|low", "memo"}
-    PATCH  /api/tasks/<id>     과제 수정   {"s": "todo|doing|done", "title", "assignee", "due", "priority", "memo"}
+    PATCH  /api/tasks/<id>     과제 수정   {"s": "todo|doing|done", "title", "assignee", "due", "priority", "memo", "progress": 0~100}
+                               (변경 내용은 history 에 자동 기록됩니다)
     DELETE /api/tasks/<id>     과제 삭제
     POST   /api/tasks/import   여러 과제 한 번에 가져오기 (localStorage 이전용)
 """
@@ -20,7 +21,7 @@ import os
 import tempfile
 import threading
 import time
-from datetime import date
+from datetime import date, datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,6 +31,36 @@ DATA_FILE = BASE_DIR / "data" / "tasks.json"
 STATUSES = {"todo", "doing", "done"}
 PRIORITIES = {"high", "mid", "low"}
 MAX_TITLE = 200
+MAX_HISTORY = 100
+
+# 변경 이력에 쓰는 화면 이름 (storage.js 의 TRACK 과 같은 형식)
+STAGE_LABEL = {"todo": "검토", "doing": "진행", "done": "종료"}
+PRIORITY_LABEL = {"high": "높음", "mid": "보통", "low": "낮음"}
+TRACKED = [
+    ("s", "단계", lambda v: STAGE_LABEL.get(v, v)),
+    ("progress", "진행률", lambda v: f"{v}%"),
+    ("assignee", "담당자", lambda v: v or "없음"),
+    ("due", "마감일", lambda v: v or "없음"),
+    ("priority", "우선순위", lambda v: PRIORITY_LABEL.get(v, v)),
+    ("title", "과제명", lambda v: v),
+    ("memo", "메모", lambda v: v or "없음"),
+]
+
+
+def _norm(d, key):
+    return d.get(key, 0) if key == "progress" else d.get(key, "")
+
+
+def describe_changes(before, fields):
+    parts = []
+    for key, label, fmt in TRACKED:
+        if key in fields and _norm(before, key) != _norm(fields, key):
+            parts.append(f"{label}: {fmt(_norm(before, key))} → {fmt(_norm(fields, key))}")
+    return " / ".join(parts)
+
+
+def stamp(text):
+    return {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "text": text}
 
 
 class TaskStore:
@@ -83,6 +114,7 @@ class TaskStore:
                 "s": status,
                 "date": created or date.today().isoformat(),
                 "assignee": "", "due": "", "priority": "mid", "memo": "",
+                "progress": 0, "history": [stamp("과제 등록")],
             }
             task.update(extra or {})
             tasks.insert(0, task)
@@ -94,7 +126,11 @@ class TaskStore:
             tasks = self._read()
             for t in tasks:
                 if t["id"] == task_id:
+                    text = describe_changes(t, fields)
                     t.update(fields)
+                    if text:
+                        t["history"] = (t.get("history") or []) + [stamp(text)]
+                        t["history"] = t["history"][-MAX_HISTORY:]
                     self._write(tasks)
                     return t
             return None
@@ -121,6 +157,8 @@ class TaskStore:
                     "title": it["title"],
                     "s": it["s"],
                     "date": it.get("date") or date.today().isoformat(),
+                    "progress": 0,
+                    "history": [stamp("브라우저 저장분에서 가져옴")],
                 }
                 tasks.append(task)
                 added.append(task)
@@ -149,7 +187,7 @@ def clean_status(value):
 
 
 def clean_extra(body):
-    """담당자·마감일·우선순위·메모: 전달된 항목만 검증해 돌려줍니다."""
+    """담당자·마감일·우선순위·메모·진행률: 전달된 항목만 검증해 돌려줍니다."""
     out = {}
     if "assignee" in body:
         v = body["assignee"]
@@ -170,6 +208,11 @@ def clean_extra(body):
                 out["due"] = date.fromisoformat(v).isoformat()
             except (TypeError, ValueError):
                 raise ValidationError("마감일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+    if "progress" in body:
+        v = body["progress"]
+        if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 100:
+            raise ValidationError("진행률은 0~100 사이 정수로 입력하세요.")
+        out["progress"] = v
     if "priority" in body:
         if body["priority"] not in PRIORITIES:
             raise ValidationError("우선순위 값이 올바르지 않습니다.")
