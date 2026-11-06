@@ -22,9 +22,9 @@ const TaskStorage = (() => {
   const TRACK = [
     ['s', '단계', v => STAGE[v] || v],
     ['progress', '진행률', v => v + '%'],
-    ['registered', '정식 등록', v => v ? '등록' : '해제'],
+    ['registered', '서비스 게시', v => v ? '게시' : '해제'],
     ['approver', '승인자', v => v || '없음'],
-    ['regReason', '등록 사유', v => v || '없음'],
+    ['regReason', '게시 사유', v => v || '없음'],
     ['assignee', '담당자', v => v || '없음'],
     ['due', '마감일', v => v || '없음'],
     ['priority', '우선순위', v => PRI_L[v] || v],

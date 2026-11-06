@@ -81,9 +81,9 @@
       <div class="flow">
         <div class="step"><b>① 진행률 관리</b><span>과제 목록에서 '진행' 단계인 과제의 진행률(%)을 갱신합니다.</span></div>
         <div class="arrow">→</div>
-        <div class="step"><b>② 100% 달성</b><span>진행률이 100%가 되면 '정식 등록 대기'로 옮겨집니다.</span></div>
+        <div class="step"><b>② 100% 달성</b><span>진행률이 100%가 되면 '서비스 게시 대기'로 옮겨집니다.</span></div>
         <div class="arrow">→</div>
-        <div class="step"><b>③ 정식 등록</b><span>등록하면 시스템에 정식 과제로 기록됩니다.</span></div>
+        <div class="step"><b>③ 서비스 게시</b><span>게시하면 서비스에 게시된 과제로 기록됩니다.</span></div>
       </div>
     </div>
 
@@ -100,9 +100,9 @@
     </div>
 
     <div class="card">
-      <h2>② 정식 등록 대기 <em id="cntB"></em></h2>
-      <p class="desc">진행률 100%를 달성했지만 아직 정식 등록되지 않은 과제입니다.</p>
-      <div class="bulk"><button class="g" id="bulkReg" disabled>선택 과제 정식 등록</button><span class="sub" id="selInfo"></span></div>
+      <h2>② 서비스 게시 대기 <em id="cntB"></em></h2>
+      <p class="desc">진행률 100%를 달성했지만 아직 서비스 게시되지 않은 과제입니다.</p>
+      <div class="bulk"><button class="g" id="bulkReg" disabled>선택 과제 서비스 게시</button><span class="sub" id="selInfo"></span></div>
       <div class="tablewrap"><table>
         <thead><tr><th style="width:32px"><input type="checkbox" id="chkAll" title="전체 선택"></th><th>과제</th><th>담당자</th><th>단계</th><th>마감일</th><th></th></tr></thead>
         <tbody id="rowsB"></tbody>
@@ -110,10 +110,10 @@
     </div>
 
     <div class="card">
-      <h2>③ 정식 등록 완료 <em id="cntC"></em></h2>
-      <p class="desc">정식 등록된 과제입니다. 잘못 등록했다면 '등록 해제'로 되돌릴 수 있습니다.</p>
+      <h2>③ 서비스 게시 완료 <em id="cntC"></em></h2>
+      <p class="desc">서비스 게시된 과제입니다. 잘못 게시했다면 '게시 해제'로 되돌릴 수 있습니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>등록일</th><th>승인자</th><th>등록 사유</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>담당자</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th></th></tr></thead>
         <tbody id="rowsC"></tbody>
       </table></div>
     </div>
@@ -121,14 +121,14 @@
 </div>
 <dialog id="regDlg">
   <form id="regForm" method="dialog" novalidate>
-    <h3>정식 등록</h3>
+    <h3>서비스 게시</h3>
     <div class="sub" id="regTargets"></div>
     <label for="approver">승인자 <i>*</i></label>
     <input type="text" id="approver" maxlength="50" placeholder="승인자 이름">
-    <label for="regReason">등록 사유 <i>*</i></label>
-    <textarea id="regReason" maxlength="500" placeholder="정식 등록하는 사유를 입력하세요"></textarea>
+    <label for="regReason">게시 사유 <i>*</i></label>
+    <textarea id="regReason" maxlength="500" placeholder="서비스 게시하는 사유를 입력하세요"></textarea>
     <div class="dlgerr" id="dlgErr"></div>
-    <div class="btns"><button type="button" id="regCancel">취소</button><button type="submit" class="g">정식 등록</button></div>
+    <div class="btns"><button type="button" id="regCancel">취소</button><button type="submit" class="g">서비스 게시</button></div>
   </form>
 </dialog>
 <script src="storage.js"></script>
@@ -167,8 +167,8 @@ function render(){
   $('stats').innerHTML=
     `<div class="card stat"><span>진행 중 과제</span><b>${A.length}</b></div>`+
     `<div class="card stat"><span>진행 중 평균 진행률</span><b>${A.length?avg+'%':'-'}</b></div>`+
-    `<div class="card stat"><span>정식 등록 대기</span><b style="color:${B.length?'#fa8c16':'inherit'}">${B.length}</b></div>`+
-    `<div class="card stat"><span>정식 등록 완료</span><b style="color:var(--done)">${C.length}</b></div>`;
+    `<div class="card stat"><span>서비스 게시 대기</span><b style="color:${B.length?'#fa8c16':'inherit'}">${B.length}</b></div>`+
+    `<div class="card stat"><span>서비스 게시 완료</span><b style="color:var(--done)">${C.length}</b></div>`;
   $('cntA').textContent=A.length+'건';$('cntB').textContent=B.length+'건';$('cntC').textContent=C.length+'건';
 
   $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>`<tr>
@@ -186,8 +186,8 @@ function render(){
     <td>${esc(t.assignee)||'-'}</td>
     <td><span class="tag st">${STAGE[t.s]||esc(t.s)}</span></td>
     <td>${dueTag(t)}</td>
-    <td class="act"><button class="g" data-reg="${t.id}">정식 등록</button></td></tr>`).join('')
-    :'<tr><td colspan="6" class="empty">정식 등록을 기다리는 과제가 없습니다.</td></tr>';
+    <td class="act"><button class="g" data-reg="${t.id}">서비스 게시</button></td></tr>`).join('')
+    :'<tr><td colspan="6" class="empty">서비스 게시를 기다리는 과제가 없습니다.</td></tr>';
   $('chkAll').checked=B.length>0&&B.every(t=>selected.has(String(t.id)));
   $('chkAll').disabled=!B.length;
   $('bulkReg').disabled=!selected.size;
@@ -198,8 +198,8 @@ function render(){
     <td>${esc(t.registeredAt)||'-'}</td>
     <td>${esc(t.approver)||'-'}</td>
     <td class="reason">${esc(t.regReason)||'-'}</td>
-    <td class="act"><button data-unreg="${t.id}">등록 해제</button></td></tr>`).join('')
-    :'<tr><td colspan="6" class="empty">정식 등록된 과제가 없습니다.</td></tr>';
+    <td class="act"><button data-unreg="${t.id}">게시 해제</button></td></tr>`).join('')
+    :'<tr><td colspan="6" class="empty">서비스 게시된 과제가 없습니다.</td></tr>';
 }
 
 document.addEventListener('input',e=>{
@@ -215,16 +215,16 @@ document.addEventListener('click',e=>{
   const d=e.target.dataset,task=id=>tasks.find(t=>String(t.id)===String(id));
   if(d.save){
     const v=+document.querySelector(`[data-range="${d.save}"]`).value;
-    persist(()=>TaskStorage.update(d.save,{progress:v}),v===100?'100%를 달성했습니다. 정식 등록 대기로 이동했습니다.':'진행률을 저장했습니다.');
+    persist(()=>TaskStorage.update(d.save,{progress:v}),v===100?'100%를 달성했습니다. 서비스 게시 대기로 이동했습니다.':'진행률을 저장했습니다.');
   }
-  if(d.full)persist(()=>TaskStorage.update(d.full,{progress:100}),'100%를 달성했습니다. 정식 등록 대기로 이동했습니다.');
+  if(d.full)persist(()=>TaskStorage.update(d.full,{progress:100}),'100%를 달성했습니다. 서비스 게시 대기로 이동했습니다.');
   if(d.reg)openReg([d.reg]);
-  if(d.unreg){const t=task(d.unreg);if(t&&confirm(`'${t.title}' 과제의 정식 등록을 해제할까요?`))persist(()=>TaskStorage.update(d.unreg,{registered:false}),'정식 등록을 해제했습니다.')}
+  if(d.unreg){const t=task(d.unreg);if(t&&confirm(`'${t.title}' 과제의 서비스 게시를 해제할까요?`))persist(()=>TaskStorage.update(d.unreg,{registered:false}),'서비스 게시를 해제했습니다.')}
   if(e.target.id==='bulkReg'&&selected.size)openReg([...selected]);
   if(e.target.id==='regCancel')$('regDlg').close();
 });
 
-// 정식 등록 입력창: 승인자·등록 사유가 모두 있어야 등록된다 (여러 건이면 같은 값을 적용)
+// 서비스 게시 입력창: 승인자·게시 사유가 모두 있어야 게시된다 (여러 건이면 같은 값을 적용)
 let regIds=[];
 function openReg(ids){
   regIds=ids.filter(id=>{const t=tasks.find(x=>String(x.id)===String(id));return t&&inB(t)});
@@ -237,9 +237,9 @@ $('regForm').addEventListener('submit',e=>{
   e.preventDefault();
   const approver=$('approver').value.trim(),regReason=$('regReason').value.trim();
   if(!approver){$('dlgErr').textContent='승인자를 입력하세요.';$('approver').focus();return}
-  if(!regReason){$('dlgErr').textContent='등록 사유를 입력하세요.';$('regReason').focus();return}
+  if(!regReason){$('dlgErr').textContent='게시 사유를 입력하세요.';$('regReason').focus();return}
   const ids=regIds;$('regDlg').close();selected=new Set();
-  persist(async()=>{for(const id of ids)await TaskStorage.update(id,{registered:true,approver,regReason})},`${ids.length}건을 정식 등록했습니다.`);
+  persist(async()=>{for(const id of ids)await TaskStorage.update(id,{registered:true,approver,regReason})},`${ids.length}건을 서비스 게시했습니다.`);
 });
 (async()=>{
   try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
