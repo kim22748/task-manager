@@ -133,12 +133,18 @@ let open=new Set(),editing=null,calcAt=null,okTimer;
 
 /* ---------- 키워드 추출 · 유사도 (키워드 기반; 모델이 정해지면 이 부분만 교체) ---------- */
 const STOP=new Set(['과제','관련','위한','통한','대한','및','등','있는','하는','위해','통해','대해']);
-const JOSA=['으로써','으로','에서','에게','까지','부터','에는','과','와','을','를','은','는','이','가','의','에','도','로'];
-function tokenize(text){
+// 2글자 이상 조사는 항상 떼고, 1글자 조사는 떼고 남은 말이 다른 곳에 그대로 나올 때만 뗀다 (예: '공시지가'의 '가'를 조사로 오인하지 않기 위함)
+const JOSA2=['으로써','으로','에서','에게','까지','부터','에는'];
+const JOSA1=['과','와','을','를','은','는','이','가','의','에','도','로'];
+const words=text=>String(text||'').toLowerCase().split(/[^0-9a-z가-힣]+/).filter(Boolean);
+function tokenize(text,raw){
   const out=[];
-  String(text||'').toLowerCase().split(/[^0-9a-z가-힣]+/).forEach(w=>{
-    if(!w)return;
-    if(/[가-힣]/.test(w)&&w.length>2)for(const j of JOSA){if(w.endsWith(j)&&w.length-j.length>=2){w=w.slice(0,-j.length);break}}
+  words(text).forEach(w=>{
+    if(/[가-힣]/.test(w)&&w.length>2){
+      const j2=JOSA2.find(j=>w.endsWith(j)&&w.length-j.length>=2);
+      if(j2)w=w.slice(0,-j2.length);
+      else{const j1=JOSA1.find(j=>w.endsWith(j)&&w.length-j.length>=2&&raw.has(w.slice(0,-j.length)));if(j1)w=w.slice(0,-j1.length)}
+    }
     if(w.length<2||/^\d+$/.test(w)||STOP.has(w))return;
     out.push(w);
   });
@@ -148,7 +154,8 @@ const docText=t=>[S.title?t.title:'',S.memo?t.memo:''].join(' ');
 
 function compute(){
   const scope=tasks.filter(t=>S.scope==='all'||t.registered);
-  const docs=scope.map(t=>({t,id:String(t.id),tok:tokenize(docText(t))}));
+  const raw=new Set(scope.flatMap(t=>words(docText(t))));
+  const docs=scope.map(t=>({t,id:String(t.id),tok:tokenize(docText(t),raw)}));
   const N=docs.length,df={};
   docs.forEach(d=>{d.set=new Set(d.tok);d.set.forEach(w=>df[w]=(df[w]||0)+1)});
   const idf=w=>Math.log((N+1)/((df[w]||0)+1))+1;
