@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TaskFlow · 과제 진행률</title>
 <style>
-  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;
-        --todo:#bfbfbf;--doing:#1677ff;--done:#52c41a}
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
   aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
@@ -15,61 +14,199 @@
   aside a.on{background:var(--primary);color:#fff}
   .main{flex:1;min-width:0}
   header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
   .content{padding:24px;display:grid;gap:16px}
   .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-  .card h2{margin:0 0 16px;font-size:16px}
-  .rate{display:flex;align-items:center;gap:16px}
-  .bar{flex:1;height:12px;background:#f0f0f0;border-radius:6px;overflow:hidden;display:flex}
-  .bar i{display:block;height:100%}
-  .rate strong{font-size:28px;min-width:72px;text-align:right}
+  .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub)}
+  .desc{color:var(--sub);font-size:13px;margin:0 0 12px}
+  .flow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+  .step{flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:12px 16px;background:#fafafa}
+  .step b{display:block;font-size:14px;margin-bottom:2px}
+  .step span{font-size:12px;color:var(--sub)}
+  .arrow{align-self:center;color:var(--sub)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
+  .stat span{color:var(--sub);font-size:14px}
+  .stat b{display:block;font-size:30px;margin-top:4px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+  th{background:#fafafa;font-weight:600}
+  .tablewrap{overflow-x:auto}
+  input,button{font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  button{cursor:pointer}
+  button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.g{background:var(--done);border-color:var(--done);color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  td.act{white-space:nowrap}
+  td.act button{margin-left:4px}
+  input[type=range]{padding:0;border:0;width:160px;vertical-align:middle}
+  input[type=checkbox]{padding:0;width:16px;height:16px}
+  .pcell{display:flex;align-items:center;gap:10px;min-width:240px}
+  .pcell output{min-width:44px;font-weight:600}
+  .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .due-over{background:#ff4d4f}.due-soon{background:#fa8c16}.due-ok{background:#8c8c8c}
+  .st{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
   .sub{color:var(--sub);font-size:12px}
-  .row{display:grid;grid-template-columns:120px 1fr 150px;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:14px}
-  .row:last-child{border:0}
-  .row .bar{height:10px}
-  .row .num{text-align:right;color:var(--sub);white-space:nowrap}
-  .legend{display:flex;gap:16px;margin-top:12px;font-size:13px;color:var(--sub);flex-wrap:wrap}
-  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
-  .empty{text-align:center;color:var(--sub);padding:24px}
-  @media(max-width:640px){aside{display:none}.row{grid-template-columns:1fr;gap:6px}.row .num{text-align:left}}
+  .empty{text-align:center;color:var(--sub);padding:28px}
+  .notice{border-radius:8px;padding:10px 16px;font-size:14px}
+  .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
+  .notice[hidden]{display:none}
+  .bulk{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  @media(max-width:640px){aside{display:none}}
 </style>
 </head>
 <body>
 <aside><h1>TaskFlow</h1><a href="index.html">과제 목록</a><a class="on" href="progress.html">과제 진행률</a><a href="dashboard.html">대시보드</a></aside>
 <div class="main">
-  <header>과제 진행률</header>
-  <div class="content" id="app"></div>
+  <header>과제 진행률<small id="mode"></small></header>
+  <div class="content">
+    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8000</code>으로 접속하세요.</div>
+    <div class="notice err" id="err" hidden></div>
+    <div class="notice ok" id="okmsg" hidden></div>
+
+    <div class="card">
+      <div class="flow">
+        <div class="step"><b>① 진행률 관리</b><span>과제 목록에서 '진행' 단계인 과제의 진행률(%)을 갱신합니다.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><b>② 100% 달성</b><span>진행률이 100%가 되면 '정식 등록 대기'로 옮겨집니다.</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><b>③ 정식 등록</b><span>등록하면 시스템에 정식 과제로 기록됩니다.</span></div>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="card">
+      <h2>① 진행 중 과제 <em id="cntA"></em></h2>
+      <p class="desc">슬라이더로 진행률을 조정하고 '저장'을 누르세요. 변경 내용은 과제 목록의 이력에 기록됩니다.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>과제</th><th>담당자</th><th>마감일</th><th>진행률</th><th></th></tr></thead>
+        <tbody id="rowsA"></tbody>
+      </table></div>
+      <div class="sub" id="reviewNote" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>② 정식 등록 대기 <em id="cntB"></em></h2>
+      <p class="desc">진행률 100%를 달성했지만 아직 정식 등록되지 않은 과제입니다.</p>
+      <div class="bulk"><button class="g" id="bulkReg" disabled>선택 과제 정식 등록</button><span class="sub" id="selInfo"></span></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th style="width:32px"><input type="checkbox" id="chkAll" title="전체 선택"></th><th>과제</th><th>담당자</th><th>단계</th><th>마감일</th><th></th></tr></thead>
+        <tbody id="rowsB"></tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h2>③ 정식 등록 완료 <em id="cntC"></em></h2>
+      <p class="desc">정식 등록된 과제입니다. 잘못 등록했다면 '등록 해제'로 되돌릴 수 있습니다.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>과제</th><th>담당자</th><th>등록일</th><th></th></tr></thead>
+        <tbody id="rowsC"></tbody>
+      </table></div>
+    </div>
+  </div>
 </div>
 <script src="storage.js"></script>
 <script>
-const STATUS={todo:['검토','#bfbfbf'],doing:['진행','#1677ff'],done:['종료','#52c41a']};
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const pct=(n,t)=>t?Math.round(n/t*100):0;
-const avg=l=>l.length?Math.round(l.reduce((s,t)=>s+(+t.progress||0),0)/l.length):0;
-const bar=l=>`<div class="bar"><i style="width:${avg(l)}%;background:#1677ff"></i></div>`;
-const text=list=>{const c=k=>list.filter(x=>x.s===k).length;return `종료 ${c('done')} · 진행 ${c('doing')} · 검토 ${c('todo')}`};
-function render(tasks){
-  const app=document.getElementById('app');
-  if(!tasks.length){app.innerHTML='<div class="card empty">등록된 과제가 없습니다. <a href="index.html">과제 목록</a>에서 추가해 보세요.</div>';return}
-  const total=tasks.length,done=tasks.filter(t=>t.s==='done').length;
-  const stageCard=['todo','doing','done'].map(k=>{const l=tasks.filter(t=>t.s===k);return `<div style="flex:1;min-width:140px;border:1px solid #f0f0f0;border-radius:8px;padding:12px 16px"><div class="sub"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STATUS[k][1]};margin-right:6px"></i>${STATUS[k][0]}${k==='done'?' (사후관리)':''}</div><div style="font-size:26px;font-weight:600">${l.length}건</div><div class="sub">평균 진행률 ${avg(l)}%</div></div>`}).join('<div style="align-self:center;color:#bfbfbf">→</div>');
-  const groups={};
-  tasks.forEach(t=>{const k=(t.assignee||'').trim()||'담당자 미지정';(groups[k]=groups[k]||[]).push(t)});
-  const names=Object.keys(groups).sort((a,b)=>(a==='담당자 미지정')-(b==='담당자 미지정')||a.localeCompare(b,'ko'));
-    app.innerHTML=`
-  <div class="card"><h2>단계별 현황</h2><div style="display:flex;gap:12px;flex-wrap:wrap">${stageCard}</div></div>
-  <div class="card"><h2>전체 진행률</h2>
-    <div class="rate">${bar(tasks)}<strong>${avg(tasks)}%</strong></div>
-    <div class="sub" style="margin-top:8px">과제별 진행률의 평균 · 종료 ${done}건 / 전체 ${total}건 (${text(tasks)})</div>
-  </div>
-  <div class="card"><h2>담당자별 진행률</h2>
-    ${names.map(n=>{const l=groups[n];return `<div class="row"><span>${esc(n)}</span>${bar(l)}<span class="num">${avg(l)}% · ${l.length}건</span></div>`}).join('')}
-    <div class="sub" style="margin-top:8px">담당자별 과제 진행률 평균</div>
-  </div>
-  <div class="card"><h2>단계별 과제 목록</h2>
-    ${['doing','todo','done'].map(k=>{const l=tasks.filter(t=>t.s===k);return `<div style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STATUS[k][1]};margin-right:6px"></i>${STATUS[k][0]} ${l.length}건</div>${l.length?l.map(t=>`<div class="row" style="grid-template-columns:1fr 150px 120px 120px"><span>${esc(t.title)}</span><span class="pbar" style="display:flex;align-items:center;gap:6px"><span class="bar" style="height:8px;flex:1"><i style="width:${+t.progress||0}%;background:#1677ff"></i></span><span class="sub" style="width:34px;text-align:right">${+t.progress||0}%</span></span><span class="sub">${esc(t.assignee||'담당자 미지정')}</span><span class="sub">${t.due?'마감 '+esc(t.due):'마감일 없음'}</span></div>`).join(''):'<div class="sub">없음</div>'}</div>`}).join('')}
-  </div>`;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STAGE={todo:'검토',doing:'진행',done:'종료'};
+const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+function dday(t){
+  if(!t.due)return null;
+  const diff=Math.round((new Date(t.due+'T00:00:00')-today())/864e5);
+  if(diff<0)return{txt:`${t.due} (D+${-diff} 지연)`,cls:'due-over'};
+  if(diff===0)return{txt:`${t.due} (오늘)`,cls:'due-soon'};
+  return{txt:`${t.due} (D-${diff})`,cls:diff<=3?'due-soon':'due-ok'};
 }
-TaskStorage.init().then(render).catch(()=>render([]));
+const dueTag=t=>{const d=dday(t);return d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'};
+let tasks=[],selected=new Set();
+const inA=t=>t.s==='doing'&&prog(t)<100&&!t.registered;
+const inB=t=>prog(t)===100&&!t.registered;
+const inC=t=>!!t.registered;
+
+function showError(m){$('err').textContent=m||'';$('err').hidden=!m}
+let okTimer;function showOk(m){$('okmsg').textContent=m;$('okmsg').hidden=!m;clearTimeout(okTimer);if(m)okTimer=setTimeout(()=>$('okmsg').hidden=true,4000)}
+async function persist(fn,okText){
+  try{await fn();showError('');if(okText)showOk(okText)}
+  catch(e){showError('저장하지 못했습니다: '+e.message)}
+  try{tasks=await TaskStorage.list()}catch(e){}
+  selected=new Set([...selected].filter(id=>tasks.some(t=>String(t.id)===id&&inB(t))));
+  render();
+}
+
+function render(){
+  const A=tasks.filter(inA),B=tasks.filter(inB),C=tasks.filter(inC),review=tasks.filter(t=>t.s==='todo'&&!t.registered).length;
+  const avg=A.length?Math.round(A.reduce((s,t)=>s+prog(t),0)/A.length):0;
+  $('stats').innerHTML=
+    `<div class="card stat"><span>진행 중 과제</span><b>${A.length}</b></div>`+
+    `<div class="card stat"><span>진행 중 평균 진행률</span><b>${A.length?avg+'%':'-'}</b></div>`+
+    `<div class="card stat"><span>정식 등록 대기</span><b style="color:${B.length?'#fa8c16':'inherit'}">${B.length}</b></div>`+
+    `<div class="card stat"><span>정식 등록 완료</span><b style="color:var(--done)">${C.length}</b></div>`;
+  $('cntA').textContent=A.length+'건';$('cntB').textContent=B.length+'건';$('cntC').textContent=C.length+'건';
+
+  $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>`<tr>
+    <td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+    <td>${esc(t.assignee)||'-'}</td>
+    <td>${dueTag(t)}</td>
+    <td><div class="pcell"><input type="range" min="0" max="100" step="5" value="${prog(t)}" data-range="${t.id}"><output data-out="${t.id}">${prog(t)}%</output></div></td>
+    <td class="act"><button class="p" data-save="${t.id}">저장</button><button data-full="${t.id}">100% 완료</button></td></tr>`).join('')
+    :'<tr><td colspan="5" class="empty">진행 중인 과제가 없습니다. 과제 목록에서 단계를 \'진행\'으로 바꾸면 여기에 나타납니다.</td></tr>';
+  $('reviewNote').textContent=review?`검토 단계 과제 ${review}건은 과제 목록에서 '진행'으로 바꾸면 이 목록에 나타납니다.`:'';
+
+  $('rowsB').innerHTML=B.length?B.map(t=>`<tr>
+    <td><input type="checkbox" data-chk="${t.id}" ${selected.has(String(t.id))?'checked':''}></td>
+    <td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+    <td>${esc(t.assignee)||'-'}</td>
+    <td><span class="tag st">${STAGE[t.s]||esc(t.s)}</span></td>
+    <td>${dueTag(t)}</td>
+    <td class="act"><button class="g" data-reg="${t.id}">정식 등록</button></td></tr>`).join('')
+    :'<tr><td colspan="6" class="empty">정식 등록을 기다리는 과제가 없습니다.</td></tr>';
+  $('chkAll').checked=B.length>0&&B.every(t=>selected.has(String(t.id)));
+  $('chkAll').disabled=!B.length;
+  $('bulkReg').disabled=!selected.size;
+  $('selInfo').textContent=selected.size?`${selected.size}건 선택됨`:'';
+
+  $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>`<tr>
+    <td>${esc(t.title)}</td><td>${esc(t.assignee)||'-'}</td>
+    <td>${esc(t.registeredAt)||'-'}</td>
+    <td class="act"><button data-unreg="${t.id}">등록 해제</button></td></tr>`).join('')
+    :'<tr><td colspan="4" class="empty">정식 등록된 과제가 없습니다.</td></tr>';
+}
+
+document.addEventListener('input',e=>{
+  const id=e.target.dataset.range;
+  if(id)document.querySelector(`[data-out="${id}"]`).textContent=e.target.value+'%';
+});
+document.addEventListener('change',e=>{
+  const d=e.target.dataset;
+  if(d.chk){e.target.checked?selected.add(d.chk):selected.delete(d.chk);render()}
+  if(e.target.id==='chkAll'){selected=new Set(e.target.checked?tasks.filter(inB).map(t=>String(t.id)):[]);render()}
+});
+document.addEventListener('click',e=>{
+  const d=e.target.dataset,task=id=>tasks.find(t=>String(t.id)===String(id));
+  if(d.save){
+    const v=+document.querySelector(`[data-range="${d.save}"]`).value;
+    persist(()=>TaskStorage.update(d.save,{progress:v}),v===100?'100%를 달성했습니다. 정식 등록 대기로 이동했습니다.':'진행률을 저장했습니다.');
+  }
+  if(d.full)persist(()=>TaskStorage.update(d.full,{progress:100}),'100%를 달성했습니다. 정식 등록 대기로 이동했습니다.');
+  if(d.reg){const t=task(d.reg);if(t&&confirm(`'${t.title}' 과제를 정식 등록할까요?`))persist(()=>TaskStorage.update(d.reg,{registered:true}),'정식 등록했습니다.')}
+  if(d.unreg){const t=task(d.unreg);if(t&&confirm(`'${t.title}' 과제의 정식 등록을 해제할까요?`))persist(()=>TaskStorage.update(d.unreg,{registered:false}),'정식 등록을 해제했습니다.')}
+  if(e.target.id==='bulkReg'&&selected.size&&confirm(`선택한 ${selected.size}건을 정식 등록할까요?`)){
+    const ids=[...selected];selected=new Set();
+    persist(async()=>{for(const id of ids)await TaskStorage.update(id,{registered:true})},`${ids.length}건을 정식 등록했습니다.`);
+  }
+});
+(async()=>{
+  try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
+  const server=TaskStorage.mode==='server';
+  $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
+  $('warn').hidden=server;
+  render();
+})();
 </script>
 </body>
 </html>

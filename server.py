@@ -39,6 +39,7 @@ PRIORITY_LABEL = {"high": "높음", "mid": "보통", "low": "낮음"}
 TRACKED = [
     ("s", "단계", lambda v: STAGE_LABEL.get(v, v)),
     ("progress", "진행률", lambda v: f"{v}%"),
+    ("registered", "정식 등록", lambda v: "등록" if v else "해제"),
     ("assignee", "담당자", lambda v: v or "없음"),
     ("due", "마감일", lambda v: v or "없음"),
     ("priority", "우선순위", lambda v: PRIORITY_LABEL.get(v, v)),
@@ -48,7 +49,11 @@ TRACKED = [
 
 
 def _norm(d, key):
-    return d.get(key, 0) if key == "progress" else d.get(key, "")
+    if key == "progress":
+        return d.get(key, 0)
+    if key == "registered":
+        return bool(d.get(key, False))
+    return d.get(key, "")
 
 
 def describe_changes(before, fields):
@@ -213,6 +218,12 @@ def clean_extra(body):
         if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 100:
             raise ValidationError("진행률은 0~100 사이 정수로 입력하세요.")
         out["progress"] = v
+    if "registered" in body:
+        v = body["registered"]
+        if not isinstance(v, bool):
+            raise ValidationError("정식 등록 값이 올바르지 않습니다.")
+        out["registered"] = v
+        out["registeredAt"] = date.today().isoformat() if v else ""
     if "priority" in body:
         if body["priority"] not in PRIORITIES:
             raise ValidationError("우선순위 값이 올바르지 않습니다.")
@@ -318,6 +329,10 @@ class Handler(SimpleHTTPRequestHandler):
             if "s" in body:
                 fields["s"] = clean_status(body["s"])
             fields.update(clean_extra(body))
+            if fields.get("registered"):
+                cur = next((t for t in store.list() if t["id"] == task_id), None)
+                if cur is not None and fields.get("progress", cur.get("progress", 0)) != 100:
+                    raise ValidationError("진행률 100%인 과제만 정식 등록할 수 있습니다.")
             if not fields:
                 raise ValidationError("수정할 항목이 없습니다.")
             task = store.update(task_id, fields)

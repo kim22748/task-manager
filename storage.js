@@ -22,13 +22,14 @@ const TaskStorage = (() => {
   const TRACK = [
     ['s', '단계', v => STAGE[v] || v],
     ['progress', '진행률', v => v + '%'],
+    ['registered', '정식 등록', v => v ? '등록' : '해제'],
     ['assignee', '담당자', v => v || '없음'],
     ['due', '마감일', v => v || '없음'],
     ['priority', '우선순위', v => PRI_L[v] || v],
     ['title', '과제명', v => v],
     ['memo', '메모', v => v || '없음'],
   ];
-  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : (o[k] ?? ''));
+  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : k === 'registered' ? !!o[k] : (o[k] ?? ''));
   function describe(before, fields) {
     return TRACK
       .filter(([k]) => k in fields && norm(before, k) !== norm(fields, k))
@@ -101,6 +102,7 @@ const TaskStorage = (() => {
       if (t) {
         const text = describe(t, fields);
         Object.assign(t, fields);
+        if ('registered' in fields) t.registeredAt = fields.registered ? new Date().toISOString().slice(0, 10) : '';
         if (text) t.history = [...(t.history || []), stamp(text)].slice(-100);
         writeLocal(tasks);
       }
