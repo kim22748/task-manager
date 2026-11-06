@@ -1,0 +1,40 @@
+# TaskFlow · 과제 관리 홈페이지
+
+과제(Task)를 등록·진행 관리하는 정적 홈페이지의 초기 버전입니다.
+
+## 디자인 시스템 참고
+- [Ant Design Pro](https://github.com/ant-design/ant-design-pro) — 레이아웃(좌측 사이더 + 상단 헤더 + 카드 콘텐츠), 색상(Primary `#1677ff`), 상태 태그 스타일을 참고합니다.
+- 현재는 빌드 도구 없이 순수 HTML/CSS/JS로 구현했으며, 추후 Ant Design Pro(React/UmiJS)로 이전할 수 있도록 화면 구성을 맞춰 두었습니다.
+
+## 현재 기능
+- 과제 등록 / 삭제
+- 상태 변경 (대기 · 진행중 · 완료)
+- 상태별 건수 통계, 상태 필터
+- 과제 영구 저장: `server.py`가 `data/tasks.json` 파일에 저장 (서버 없이 열면 브라우저 localStorage 임시 저장)
+- 대시보드(`dashboard.html`): 상태별 건수·진행률·최근 7일 등록 추이·최근 과제
+
+## 실행
+```bash
+cd task-manager
+python3 server.py
+```
+브라우저에서 http://localhost:8000 으로 접속합니다. (Python 3 표준 라이브러리만 사용, 설치 필요 없음)
+
+- 화면 오른쪽 위에 `● 서버 파일에 저장 중`이 보이면 파일에 저장되는 상태입니다.
+- `index.html`을 더블클릭해서 열면 예전처럼 브라우저 임시 저장으로 동작하고, 화면에 안내 문구가 나옵니다.
+- 예전에 브라우저에만 저장돼 있던 과제는 서버로 처음 접속할 때 자동으로 옮겨집니다.
+
+## 파일 구성
+| 파일 | 역할 |
+|---|---|
+| `index.html` | 과제 목록 화면 |
+| `dashboard.html` | 대시보드 화면 |
+| `storage.js` | 저장 모듈 (서버 API ↔ localStorage 자동 전환) |
+| `server.py` | 저장 서버 + REST API (`/api/tasks`) |
+| `data/tasks.json` | 저장된 과제 데이터 |
+
+## 다음 단계(예정)
+- 담당자·마감일·우선순위 필드
+- DB(SQLite 등) 연동, 사용자 인증
+- Ant Design Pro 기반 재구성
+- Dummy Data 만들기

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 과제 진행률</title>
+<style>
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;
+        --todo:#bfbfbf;--doing:#1677ff;--done:#52c41a}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  .content{padding:24px;display:grid;gap:16px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{margin:0 0 16px;font-size:16px}
+  .rate{display:flex;align-items:center;gap:16px}
+  .bar{flex:1;height:12px;background:#f0f0f0;border-radius:6px;overflow:hidden;display:flex}
+  .bar i{display:block;height:100%}
+  .rate strong{font-size:28px;min-width:72px;text-align:right}
+  .sub{color:var(--sub);font-size:12px}
+  .row{display:grid;grid-template-columns:120px 1fr 150px;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:14px}
+  .row:last-child{border:0}
+  .row .bar{height:10px}
+  .row .num{text-align:right;color:var(--sub);white-space:nowrap}
+  .legend{display:flex;gap:16px;margin-top:12px;font-size:13px;color:var(--sub);flex-wrap:wrap}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+  .empty{text-align:center;color:var(--sub);padding:24px}
+  @media(max-width:640px){aside{display:none}.row{grid-template-columns:1fr;gap:6px}.row .num{text-align:left}}
+</style>
+</head>
+<body>
+<aside><h1>TaskFlow</h1><a href="index.html">과제 목록</a><a class="on" href="progress.html">과제 진행률</a><a href="dashboard.html">대시보드</a></aside>
+<div class="main">
+  <header>과제 진행률</header>
+  <div class="content" id="app"></div>
+</div>
+<script src="storage.js"></script>
+<script>
+const STATUS={todo:['대기','#bfbfbf'],doing:['진행중','#1677ff'],done:['완료','#52c41a']};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pct=(n,t)=>t?Math.round(n/t*100):0;
+const bar=(list)=>{const t=list.length;return `<div class="bar">${['done','doing','todo'].map(k=>`<i style="width:${pct(list.filter(x=>x.s===k).length,t)}%;background:${STATUS[k][1]}"></i>`).join('')}</div>`};
+const text=list=>{const c=k=>list.filter(x=>x.s===k).length;return `완료 ${c('done')} · 진행 ${c('doing')} · 대기 ${c('todo')}`};
+function render(tasks){
+  const app=document.getElementById('app');
+  if(!tasks.length){app.innerHTML='<div class="card empty">등록된 과제가 없습니다. <a href="index.html">과제 목록</a>에서 추가해 보세요.</div>';return}
+  const total=tasks.length,done=tasks.filter(t=>t.s==='done').length;
+  const groups={};
+  tasks.forEach(t=>{const k=(t.assignee||'').trim()||'담당자 미지정';(groups[k]=groups[k]||[]).push(t)});
+  const names=Object.keys(groups).sort((a,b)=>(a==='담당자 미지정')-(b==='담당자 미지정')||a.localeCompare(b,'ko'));
+  const legend=`<div class="legend">${Object.values(STATUS).map(([n,c])=>`<span><i style="background:${c}"></i>${n}</span>`).join('')}</div>`;
+  app.innerHTML=`
+  <div class="card"><h2>전체 진행률</h2>
+    <div class="rate">${bar(tasks)}<strong>${pct(done,total)}%</strong></div>
+    <div class="sub" style="margin-top:8px">완료 ${done}건 / 전체 ${total}건 (${text(tasks)})</div>
+    ${legend}
+  </div>
+  <div class="card"><h2>담당자별 진행률</h2>
+    ${names.map(n=>{const l=groups[n];return `<div class="row"><span>${esc(n)}</span>${bar(l)}<span class="num">${pct(l.filter(x=>x.s==='done').length,l.length)}% · ${l.length}건</span></div>`}).join('')}
+    ${legend}
+  </div>
+  <div class="card"><h2>과제별 상태</h2>
+    ${['doing','todo','done'].map(k=>{const l=tasks.filter(t=>t.s===k);return `<div style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STATUS[k][1]};margin-right:6px"></i>${STATUS[k][0]} ${l.length}건</div>${l.length?l.map(t=>`<div class="row" style="grid-template-columns:1fr 120px 120px"><span>${esc(t.title)}</span><span class="sub">${esc(t.assignee||'담당자 미지정')}</span><span class="sub">${t.due?'마감 '+esc(t.due):'마감일 없음'}</span></div>`).join(''):'<div class="sub">없음</div>'}</div>`}).join('')}
+  </div>`;
+}
+TaskStorage.init().then(render).catch(()=>render([]));
+</script>
+</body>
+</html>

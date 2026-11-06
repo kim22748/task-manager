@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 대시보드</title>
+<style>
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;
+        --todo:#bfbfbf;--doing:#1677ff;--done:#52c41a}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  .content{padding:24px;display:grid;gap:16px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{margin:0 0 16px;font-size:16px}
+  .stat span{color:var(--sub);font-size:14px}
+  .stat b{display:block;font-size:30px;margin-top:4px}
+  .rate{display:flex;align-items:center;gap:16px}
+  .bar{flex:1;height:12px;background:#f0f0f0;border-radius:6px;overflow:hidden;display:flex}
+  .bar i{display:block;height:100%}
+  .rate strong{font-size:28px;min-width:72px;text-align:right}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .donutwrap{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .legend div{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .chart{display:flex;align-items:flex-end;gap:10px;height:140px;padding-top:8px}
+  .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px;color:var(--sub)}
+  .col em{font-style:normal;color:var(--text);margin-bottom:2px}
+  .col div{width:100%;max-width:36px;background:var(--primary);border-radius:4px 4px 0 0;min-height:2px}
+  ul{list-style:none;margin:0;padding:0}
+  li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+  li:last-child{border:0}
+  .tag{padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .sub{color:var(--sub);font-size:12px}
+  .empty{text-align:center;color:var(--sub);padding:24px}
+  @media(max-width:640px){aside{display:none}}
+</style>
+</head>
+<body>
+<aside><h1>TaskFlow</h1><a href="index.html">과제 목록</a><a href="progress.html">과제 진행률</a><a class="on" href="dashboard.html">대시보드</a></aside>
+<div class="main">
+  <header>대시보드</header>
+  <div class="content" id="app"></div>
+</div>
+<script src="storage.js"></script>
+<script>
+const STATUS={todo:['대기','var(--todo)','#bfbfbf'],doing:['진행중','var(--doing)','#1677ff'],done:['완료','var(--done)','#52c41a']};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function render(tasks){
+const total=tasks.length;
+const cnt=k=>tasks.filter(t=>t.s===k).length;
+const pct=n=>total?Math.round(n/total*100):0;
+const dleft=t=>(t.due&&t.s!=='done')?Math.round((new Date(t.due+'T00:00:00')-new Date(new Date().setHours(0,0,0,0)))/864e5):null;
+const overdue=tasks.filter(t=>dleft(t)!==null&&dleft(t)<0).length;
+const soon=tasks.filter(t=>dleft(t)!==null&&dleft(t)>=0&&dleft(t)<=3).length;
+
+// 도넛 차트
+const R=52,C=2*Math.PI*R;let off=0;
+const arcs=total?Object.entries(STATUS).map(([k,[,,col]])=>{
+  const len=cnt(k)/total*C;
+  const s=`<circle r="${R}" cx="70" cy="70" fill="none" stroke="${col}" stroke-width="22" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;
+  off+=len;return s}).join(''):'<circle r="52" cx="70" cy="70" fill="none" stroke="#f0f0f0" stroke-width="22"/>';
+
+// 최근 7일 등록 (id=등록 시각)
+const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-6+i);return d});
+const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()}).length);
+const max=Math.max(1,...dayCnt);
+
+const recent=tasks.slice(0,5);
+document.getElementById('app').innerHTML=`
+<div class="stats">
+  <div class="card stat"><span>전체 과제</span><b>${total}</b></div>
+  ${Object.entries(STATUS).map(([k,[n,c]])=>`<div class="card stat"><span>${n}</span><b style="color:${k==='todo'?'inherit':c}">${cnt(k)}</b></div>`).join('')}
+  <div class="card stat"><span>마감 지연</span><b style="color:${overdue?'#ff4d4f':'inherit'}">${overdue}</b></div>
+  <div class="card stat"><span>마감 임박(3일)</span><b style="color:${soon?'#fa8c16':'inherit'}">${soon}</b></div>
+</div>
+<div class="card">
+  <h2>전체 진행률</h2>
+  <div class="rate">
+    <div class="bar">${Object.entries(STATUS).reverse().map(([k,[,,c]])=>`<i style="width:${pct(cnt(k))}%;background:${c}"></i>`).join('')}</div>
+    <strong>${pct(cnt('done'))}%</strong>
+  </div>
+  <div class="sub" style="margin-top:8px">완료 ${cnt('done')}건 / 전체 ${total}건</div>
+</div>
+<div class="grid2">
+  <div class="card"><h2>상태별 비율</h2>
+    <div class="donutwrap">
+      <svg width="140" height="140" viewBox="0 0 140 140">${arcs}<text x="70" y="76" text-anchor="middle" font-size="22" font-weight="600">${total}</text></svg>
+      <div class="legend">${Object.entries(STATUS).map(([k,[n,,c]])=>`<div><i style="background:${c}"></i>${n} ${cnt(k)}건 (${pct(cnt(k))}%)</div>`).join('')}</div>
+    </div>
+  </div>
+  <div class="card"><h2>최근 7일 등록</h2>
+    <div class="chart">${days.map((d,i)=>`<div class="col"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/max*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
+  </div>
+</div>
+<div class="card"><h2>최근 등록 과제</h2>
+  ${recent.length?`<ul>${recent.map(t=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(t.date||'')}</span></span><span class="tag" style="background:${(STATUS[t.s]||STATUS.todo)[1]}">${(STATUS[t.s]||STATUS.todo)[0]}</span></li>`).join('')}</ul>`
+  :'<div class="empty">등록된 과제가 없습니다. <a href="index.html">과제 목록</a>에서 추가해 보세요.</div>'}
+</div>`;
+}
+// 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
+TaskStorage.init().then(render).catch(()=>render([]));
+</script>
+</body>
+</html>
