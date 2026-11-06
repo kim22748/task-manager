@@ -54,6 +54,17 @@
   .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
   .notice[hidden]{display:none}
   .bulk{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  dialog{border:0;border-radius:8px;padding:24px;width:min(460px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  dialog h3{margin:0 0 12px;font-size:16px}
+  dialog label{display:block;font-size:14px;margin:12px 0 4px;font-weight:600}
+  dialog label i{color:#ff4d4f;font-style:normal}
+  dialog input[type=text],dialog textarea{width:100%;font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px}
+  dialog textarea{min-height:88px;resize:vertical}
+  dialog ul{margin:0;padding-left:18px;font-size:13px;max-height:96px;overflow:auto}
+  dialog .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  dialog .dlgerr{color:#ff4d4f;font-size:13px;margin-top:8px;min-height:18px}
+  .reason{max-width:280px;white-space:pre-wrap;word-break:break-word}
   @media(max-width:640px){aside{display:none}}
 </style>
 </head>
@@ -102,12 +113,24 @@
       <h2>③ 정식 등록 완료 <em id="cntC"></em></h2>
       <p class="desc">정식 등록된 과제입니다. 잘못 등록했다면 '등록 해제'로 되돌릴 수 있습니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>등록일</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>담당자</th><th>등록일</th><th>승인자</th><th>등록 사유</th><th></th></tr></thead>
         <tbody id="rowsC"></tbody>
       </table></div>
     </div>
   </div>
 </div>
+<dialog id="regDlg">
+  <form id="regForm" method="dialog" novalidate>
+    <h3>정식 등록</h3>
+    <div class="sub" id="regTargets"></div>
+    <label for="approver">승인자 <i>*</i></label>
+    <input type="text" id="approver" maxlength="50" placeholder="승인자 이름">
+    <label for="regReason">등록 사유 <i>*</i></label>
+    <textarea id="regReason" maxlength="500" placeholder="정식 등록하는 사유를 입력하세요"></textarea>
+    <div class="dlgerr" id="dlgErr"></div>
+    <div class="btns"><button type="button" id="regCancel">취소</button><button type="submit" class="g">정식 등록</button></div>
+  </form>
+</dialog>
 <script src="storage.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -173,8 +196,10 @@ function render(){
   $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>`<tr>
     <td>${esc(t.title)}</td><td>${esc(t.assignee)||'-'}</td>
     <td>${esc(t.registeredAt)||'-'}</td>
+    <td>${esc(t.approver)||'-'}</td>
+    <td class="reason">${esc(t.regReason)||'-'}</td>
     <td class="act"><button data-unreg="${t.id}">등록 해제</button></td></tr>`).join('')
-    :'<tr><td colspan="4" class="empty">정식 등록된 과제가 없습니다.</td></tr>';
+    :'<tr><td colspan="6" class="empty">정식 등록된 과제가 없습니다.</td></tr>';
 }
 
 document.addEventListener('input',e=>{
@@ -193,12 +218,28 @@ document.addEventListener('click',e=>{
     persist(()=>TaskStorage.update(d.save,{progress:v}),v===100?'100%를 달성했습니다. 정식 등록 대기로 이동했습니다.':'진행률을 저장했습니다.');
   }
   if(d.full)persist(()=>TaskStorage.update(d.full,{progress:100}),'100%를 달성했습니다. 정식 등록 대기로 이동했습니다.');
-  if(d.reg){const t=task(d.reg);if(t&&confirm(`'${t.title}' 과제를 정식 등록할까요?`))persist(()=>TaskStorage.update(d.reg,{registered:true}),'정식 등록했습니다.')}
+  if(d.reg)openReg([d.reg]);
   if(d.unreg){const t=task(d.unreg);if(t&&confirm(`'${t.title}' 과제의 정식 등록을 해제할까요?`))persist(()=>TaskStorage.update(d.unreg,{registered:false}),'정식 등록을 해제했습니다.')}
-  if(e.target.id==='bulkReg'&&selected.size&&confirm(`선택한 ${selected.size}건을 정식 등록할까요?`)){
-    const ids=[...selected];selected=new Set();
-    persist(async()=>{for(const id of ids)await TaskStorage.update(id,{registered:true})},`${ids.length}건을 정식 등록했습니다.`);
-  }
+  if(e.target.id==='bulkReg'&&selected.size)openReg([...selected]);
+  if(e.target.id==='regCancel')$('regDlg').close();
+});
+
+// 정식 등록 입력창: 승인자·등록 사유가 모두 있어야 등록된다 (여러 건이면 같은 값을 적용)
+let regIds=[];
+function openReg(ids){
+  regIds=ids.filter(id=>{const t=tasks.find(x=>String(x.id)===String(id));return t&&inB(t)});
+  if(!regIds.length)return;
+  $('regTargets').innerHTML=`대상 ${regIds.length}건<ul>${regIds.map(id=>`<li>${esc(tasks.find(t=>String(t.id)===String(id)).title)}</li>`).join('')}</ul>`;
+  $('approver').value='';$('regReason').value='';$('dlgErr').textContent='';
+  $('regDlg').showModal();$('approver').focus();
+}
+$('regForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const approver=$('approver').value.trim(),regReason=$('regReason').value.trim();
+  if(!approver){$('dlgErr').textContent='승인자를 입력하세요.';$('approver').focus();return}
+  if(!regReason){$('dlgErr').textContent='등록 사유를 입력하세요.';$('regReason').focus();return}
+  const ids=regIds;$('regDlg').close();selected=new Set();
+  persist(async()=>{for(const id of ids)await TaskStorage.update(id,{registered:true,approver,regReason})},`${ids.length}건을 정식 등록했습니다.`);
 });
 (async()=>{
   try{tasks=await TaskStorage.init()}catch(e){tasks=[]}

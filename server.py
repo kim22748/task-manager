@@ -40,6 +40,8 @@ TRACKED = [
     ("s", "단계", lambda v: STAGE_LABEL.get(v, v)),
     ("progress", "진행률", lambda v: f"{v}%"),
     ("registered", "정식 등록", lambda v: "등록" if v else "해제"),
+    ("approver", "승인자", lambda v: v or "없음"),
+    ("regReason", "등록 사유", lambda v: v or "없음"),
     ("assignee", "담당자", lambda v: v or "없음"),
     ("due", "마감일", lambda v: v or "없음"),
     ("priority", "우선순위", lambda v: PRIORITY_LABEL.get(v, v)),
@@ -223,7 +225,24 @@ def clean_extra(body):
         if not isinstance(v, bool):
             raise ValidationError("정식 등록 값이 올바르지 않습니다.")
         out["registered"] = v
-        out["registeredAt"] = date.today().isoformat() if v else ""
+        if v:
+            approver = body.get("approver")
+            reason = body.get("regReason")
+            if not isinstance(approver, str) or not approver.strip():
+                raise ValidationError("승인자를 입력하세요.")
+            if len(approver.strip()) > 50:
+                raise ValidationError("승인자는 50자 이하로 입력하세요.")
+            if not isinstance(reason, str) or not reason.strip():
+                raise ValidationError("등록 사유를 입력하세요.")
+            if len(reason.strip()) > 500:
+                raise ValidationError("등록 사유는 500자 이하로 입력하세요.")
+            out["approver"] = approver.strip()
+            out["regReason"] = reason.strip()
+            out["registeredAt"] = date.today().isoformat()
+        else:
+            out["approver"] = ""
+            out["regReason"] = ""
+            out["registeredAt"] = ""
     if "priority" in body:
         if body["priority"] not in PRIORITIES:
             raise ValidationError("우선순위 값이 올바르지 않습니다.")

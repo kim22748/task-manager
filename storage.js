@@ -23,6 +23,8 @@ const TaskStorage = (() => {
     ['s', '단계', v => STAGE[v] || v],
     ['progress', '진행률', v => v + '%'],
     ['registered', '정식 등록', v => v ? '등록' : '해제'],
+    ['approver', '승인자', v => v || '없음'],
+    ['regReason', '등록 사유', v => v || '없음'],
     ['assignee', '담당자', v => v || '없음'],
     ['due', '마감일', v => v || '없음'],
     ['priority', '우선순위', v => PRI_L[v] || v],
@@ -102,7 +104,10 @@ const TaskStorage = (() => {
       if (t) {
         const text = describe(t, fields);
         Object.assign(t, fields);
-        if ('registered' in fields) t.registeredAt = fields.registered ? new Date().toISOString().slice(0, 10) : '';
+        if ('registered' in fields) {
+          if (fields.registered) t.registeredAt = new Date().toISOString().slice(0, 10);
+          else { t.registeredAt = ''; t.approver = ''; t.regReason = ''; }
+        }
         if (text) t.history = [...(t.history || []), stamp(text)].slice(-100);
         writeLocal(tasks);
       }
