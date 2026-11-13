@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 과제 상세</title>
+<style>
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a;--warn:#fa8c16;--danger:#ff4d4f}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  aside a.child{padding:10px 24px 10px 40px;font-size:14px;color:rgba(255,255,255,.92);background:rgba(255,255,255,.08)}
+  aside a.child.on{background:var(--primary);color:#fff}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  header a{font-weight:400;font-size:14px;color:var(--primary);text-decoration:none}
+  header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
+  .content{padding:24px;display:grid;gap:16px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03);min-width:0}
+  .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub)}
+  .desc{color:var(--sub);font-size:13px;margin:0 0 16px}
+  .title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .title h2{font-size:20px;margin:0}
+  .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .tag.ok{background:var(--done)}.tag.wait{background:var(--warn)}.tag.st{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
+  .tag.no{background:#fff2f0;color:#cf1322;border:1px solid #ffccc7}
+  dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px 24px;margin:16px 0 0}
+  dl div{min-width:0}
+  dt{font-size:13px;color:var(--sub);margin-bottom:4px}
+  dd{margin:0;font-size:14px;word-break:break-word;white-space:pre-wrap}
+  .pbar{display:flex;align-items:center;gap:10px}
+  .pbar div{flex:1;height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden;max-width:240px}
+  .pbar i{display:block;height:100%;background:var(--primary)}
+  .grid2{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:16px}
+  .req{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:16px}
+  .req div{border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .req div.ok{background:#f6ffed;border-color:#b7eb8f}
+  .req div.no{background:#fff2f0;border-color:#ffccc7}
+  .drop{border:1px dashed #d9d9d9;border-radius:8px;padding:16px;text-align:center;color:var(--sub);font-size:14px;margin-bottom:16px;transition:background .15s}
+  .drop.over{background:#e6f4ff;border-color:var(--primary)}
+  .drop b{color:var(--primary);cursor:pointer}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+  th{background:#fafafa;font-weight:600;white-space:nowrap}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td.act{white-space:nowrap;text-align:right}
+  .tablewrap{overflow-x:auto}
+  button{font:inherit;font-size:13px;padding:4px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;cursor:pointer}
+  button:hover{border-color:var(--primary);color:var(--primary)}
+  button.del:hover{border-color:var(--danger);color:var(--danger)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .sub{color:var(--sub);font-size:12px}
+  .empty{text-align:center;color:var(--sub);padding:24px}
+  .notice{border-radius:8px;padding:10px 16px;font-size:14px}
+  .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
+  .notice[hidden]{display:none}
+  .timeline{list-style:none;margin:0;padding:0;max-height:520px;overflow:auto}
+  .timeline li{position:relative;padding:0 0 16px 20px;font-size:14px}
+  .timeline li::before{content:'';position:absolute;left:4px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--primary)}
+  .timeline li::after{content:'';position:absolute;left:7px;top:16px;bottom:0;width:2px;background:var(--border)}
+  .timeline li:last-child::after{display:none}
+  .timeline time{display:block;font-size:12px;color:var(--sub)}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  @media(max-width:640px){aside{display:none}.content{padding:16px}}
+</style>
+</head>
+<body>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child on" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
+<div class="main">
+  <header><a href="progress.html">← 과제 진행률</a>과제 상세<small id="mode"></small></header>
+  <div class="content" id="app">
+    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 올린 파일도 이 브라우저에서만 보입니다. 팀이 함께 보려면 <code>python3 server.py</code>로 실행한 주소(<code>http://localhost:8000</code>)에서 올려 주세요.</div>
+    <div class="notice err" id="err" hidden></div>
+    <div class="notice ok" id="okmsg" hidden></div>
+    <div id="body"><div class="card empty">불러오는 중…</div></div>
+  </div>
+</div>
+<input type="file" id="picker" multiple hidden>
+<script src="storage.js"></script>
+<script src="file-storage.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STAGE={todo:'검토',doing:'진행',done:'종료'};
+const PRI={high:'높음',mid:'보통',low:'낮음'};
+const taskId=new URLSearchParams(location.search).get('id');
+let task=null,files=[],busy=false;
+
+const size=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
+const when=s=>s?String(s).replace('T',' ').slice(0,16):'-';
+function showError(m){$('err').textContent=m||'';$('err').hidden=!m}
+let okTimer;function showOk(m){$('okmsg').textContent=m;$('okmsg').hidden=!m;clearTimeout(okTimer);if(m)okTimer=setTimeout(()=>$('okmsg').hidden=true,4000)}
+
+function statusTag(t){
+  if(t.registered)return '<span class="tag ok">서비스 게시 완료</span>';
+  if((+t.progress||0)>=100)return '<span class="tag wait">서비스 게시 대기</span>';
+  return `<span class="tag st">${STAGE[t.s]||esc(t.s)}</span>`;
+}
+
+function render(){
+  const t=task,p=Math.min(100,Math.max(0,+t.progress||0));
+  const req=FileStorage.checkRequired(files),okCnt=req.filter(r=>r.ok).length;
+  const sorted=[...files].sort((a,b)=>String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+  const hist=[...(t.history||[])].reverse();
+  document.title=`TaskFlow · ${t.title}`;
+  $('body').innerHTML=`
+  <div style="display:grid;gap:16px">
+    <div class="card">
+      <div class="title"><h2>${esc(t.title)}</h2>${statusTag(t)}</div>
+      <dl>
+        <div><dt>담당자</dt><dd>${esc(t.assignee)||'-'}</dd></div>
+        <div><dt>단계</dt><dd>${STAGE[t.s]||esc(t.s)||'-'}</dd></div>
+        <div><dt>진행률</dt><dd><div class="pbar"><div><i style="width:${p}%"></i></div><b>${p}%</b></div></dd></div>
+        <div><dt>우선순위</dt><dd>${PRI[t.priority]||'-'}</dd></div>
+        <div><dt>등록일</dt><dd>${esc(t.date)||'-'}</dd></div>
+        <div><dt>마감일</dt><dd>${esc(t.due)||'-'}</dd></div>
+        <div><dt>서비스 게시일</dt><dd>${esc(t.registeredAt)||'-'}</dd></div>
+        <div><dt>승인자</dt><dd>${esc(t.approver)||'-'}</dd></div>
+        <div style="grid-column:1/-1"><dt>게시 사유</dt><dd>${esc(t.regReason)||'-'}</dd></div>
+        ${t.memo?`<div style="grid-column:1/-1"><dt>메모</dt><dd>${esc(t.memo)}</dd></div>`:''}
+      </dl>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h2>첨부 파일 <em>${files.length}개</em></h2>
+        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음). 파일 1개당 20MB까지 올릴 수 있습니다.</p>
+        <div class="req">${req.map(r=>`<div class="${r.ok?'ok':'no'}"><span>${esc(r.label)}</span>${r.ok?'<span class="tag ok">있음</span>':'<span class="tag no">없음</span>'}</div>`).join('')}</div>
+        <div class="sub" style="margin:-8px 0 16px">필수 첨부 ${okCnt}/3${okCnt===3?' — 모두 갖춰졌습니다.':' — 빠진 파일이 있습니다.'}</div>
+        <div class="drop" id="drop">파일을 여기로 끌어다 놓거나 <b id="pick">파일 선택</b></div>
+        ${sorted.length?`<div class="tablewrap"><table>
+          <thead><tr><th>파일</th><th>종류</th><th style="text-align:right">크기</th><th>올린 시각</th><th></th></tr></thead>
+          <tbody>${sorted.map(f=>`<tr><td>${esc(f.name)}</td><td>${f.kind==='기타'?'<span class="sub">기타</span>':esc(f.kind)}</td><td class="num">${size(f.size)}</td><td class="sub">${when(f.uploadedAt)}</td>
+            <td class="act"><button data-dl="${esc(f.id)}">내려받기</button> <button class="del" data-rm="${esc(f.id)}">삭제</button></td></tr>`).join('')}</tbody></table></div>`
+          :'<div class="empty">올라간 파일이 없습니다.</div>'}
+      </div>
+      <div class="card">
+        <h2>변경 이력 <em>${hist.length}건</em></h2>
+        <p class="desc">최근 순</p>
+        ${hist.length?`<ul class="timeline">${hist.map(h=>`<li><time>${when(h.at&&new Date(h.at).toLocaleString('sv-SE'))}</time>${esc(h.text)}</li>`).join('')}</ul>`:'<div class="empty">기록된 이력이 없습니다.</div>'}
+      </div>
+    </div>
+  </div>`;
+  const drop=$('drop');
+  $('pick').onclick=()=>$('picker').click();
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');upload([...e.dataTransfer.files])};
+}
+
+async function reload(){
+  const tasks=await TaskStorage.list();
+  task=tasks.find(t=>String(t.id)===String(taskId))||null;
+  files=task?await FileStorage.list(task.id):[];
+}
+
+async function upload(list){
+  if(!list.length||busy)return;
+  busy=true;showError('');
+  const done=[],failed=[];
+  for(const f of list){try{await FileStorage.upload(task.id,f);done.push(f.name)}catch(e){failed.push(e.message)}}
+  try{await reload()}catch(e){}
+  busy=false;render();
+  if(failed.length)showError('올리지 못한 파일: '+failed.join(' / '));
+  if(done.length)showOk(`${done.length}개 파일을 올렸습니다.`);
+}
+
+$('picker').onchange=e=>{upload([...e.target.files]);e.target.value=''};
+document.addEventListener('click',async e=>{
+  const d=e.target.dataset;
+  const meta=id=>files.find(f=>f.id===id);
+  if(d.dl){try{await FileStorage.download(task.id,meta(d.dl))}catch(err){showError(err.message)}}
+  if(d.rm){
+    const f=meta(d.rm);if(!f||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
+    try{await FileStorage.remove(task.id,f);await reload();render();showOk('파일을 삭제했습니다.')}catch(err){showError('삭제하지 못했습니다: '+err.message)}
+  }
+});
+
+(async()=>{
+  try{await TaskStorage.init()}catch(e){}
+  const server=TaskStorage.mode==='server';
+  $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
+  $('warn').hidden=server;
+  try{await reload()}catch(e){showError('불러오지 못했습니다: '+e.message)}
+  if(!task){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="progress.html">과제 진행률로 돌아가기</a></div>`;return}
+  render();
+})();
+</script>
+</body>
+</html>

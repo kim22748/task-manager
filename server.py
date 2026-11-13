@@ -14,6 +14,12 @@ API:
     DELETE /api/tasks/<id>     과제 삭제
     POST   /api/tasks/import   여러 과제 한 번에 가져오기 (localStorage 이전용)
 
+    GET    /api/tasks/<id>/files          첨부 파일 목록
+    POST   /api/tasks/<id>/files?name=..  첨부 파일 올리기 (요청 본문 = 파일 내용, 20MB 이하)
+    GET    /api/tasks/<id>/files/<fid>    첨부 파일 내려받기
+    DELETE /api/tasks/<id>/files/<fid>    첨부 파일 삭제
+                               (파일은 data/files/<과제id>/ 에, 목록은 과제의 files 항목에 저장)
+
     GET    /api/ai-projects        AI 과제 목록 (data/ai_projects.json)
     POST   /api/ai-projects        AI 과제 등록
     PUT    /api/ai-projects/<id>   AI 과제 수정 (등록 때와 같은 항목 전체)
@@ -23,16 +29,25 @@ API:
 import argparse
 import json
 import os
+import re
+import shutil
 import tempfile
 import threading
 import time
+import uuid
 from datetime import date, datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, quote, urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "data" / "tasks.json"
+FILES_DIR = BASE_DIR / "data" / "files"
+MAX_FILE = 20 * 1024 * 1024  # 첨부 파일 1개 최대 크기 (20MB)
+FILE_ROUTE = re.compile(r"^/api/tasks/(\d+)/files(?:/([0-9a-f]{32}))?$")
+# PRD 필수 첨부 3종: 확장자로 종류를 정한다 (내용은 보지 않음)
+FILE_KINDS = {".hwpx": "과제기획서", ".html": "과제실행 파일", ".htm": "과제실행 파일", ".csv": "과제활용 데이터"}
 AI_DATA_FILE = BASE_DIR / "data" / "ai_projects.json"
 AI_CATEGORIES = ["개발", "법률", "노사", "IT"]
 AI_STAGES = ["기획중", "개발중", "승인요청", "승인검토중", "활용중", "활용종료"]
@@ -158,7 +173,38 @@ class TaskStore:
             if len(kept) == len(tasks):
                 return False
             self._write(kept)
+            shutil.rmtree(FILES_DIR / str(task_id), ignore_errors=True)
             return True
+
+    def get(self, task_id):
+        with self.lock:
+            return next((t for t in self._read() if t["id"] == task_id), None)
+
+    def add_file(self, task_id, meta):
+        with self.lock:
+            tasks = self._read()
+            for t in tasks:
+                if t["id"] == task_id:
+                    t["files"] = (t.get("files") or []) + [meta]
+                    t["history"] = ((t.get("history") or []) + [stamp(f"파일 첨부: {meta['name']}")])[-MAX_HISTORY:]
+                    self._write(tasks)
+                    return meta
+            return None
+
+    def remove_file(self, task_id, file_id):
+        with self.lock:
+            tasks = self._read()
+            for t in tasks:
+                if t["id"] == task_id:
+                    files = t.get("files") or []
+                    meta = next((f for f in files if f["id"] == file_id), None)
+                    if meta is None:
+                        return None
+                    t["files"] = [f for f in files if f["id"] != file_id]
+                    t["history"] = ((t.get("history") or []) + [stamp(f"파일 삭제: {meta['name']}")])[-MAX_HISTORY:]
+                    self._write(tasks)
+                    return meta
+            return None
 
     def import_many(self, items):
         with self.lock:
@@ -242,6 +288,21 @@ def clean_title(value):
     if len(value) > MAX_TITLE:
         raise ValidationError(f"과제 이름은 {MAX_TITLE}자 이하로 입력하세요.")
     return value
+
+
+def clean_filename(value):
+    """경로 문자를 없애고 화면에 보일 파일 이름만 남깁니다. (실제 저장은 무작위 id 로 함)"""
+    name = re.split(r"[\\/]", value or "")[-1].strip()
+    name = re.sub(r"[\x00-\x1f\x7f]", "", name)
+    if not name or name in (".", ".."):
+        raise ValidationError("파일 이름이 올바르지 않습니다.")
+    if len(name) > 200:
+        raise ValidationError("파일 이름은 200자 이하로 해 주세요.")
+    return name
+
+
+def file_kind(name):
+    return FILE_KINDS.get(os.path.splitext(name)[1].lower(), "기타")
 
 
 def clean_status(value):
@@ -380,9 +441,79 @@ class Handler(SimpleHTTPRequestHandler):
             self.log_error("error: %r", e)
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "저장 중 서버 오류가 발생했습니다."})
 
+    # ---- 첨부 파일 ----
+    def _file_list(self, task_id):
+        task = store.get(task_id)
+        if task is None:
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
+        self._json(HTTPStatus.OK, task.get("files") or [])
+
+    def _file_upload(self, task_id):
+        if store.get(task_id) is None:
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
+        query = parse_qs(urlsplit(self.path).query)
+        name = clean_filename((query.get("name") or [""])[0])
+        try:
+            length = int(self.headers.get("Content-Length") or -1)
+        except ValueError:
+            length = -1
+        if length < 0:
+            raise ValidationError("파일 크기를 알 수 없습니다.")
+        if length > MAX_FILE:
+            raise ValidationError(f"파일은 {MAX_FILE // (1024 * 1024)}MB 이하만 올릴 수 있습니다.")
+        file_id = uuid.uuid4().hex
+        folder = FILES_DIR / str(task_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / file_id
+        remaining = length
+        with path.open("wb") as f:
+            while remaining > 0:
+                chunk = self.rfile.read(min(65536, remaining))
+                if not chunk:
+                    break
+                f.write(chunk)
+                remaining -= len(chunk)
+        if remaining:
+            path.unlink(missing_ok=True)
+            raise ValidationError("파일을 끝까지 받지 못했습니다. 다시 올려 주세요.")
+        meta = {"id": file_id, "name": name, "size": length, "kind": file_kind(name),
+                "uploadedAt": datetime.now().isoformat(timespec="seconds")}
+        if store.add_file(task_id, meta) is None:
+            path.unlink(missing_ok=True)
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
+        self._json(HTTPStatus.CREATED, meta)
+
+    def _file_download(self, task_id, file_id):
+        task = store.get(task_id)
+        meta = next((f for f in (task or {}).get("files") or [] if f["id"] == file_id), None)
+        path = FILES_DIR / str(task_id) / file_id
+        if meta is None or not path.is_file():
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "파일을 찾을 수 없습니다."})
+        size = path.stat().st_size
+        self.send_response(HTTPStatus.OK)
+        # 올린 html 이 이 사이트 안에서 실행되지 않도록 항상 '내려받기'로만 보낸다
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(meta['name'])}")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(size))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        with path.open("rb") as f:
+            shutil.copyfileobj(f, self.wfile)
+
+    def _file_delete(self, task_id, file_id):
+        if store.remove_file(task_id, file_id) is None:
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "파일을 찾을 수 없습니다."})
+        (FILES_DIR / str(task_id) / file_id).unlink(missing_ok=True)
+        self._json(HTTPStatus.NO_CONTENT)
+
     # ---- 정적 파일: data/ 폴더는 직접 노출하지 않음 ----
     def do_GET(self):
         route = self._route()
+        m = FILE_ROUTE.match(route)
+        if m:
+            tid, fid = int(m.group(1)), m.group(2)
+            return self._handle(lambda: self._file_download(tid, fid) if fid else self._file_list(tid))
         if route == "/api/tasks":
             return self._handle(lambda: self._json(HTTPStatus.OK, store.list()))
         if route == "/api/ai-projects":
@@ -416,6 +547,9 @@ class Handler(SimpleHTTPRequestHandler):
             ]
             self._json(HTTPStatus.CREATED, store.import_many(cleaned))
 
+        m = FILE_ROUTE.match(route)
+        if m and not m.group(2):
+            return self._handle(lambda: self._file_upload(int(m.group(1))))
         if route == "/api/tasks":
             return self._handle(create)
         if route == "/api/ai-projects":
@@ -464,6 +598,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         route = self._route()
+        m = FILE_ROUTE.match(route)
+        if m:
+            if not m.group(2):
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+            return self._handle(lambda: self._file_delete(int(m.group(1)), m.group(2)))
         if not (route.startswith("/api/tasks/") or route.startswith("/api/ai-projects/")):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         target = ai_store if route.startswith("/api/ai-projects/") else store

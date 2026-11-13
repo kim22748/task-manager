@@ -67,6 +67,10 @@
   dialog .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
   dialog .dlgerr{color:#ff4d4f;font-size:13px;margin-top:8px;min-height:18px}
   .reason{max-width:280px;white-space:pre-wrap;word-break:break-word}
+  a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
+  a.tlink:hover{text-decoration:underline}
+  a.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:14px;margin-left:4px}
+  .att-ok{background:var(--done)}.att-no{background:#fa8c16}
   @media(max-width:640px){aside{display:none}}
 </style>
 </head>
@@ -113,9 +117,9 @@
 
     <div class="card">
       <h2>③ 서비스 게시 완료 <em id="cntC"></em></h2>
-      <p class="desc">서비스 게시된 과제입니다. 잘못 게시했다면 '게시 해제'로 되돌릴 수 있습니다.</p>
+      <p class="desc">서비스 게시된 과제입니다. 과제명이나 '상세'를 누르면 올라간 파일과 상세 현황을 볼 수 있습니다. 잘못 게시했다면 '게시 해제'로 되돌릴 수 있습니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>담당자</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th>첨부</th><th></th></tr></thead>
         <tbody id="rowsC"></tbody>
       </table></div>
     </div>
@@ -134,6 +138,7 @@
   </form>
 </dialog>
 <script src="storage.js"></script>
+<script src="file-storage.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -148,7 +153,8 @@ function dday(t){
   return{txt:`${t.due} (D-${diff})`,cls:diff<=3?'due-soon':'due-ok'};
 }
 const dueTag=t=>{const d=dday(t);return d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'};
-let tasks=[],selected=new Set();
+let tasks=[],selected=new Set(),fileMap={};
+async function loadFiles(){try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}}
 const inA=t=>t.s==='doing'&&prog(t)<100&&!t.registered;
 const inB=t=>prog(t)===100&&!t.registered;
 const inC=t=>!!t.registered;
@@ -159,6 +165,7 @@ async function persist(fn,okText){
   try{await fn();showError('');if(okText)showOk(okText)}
   catch(e){showError('저장하지 못했습니다: '+e.message)}
   try{tasks=await TaskStorage.list()}catch(e){}
+  await loadFiles();
   selected=new Set([...selected].filter(id=>tasks.some(t=>String(t.id)===id&&inB(t))));
   render();
 }
@@ -195,13 +202,16 @@ function render(){
   $('bulkReg').disabled=!selected.size;
   $('selInfo').textContent=selected.size?`${selected.size}건 선택됨`:'';
 
-  $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>`<tr>
-    <td>${esc(t.title)}</td><td>${esc(t.assignee)||'-'}</td>
+  $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>{
+    const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}`;
+    return `<tr>
+    <td><a class="tlink" href="${href}">${esc(t.title)}</a></td><td>${esc(t.assignee)||'-'}</td>
     <td>${esc(t.registeredAt)||'-'}</td>
     <td>${esc(t.approver)||'-'}</td>
     <td class="reason">${esc(t.regReason)||'-'}</td>
-    <td class="act"><button data-unreg="${t.id}">게시 해제</button></td></tr>`).join('')
-    :'<tr><td colspan="6" class="empty">서비스 게시된 과제가 없습니다.</td></tr>';
+    <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
+    <td class="act"><a class="btnlink" href="${href}">상세</a><button data-unreg="${t.id}">게시 해제</button></td></tr>`}).join('')
+    :'<tr><td colspan="7" class="empty">서비스 게시된 과제가 없습니다.</td></tr>';
 }
 
 document.addEventListener('input',e=>{
@@ -248,6 +258,7 @@ $('regForm').addEventListener('submit',e=>{
   const server=TaskStorage.mode==='server';
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
+  await loadFiles();
   render();
 })();
 </script>

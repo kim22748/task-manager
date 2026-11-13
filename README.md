@@ -1,7 +1,6 @@
 # TaskFlow · 과제 관리 홈페이지
 
 과제(Task)를 등록·진행 관리하는 정적 홈페이지의 초기 버전입니다.
-과제관리 홈페이지 제작 (DataAnalysis -> Task-Manager)
 
 ## 디자인 시스템 참고
 - [Ant Design Pro](https://github.com/ant-design/ant-design-pro) — 레이아웃(좌측 사이더 + 상단 헤더 + 카드 콘텐츠), 색상(Primary `#1677ff`), 상태 태그 스타일을 참고합니다.
@@ -16,6 +15,11 @@
 - 과제 영구 저장: `server.py`가 `data/tasks.json` 파일에 저장 (서버 없이 열면 브라우저 localStorage 임시 저장)
 - 대시보드(`dashboard.html`): 단계별 건수·평균 진행률·최근 7일 등록 추이·최근 변경 이력·최근 과제
 - 과제 진행률(`progress.html`): 단계별 현황, 전체/담당자별 평균 진행률, 단계별 과제 목록
+- 과제 상세(`task-detail.html?id=<과제id>`): 과제 진행률 → ③ 서비스 게시 완료에서 과제명이나 '상세'를 누르면 열립니다.
+  - 보여 주는 것: 상세 현황(담당자·진행률·게시일·승인자·게시 사유), 변경 이력, 첨부 파일
+  - 첨부 파일은 올리기(끌어다 놓기), 내려받기, 삭제를 할 수 있습니다.
+  - 필수 첨부 3종(기획서 hwpx·실행 html·데이터 csv)은 확장자로만 확인합니다.
+  - 서버로 실행하면 `data/files/`에 저장됩니다. GitHub Pages처럼 서버 없이 열면 그 브라우저(IndexedDB)에만 저장됩니다.
 - AI 과제 등록(`ai-projects.html`, 좌측 메뉴 '과제 목록' 하위): 명칭·목적·분류·단계·과제책임자·소속부서·접근권한범위 등록 게시판. 신규작성/수정은 같은 Modal 창을 사용하고, 수정은 기존 자료를 덮어씀
 
 ## 실행
@@ -36,11 +40,14 @@ python3 server.py
 | `dashboard.html` | 대시보드 화면 |
 | `progress.html` | 과제 진행률 화면 |
 | `ai-projects.html` | AI 과제 등록 화면 |
+| `task-detail.html` | 과제 상세 (첨부 파일·상세 현황·변경 이력) |
 | `storage.js` | 저장 모듈 (서버 API ↔ localStorage 자동 전환) |
+| `file-storage.js` | 첨부 파일 모듈 (`/api/tasks/<id>/files` ↔ IndexedDB 자동 전환) |
 | `ai-storage.js` | AI 과제 저장 모듈 (`/api/ai-projects` ↔ localStorage) |
 | `server.py` | 저장 서버 + REST API (`/api/tasks`) |
 | `data/tasks.json` | 저장된 과제 데이터 |
 | `data/ai_projects.json` | 저장된 AI 과제 데이터 |
+| `data/files/<과제id>/` | 첨부 파일 원본 (목록은 과제의 `files` 항목) |
 
 ## 다음 단계(예정)
 - 부서 필드와 부서·담당자별 현황
