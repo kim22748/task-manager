@@ -1,6 +1,7 @@
 # TaskFlow · 과제 관리 홈페이지
 
 과제(Task)를 등록·진행 관리하는 정적 홈페이지의 초기 버전입니다.
+과제관리 홈페이지 제작 (DataAnalysis -> Task-Manager)
 
 ## 디자인 시스템 참고
 - [Ant Design Pro](https://github.com/ant-design/ant-design-pro) — 레이아웃(좌측 사이더 + 상단 헤더 + 카드 콘텐츠), 색상(Primary `#1677ff`), 상태 태그 스타일을 참고합니다.
