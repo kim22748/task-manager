@@ -6,7 +6,7 @@
 <title>TaskFlow · 대시보드</title>
 <style>
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;
-        --todo:#bfbfbf;--doing:#1677ff;--done:#52c41a}
+        --review:#bfbfbf;--doing:#1677ff;--wait:#fa8c16;--pub:#52c41a;--end:#722ed1;--danger:#ff4d4f}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
   aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
@@ -17,42 +17,60 @@
   aside a.child.on{background:var(--primary);color:#fff}
   .main{flex:1;min-width:0}
   header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
-  .content{padding:24px;display:grid;gap:16px}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
-  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-  .card h2{margin:0 0 16px;font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .stat span{color:var(--sub);font-size:14px}
-  .stat b{display:block;font-size:30px;margin-top:4px}
-  .rate{display:flex;align-items:center;gap:16px}
-  .bar{flex:1;height:12px;background:#f0f0f0;border-radius:6px;overflow:hidden;display:flex}
-  .bar i{display:block;height:100%}
-  .rate strong{font-size:28px;min-width:72px;text-align:right}
-  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
-  .donutwrap{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .legend div{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0}
-  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
-  .chart{display:flex;align-items:flex-end;gap:10px;height:140px;padding-top:8px}
-  .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px;color:var(--sub)}
-  .col em{font-style:normal;color:var(--text);margin-bottom:2px}
-  .col div{width:100%;max-width:36px;background:var(--primary);border-radius:4px 4px 0 0;min-height:2px}
+  header small{margin-left:12px;font-weight:400;font-size:13px;color:var(--sub)}
+  .content{padding:16px 20px;display:grid;gap:12px}
+
+  /* 상단 요약: 한 줄 */
+  .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+  a.kpi{display:block;background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 2px rgba(0,0,0,.03);text-decoration:none;color:inherit;border-top:3px solid var(--c,#d9d9d9);transition:box-shadow .15s}
+  a.kpi:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+  .kpi span{display:block;color:var(--sub);font-size:13px}
+  .kpi b{display:block;font-size:28px;line-height:1.2;margin-top:2px;font-variant-numeric:tabular-nums;color:var(--c,inherit)}
+  .kpi small{display:block;color:var(--sub);font-size:12px;min-height:16px}
+  .kpi .mini{height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden;margin-top:4px}
+  .kpi .mini i{display:block;height:100%;background:var(--primary)}
+
+  .row{display:grid;gap:12px}
+  .row3{grid-template-columns:1.15fr 1fr 1fr}
+  .row3b{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .card{background:#fff;border-radius:8px;padding:14px 18px;box-shadow:0 1px 2px rgba(0,0,0,.03);min-width:0}
+  .card h2{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .card h2 em{font-style:normal;font-weight:400;font-size:12px;color:var(--sub)}
+  .card h2 a{margin-left:auto;font-size:12px;font-weight:400;color:var(--primary);text-decoration:none}
+  .card h2 a:hover{text-decoration:underline}
+
+  .donutwrap{display:flex;align-items:center;gap:16px}
+  .legend{flex:1;min-width:0}
+  .legend a{display:flex;align-items:center;gap:6px;font-size:13px;padding:2px 0;color:inherit;text-decoration:none}
+  .legend a:hover{color:var(--primary)}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+  .legend b{margin-left:auto;font-variant-numeric:tabular-nums}
+  .chart{display:flex;align-items:flex-end;gap:8px;height:112px;padding-top:6px}
+  .col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:11px;color:var(--sub)}
+  .col em{font-style:normal;color:var(--text);margin-bottom:2px;font-size:12px}
+  .col div{width:100%;max-width:34px;background:var(--primary);border-radius:3px 3px 0 0;min-height:2px}
+  .col span{margin-top:4px;white-space:nowrap}
+
   ul{list-style:none;margin:0;padding:0}
-  li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+  li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;min-width:0}
   li:last-child{border:0}
-  .tag{padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
-  .sub{color:var(--sub);font-size:12px}
-  .empty{text-align:center;color:var(--sub);padding:24px}
+  li>span:first-child{min-width:0;flex:1}
+  li .t{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tag{display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;line-height:20px;color:#fff;white-space:nowrap;flex-shrink:0}
+  .sub{color:var(--sub);font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .empty{text-align:center;color:var(--sub);padding:18px 8px;font-size:13px}
   a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
   a.tlink:hover{text-decoration:underline}
-  a.btnlink{display:inline-block;padding:2px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px}
-  a.btnlink:hover{background:#e6f4ff}
-  .pubact{display:flex;align-items:center;gap:8px;flex-shrink:0}
-  @media(max-width:640px){aside{display:none}}
+  .due-over{background:var(--danger)}.due-soon{background:var(--wait)}
+  .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
+  @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.row3,.row3b{grid-template-columns:1fr}}
+  @media(max-width:640px){aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.content{padding:12px}}
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
-  <header>대시보드</header>
+  <header>대시보드<small id="asof"></small></header>
   <div class="content" id="app"></div>
 </div>
 <script src="demo-data.js"></script>
@@ -61,78 +79,87 @@
 <script src="file-storage.js"></script>
 <script>
 let fileMap={}; // 과제id → 첨부 파일 목록 (서비스 게시 완료 카드의 첨부 현황용)
-const STATUS={todo:['검토','var(--todo)','#bfbfbf'],doing:['진행','var(--doing)','#1677ff'],done:['종료','var(--done)','#52c41a']};
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function render(tasks){
-const total=tasks.length;
-const cnt=k=>tasks.filter(t=>t.s===k).length;
-const pct=n=>total?Math.round(n/total*100):0;
-const avgProg=total?Math.round(tasks.reduce((s,t)=>s+(+t.progress||0),0)/total):0;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
+// 과제 한 건의 진행 상태 ('세부 진행 현황'과 같은 기준): 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
+function statusOf(t){
+  if(t.registered)return '게시 완료';
+  if(prog(t)>=100)return '게시 대기';
+  if(t.s==='doing')return '진행 중';
+  if(t.s==='done')return '종료';
+  return '검토';
+}
+const STATES=[['검토','var(--review)'],['진행 중','var(--doing)'],['게시 대기','var(--wait)'],['게시 완료','var(--pub)'],['종료','var(--end)']];
+const BUCKETS=[['0%',0,0],['1–49%',1,49],['50–99%',50,99],['100%',100,100]];
+const goStatus=s=>`overall.html?status=${encodeURIComponent(s)}`;
+const detail=t=>`task-detail.html?id=${encodeURIComponent(t.id)}&from=dashboard`;
 const fmtAt=s=>{const d=new Date(s);return isNaN(d)?'':`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
-const feed=tasks.flatMap(t=>(t.history||[]).map(h=>({t,h}))).reverse().sort((a,b)=>new Date(b.h.at)-new Date(a.h.at)).slice(0,8);
-const dleft=t=>(t.due&&t.s!=='done')?Math.round((new Date(t.due+'T00:00:00')-new Date(new Date().setHours(0,0,0,0)))/864e5):null;
-const overdue=tasks.filter(t=>dleft(t)!==null&&dleft(t)<0).length;
-const soon=tasks.filter(t=>dleft(t)!==null&&dleft(t)>=0&&dleft(t)<=3).length;
 
-// 도넛 차트
-const R=52,C=2*Math.PI*R;let off=0;
-const arcs=total?Object.entries(STATUS).map(([k,[,,col]])=>{
-  const len=cnt(k)/total*C;
-  const s=`<circle r="${R}" cx="70" cy="70" fill="none" stroke="${col}" stroke-width="22" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;
-  off+=len;return s}).join(''):'<circle r="52" cx="70" cy="70" fill="none" stroke="#f0f0f0" stroke-width="22"/>';
+function render(tasks){
+  const total=tasks.length,today=new Date(new Date().setHours(0,0,0,0));
+  const cnt=s=>tasks.filter(t=>statusOf(t)===s).length;
+  const pct=n=>total?Math.round(n/total*100):0;
+  const avg=total?Math.round(tasks.reduce((s,t)=>s+prog(t),0)/total):0;
+  // 마감: 아직 게시·종료되지 않은 과제 중 마감일이 지났거나 3일 이내인 것
+  const open=tasks.filter(t=>t.due&&!['게시 완료','종료'].includes(statusOf(t))).map(t=>({t,d:Math.round((new Date(t.due+'T00:00:00')-today)/864e5)}));
+  const late=open.filter(x=>x.d<0).sort((a,b)=>a.d-b.d),soon=open.filter(x=>x.d>=0&&x.d<=3).sort((a,b)=>a.d-b.d);
+  const attention=[...late,...soon];
+  const published=tasks.filter(t=>t.registered).sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
+  const feed=tasks.flatMap(t=>(t.history||[]).map(h=>({t,h}))).sort((a,b)=>new Date(b.h.at)-new Date(a.h.at)).slice(0,5);
 
-// 최근 7일 등록 (id=등록 시각)
-const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-6+i);return d});
-const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()}).length);
-const max=Math.max(1,...dayCnt);
+  // 도넛(상태별)
+  const R=36,C=2*Math.PI*R;let off=0;
+  const arcs=total?STATES.map(([s,col])=>{const len=cnt(s)/total*C;const el=len?`<circle r="${R}" cx="50" cy="50" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 50 50)"/>`:'';off+=len;return el}).join(''):'<circle r="36" cx="50" cy="50" fill="none" stroke="#f0f0f0" stroke-width="16"/>';
+  // 진행률 분포
+  const bc=BUCKETS.map(([l,a,b])=>({l,n:tasks.filter(t=>prog(t)>=a&&prog(t)<=b).length}));
+  const bmax=Math.max(1,...bc.map(x=>x.n));
+  // 최근 7일 등록 (id=등록 시각)
+  const days=[...Array(7)].map((_,i)=>{const d=new Date(today);d.setDate(d.getDate()-6+i);return d});
+  const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()}).length);
+  const dmax=Math.max(1,...dayCnt);
 
-const recent=tasks.slice(0,5);
-// 서비스 게시 완료 과제: 게시일이 최근인 순. 과제명·'상세'를 누르면 과제 상세(올라간 파일·상세 현황·이력)로 이동
-const published=tasks.filter(t=>t.registered).sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
-const pubRows=published.slice(0,5).map(t=>{
-  const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}&from=dashboard`;
-  return `<li><span><a class="tlink" href="${href}">${esc(t.title)}</a><br><span class="sub">${esc(t.assignee||'담당자 없음')} · 게시일 ${esc(t.registeredAt||'-')} · 승인자 ${esc(t.approver||'-')}</span></span>
-    <span class="pubact"><span class="tag" style="background:${req===3?'#52c41a':'#fa8c16'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3 · ${fs.length}개</span><a class="btnlink" href="${href}">상세</a></span></li>`}).join('');
-document.getElementById('app').innerHTML=`
-<div class="stats">
-  <div class="card stat"><span>전체 과제</span><b>${total}</b></div>
-  ${Object.entries(STATUS).map(([k,[n,c]])=>`<div class="card stat"><span>${n}</span><b style="color:${k==='todo'?'inherit':c}">${cnt(k)}</b></div>`).join('')}
-  <div class="card stat"><span>서비스 게시 완료</span><b style="color:var(--done)">${published.length}</b></div>
-  <div class="card stat"><span>마감 지연</span><b style="color:${overdue?'#ff4d4f':'inherit'}">${overdue}</b></div>
-  <div class="card stat"><span>평균 진행률</span><b style="color:var(--primary)">${avgProg}%</b></div>
-  <div class="card stat"><span>마감 임박(3일)</span><b style="color:${soon?'#fa8c16':'inherit'}">${soon}</b></div>
-</div>
-<div class="card">
-  <h2>전체 진행률 <span class="sub">(종료 과제 비율)</span><a href="overall.html" style="margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none">전체 과제 진행 현황 보기 →</a></h2>
-  <div class="rate">
-    <div class="bar">${Object.entries(STATUS).reverse().map(([k,[,,c]])=>`<i style="width:${pct(cnt(k))}%;background:${c}"></i>`).join('')}</div>
-    <strong>${pct(cnt('done'))}%</strong>
+  const kpi=(label,val,color,sub,href,extra='')=>`<a class="kpi" href="${href}" style="--c:${color}"><span>${label}</span><b>${val}</b><small>${sub}</small>${extra}</a>`;
+  const dueTag=x=>x.d<0?`<span class="tag due-over">D+${-x.d} 지연</span>`:`<span class="tag due-soon">${x.d===0?'오늘':'D-'+x.d}</span>`;
+
+  document.getElementById('app').innerHTML=`
+  <div class="kpis">
+    ${kpi('전체 과제',total,'#8c8c8c','등록된 모든 과제','overall.html')}
+    ${kpi('진행 중',cnt('진행 중'),'var(--doing)',pct(cnt('진행 중'))+'%',goStatus('진행 중'))}
+    ${kpi('게시 대기',cnt('게시 대기'),'var(--wait)','진행률 100%',goStatus('게시 대기'))}
+    ${kpi('게시 완료',cnt('게시 완료'),'var(--pub)',pct(cnt('게시 완료'))+'%',goStatus('게시 완료'))}
+    ${kpi('마감 지연',late.length,late.length?'var(--danger)':'#d9d9d9','임박(3일) '+soon.length+'건','overall.html')}
+    ${kpi('평균 진행률',avg+'%','var(--primary)','전체 과제 단순평균','overall.html',`<div class="mini"><i style="width:${avg}%"></i></div>`)}
   </div>
-  <div class="sub" style="margin-top:8px">종료 ${cnt('done')}건 / 전체 ${total}건 · 과제별 진행률 평균 ${avgProg}%</div>
-</div>
-<div class="grid2">
-  <div class="card"><h2>상태별 비율</h2>
-    <div class="donutwrap">
-      <svg width="140" height="140" viewBox="0 0 140 140">${arcs}<text x="70" y="76" text-anchor="middle" font-size="22" font-weight="600">${total}</text></svg>
-      <div class="legend">${Object.entries(STATUS).map(([k,[n,,c]])=>`<div><i style="background:${c}"></i>${n} ${cnt(k)}건 (${pct(cnt(k))}%)</div>`).join('')}</div>
+
+  <div class="row row3">
+    <div class="card"><h2>상태별 현황<a href="overall.html">세부 진행 현황 →</a></h2>
+      <div class="donutwrap">
+        <svg width="104" height="104" viewBox="0 0 100 100" style="flex-shrink:0">${arcs}<text x="50" y="56" text-anchor="middle" font-size="20" font-weight="600">${total}</text></svg>
+        <div class="legend">${STATES.map(([s,c])=>`<a href="${goStatus(s)}"><i style="background:${c}"></i>${s}<b>${cnt(s)}건</b></a>`).join('')}</div>
+      </div>
+    </div>
+    <div class="card"><h2>진행률 분포<em>과제 수</em></h2>
+      <div class="chart">${bc.map(x=>`<div class="col"><em>${x.n||''}</em><div style="height:${x.n/bmax*100}%"></div><span>${x.l}</span></div>`).join('')}</div>
+    </div>
+    <div class="card"><h2>최근 7일 등록<em>건</em></h2>
+      <div class="chart">${days.map((d,i)=>`<div class="col"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/dmax*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
     </div>
   </div>
-  <div class="card"><h2>최근 7일 등록</h2>
-    <div class="chart">${days.map((d,i)=>`<div class="col"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/max*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
-  </div>
-</div>
-<div class="card"><h2>서비스 게시 완료 <span class="sub">${published.length}건</span><a href="progress.html" style="margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none">내 과제 진행률에서 관리 →</a></h2>
-  <div class="sub" style="margin-bottom:8px">과제명이나 '상세'를 누르면 올라간 파일과 상세 현황을 볼 수 있습니다.</div>
-  ${published.length?`<ul>${pubRows}</ul>${published.length>5?`<div class="sub" style="padding-top:8px">최근 5건만 표시합니다. 전체 ${published.length}건은 <a class="tlink" href="progress.html">내 과제 진행률</a>에서 확인하세요.</div>`:''}`
-  :'<div class="empty">서비스 게시된 과제가 아직 없습니다. 진행률 100%를 달성한 과제를 <a class="tlink" href="progress.html">내 과제 진행률</a>에서 서비스 게시하면 여기에 나타납니다.</div>'}
-</div>
-<div class="card"><h2>최근 변경 이력</h2>
-  ${feed.length?`<ul>${feed.map(({t,h})=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(h.text)}</span></span><span class="sub">${fmtAt(h.at)}</span></li>`).join('')}</ul>`:'<div class="empty">아직 기록된 변경 이력이 없습니다.</div>'}
-</div>
-<div class="card"><h2>최근 등록 과제</h2>
-  ${recent.length?`<ul>${recent.map(t=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(t.date||'')}</span></span><span class="tag" style="background:${(STATUS[t.s]||STATUS.todo)[1]}">${(STATUS[t.s]||STATUS.todo)[0]}</span></li>`).join('')}</ul>`
-  :'<div class="empty">등록된 과제가 없습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 추가해 보세요.</div>'}
-</div>`;
+
+  <div class="row row3b">
+    <div class="card"><h2>주의 필요<em>마감 지연·임박 ${attention.length}건</em><a href="overall.html">더 보기 →</a></h2>
+      ${attention.length?`<ul>${attention.slice(0,4).map(x=>`<li><span><a class="tlink t" href="${detail(x.t)}">${esc(x.t.title)}</a><span class="sub">${esc(x.t.assignee||'담당자 없음')} · 마감 ${esc(x.t.due)}</span></span>${dueTag(x)}</li>`).join('')}</ul>`:'<div class="empty">마감이 지났거나 임박한 과제가 없습니다.</div>'}
+    </div>
+    <div class="card"><h2>서비스 게시 완료<em>${published.length}건</em><a href="progress.html">내 과제 진행률 →</a></h2>
+      ${published.length?`<ul>${published.slice(0,4).map(t=>{const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length;
+        return `<li><span><a class="tlink t" href="${detail(t)}">${esc(t.title)}</a><span class="sub">${esc(t.assignee||'담당자 없음')} · 게시 ${esc(t.registeredAt||'-')}</span></span><span class="tag ${req===3?'att-ok':'att-no'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3</span></li>`}).join('')}</ul>`
+        :'<div class="empty">서비스 게시된 과제가 아직 없습니다.</div>'}
+    </div>
+    <div class="card"><h2>최근 변경 이력</h2>
+      ${feed.length?`<ul>${feed.map(({t,h})=>`<li><span><span class="t">${esc(t.title)}</span><span class="sub">${esc(h.text)}</span></span><span class="sub" style="flex-shrink:0">${fmtAt(h.at)}</span></li>`).join('')}</ul>`:'<div class="empty">아직 기록된 변경 이력이 없습니다.</div>'}
+    </div>
+  </div>`;
+  document.getElementById('asof').textContent=`${today.getMonth()+1}월 ${today.getDate()}일 기준 · 카드를 누르면 세부 진행 현황으로 이동합니다`;
 }
 // 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
 TaskStorage.init().then(async tasks=>{try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}render(tasks)}).catch(()=>render([]));

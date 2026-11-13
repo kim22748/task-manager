@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaskFlow · 전체 과제 진행 현황</title>
+<title>TaskFlow · 세부 진행 현황</title>
 <style>
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;
         --review:#bfbfbf;--doing:#1677ff;--wait:#fa8c16;--pub:#52c41a;--end:#722ed1;--danger:#ff4d4f}
@@ -73,9 +73,9 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
-  <header><a href="dashboard.html">← 대시보드</a>전체 과제 진행 현황<small id="mode"></small></header>
+  <header><a href="dashboard.html">← 대시보드</a>세부 진행 현황<small id="mode"></small></header>
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 보여줍니다. 팀 전체 과제를 보려면 서버(<code>python server.py</code>)로 실행한 주소에서 열어 주세요.</div>
     <div class="stats" id="stats"></div>
@@ -131,6 +131,8 @@ function dueTag(t){
 
 let tasks=[],fileMap={};
 const state={status:'',bucket:null,q:''};
+// 대시보드 카드에서 넘어온 상태 (예: overall.html?status=게시 대기)
+{const qs=new URLSearchParams(location.search).get('status');if(STATES.some(([s])=>s===qs))state.status=qs}
 
 function matches(t){
   if(state.status&&statusOf(t)!==state.status)return false;

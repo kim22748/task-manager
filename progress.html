@@ -79,7 +79,7 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
   <header>내 과제 진행률<small id="mode"></small></header>
   <div class="content">
@@ -172,7 +172,7 @@ const WHO_KEY='progress-who';
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const assignees=()=>[...new Set(tasks.map(t=>(t.assignee||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
 const mine=t=>!who||(t.assignee||'').trim()===who;
-const focusId=new URLSearchParams(location.search).get('task'); // '전체 진행 현황'에서 넘어온 과제
+const focusId=new URLSearchParams(location.search).get('task'); // '세부 진행 현황'에서 넘어온 과제
 function pickWho(){
   const me=myName();let saved='';
   try{saved=localStorage.getItem(WHO_KEY)||''}catch(e){}
