@@ -31,6 +31,8 @@ API:
     POST   /api/ai-projects        AI 과제 등록
     PUT    /api/ai-projects/<id>   AI 과제 수정 (등록 때와 같은 항목 전체)
     DELETE /api/ai-projects/<id>   AI 과제 삭제
+
+    /api/llm/*, /api/similar/group   유사과제 탐색 AI(LLM) 창구 — similar_llm.py 맨 위 설명 참고
 """
 
 import argparse
@@ -48,6 +50,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
+import similar_llm  # 유사과제 탐색 AI(LLM) 창구 (A04)
 from auth_users import DEFAULT_SEED_PASSWORD, DEMO_FILE, AuthMixin, ValidationError, users_store
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -589,7 +592,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
     # ---- 정적 파일: data/ 폴더·서버 코드·숨김 파일은 직접 노출하지 않음 ----
     def do_GET(self):
         route = self._route()
-        if self.auth_get(route):
+        if self.auth_get(route) or similar_llm.handle(self, "GET", route):
             return
         m = FILE_ROUTE.match(route)
         if m:
@@ -629,7 +632,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             ]
             self._json(HTTPStatus.CREATED, store.import_many(cleaned))
 
-        if self.auth_post(route):
+        if self.auth_post(route) or similar_llm.handle(self, "POST", route):
             return
         m = FILE_ROUTE.match(route)
         if m and not m.group(2):
@@ -643,6 +646,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_PUT(self):
+        if similar_llm.handle(self, "PUT", self._route()):
+            return
         if not self._route().startswith("/api/ai-projects/"):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -686,6 +691,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         route = self._route()
+        if similar_llm.handle(self, "DELETE", route):
+            return
         m = FILE_ROUTE.match(route)
         if m:
             if not m.group(2):

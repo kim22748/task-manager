@@ -73,6 +73,10 @@
   .singles{display:flex;flex-wrap:wrap;gap:8px}
   .single{border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;background:#fafafa}
   @media(max-width:640px){aside{display:none}}
+  .chip.ai{background:#f9f0ff;color:#531dab;border:1px solid #d3adf7}
+  #aiRun{display:inline-flex;align-items:center;gap:6px}
+  .aiicon{flex:none}
+  button:disabled,input:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -83,11 +87,24 @@
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 비교합니다. 서버에 저장된 과제를 보려면 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="okmsg" hidden></div>
-    <div class="notice info">현재는 <b>키워드 기반 비교</b>입니다. 과제명·메모에서 뽑은 단어가 얼마나 겹치는지로 유사도를 계산하며, 임베딩·생성형 AI 모델이 정해지면 계산 방식만 교체할 수 있습니다. <span class="sub">(과제 개요·기획서 본문은 아직 저장된 데이터가 없어 비교에 쓰지 않습니다.)</span></div>
+    <div class="notice info">기본은 <b>AI(LLM) 비교</b>입니다. LLM이 <b>과제명(과 '메모'를 체크하면 메모)을 읽고 뜻이 비슷한 과제</b>를 묶은 뒤 그룹명과 묶은 이유를 씁니다. AI를 쓸 수 없을 때(서버 없이 열었거나 AI 연결이 설정되지 않았을 때)는 단어가 겹치는 정도를 계산하는 <b>키워드 방식</b>으로 대신 보여 줍니다. <span class="sub">(과제 개요·기획서 본문은 아직 저장된 데이터가 없어 비교에 쓰지 않습니다.)</span></div>
+
+    <div class="card" id="aiCard">
+      <h2>AI로 유사과제 찾기 <span class="chip auto" id="aiState">확인 중…</span></h2>
+      <p class="desc">LLM이 과제명(과 메모)을 읽고 비슷한 과제끼리 묶은 뒤 그룹명과 묶은 이유를 씁니다. 결과는 아래 그룹 목록에 나오고, 조정·확정은 그대로 할 수 있습니다. AI 결과는 <b>이 브라우저에만 저장</b>되며 다른 사람과 공유되지 않습니다.</p>
+      <div class="notice warn" style="margin-bottom:12px">비교할 과제의 <b>과제명(메모를 체크하면 메모도)이 외부 AI 서비스<span id="aiProv"></span>로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 사용하세요.</div>
+      <div class="opts">
+        <button class="p" id="aiRun" disabled><svg class="aiicon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg><span id="aiRunLabel">AI로 유사과제 묶기</span></button>
+        <button id="aiKw" hidden>키워드 방식으로 보기 (참고용)</button>
+        <button id="aiShow" hidden>AI 방식으로 보기</button>
+        <span class="sub" id="aiInfo"></span>
+      </div>
+      <div class="sub" id="aiCfgNote" style="margin-top:10px"></div>
+    </div>
 
     <div class="card">
       <h2>비교 설정</h2>
-      <p class="desc">설정을 바꾸면 바로 다시 계산합니다. 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
+      <p class="desc">'비교 대상 과제'와 '메모' 체크는 AI·키워드 방식 모두에 적용됩니다(메모를 끄면 AI에도 메모를 보내지 않습니다). '과제명' 체크와 '유사도 기준'은 키워드 방식에서만 쓰입니다(AI에는 과제명을 항상 보냅니다). 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
       <div class="opts">
         <div class="opt"><b>비교 대상 과제</b>
           <select id="scope"><option value="published">서비스 게시된 과제만</option><option value="all">전체 과제</option></select></div>
@@ -110,11 +127,11 @@
 
     <div class="card">
       <h2>유사 과제 없음 <em id="cntS"></em></h2>
-      <p class="desc">기준 이상으로 비슷한 과제가 없거나, 비교할 글자가 없는 과제입니다.</p>
+      <p class="desc">비슷한 과제가 없거나, 비교할 글자가 없는 과제입니다.</p>
       <div id="singles"></div>
     </div>
 
-    <div class="sub">그룹 확정 내용은 이 브라우저에만 저장됩니다. 서버 저장 위치는 아직 정해지지 않았습니다. 현재 로그인·역할 구분이 없어 누구나 조정할 수 있습니다.</div>
+    <div class="sub">AI 묶기 결과와 그룹 확정 내용은 이 브라우저에만 저장되며, 다른 사람과 공유되지 않습니다.</div>
   </div>
 </div>
 <script src="demo-data.js"></script>
@@ -125,13 +142,15 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STAGE={todo:['검토',''],doing:['진행','doing'],done:['종료','done']};
 const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
-const SKEY='similar-settings-v1',CKEY='similar-confirmed-v1';
+const SKEY='similar-settings-v2',CKEY='similar-confirmed-v1';
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
 
-let tasks=[],S=Object.assign({scope:'published',title:true,memo:true,thr:30},load(SKEY,{}));
+const AKEY='similar-ai-v1';
+let tasks=[],S=Object.assign({scope:'published',title:true,memo:true,thr:30,method:'ai'},load(SKEY,{}));
 let confirmed=load(CKEY,[]);
 let open=new Set(),editing=null,calcAt=null,okTimer;
+let aiRes=load(AKEY,null),aiAck=false,aiBusy=false,llm=null;
 
 /* ---------- 키워드 추출 · 유사도 (키워드 기반; 모델이 정해지면 이 부분만 교체) ---------- */
 const STOP=new Set(['과제','관련','위한','통한','대한','및','등','있는','하는','위해','통해','대해']);
@@ -172,24 +191,42 @@ function compute(){
 
   // 확정 그룹 (현재 비교 대상에 남아 있는 과제만)
   const conf=[];
-  confirmed.forEach(c=>{const idx=c.ids.map(id=>byId.get(String(id))).filter(i=>i!==undefined);if(idx.length>=2)conf.push({key:'c:'+c.gid,gid:c.gid,name:c.name,at:c.at,idx,confirmed:true})});
+  confirmed.forEach(c=>{const idx=c.ids.map(id=>byId.get(String(id))).filter(i=>i!==undefined);if(idx.length>=2)conf.push({key:'c:'+c.gid,gid:c.gid,name:c.name,at:c.at,reason:c.reason||'',idx,confirmed:true})});
   const taken=new Set(conf.flatMap(g=>g.idx));
 
-  // 자동 그룹: 평균 연결 군집화 (확정 그룹에 들어간 과제는 제외)
-  let cl=docs.map((_,i)=>i).filter(i=>!taken.has(i)).map(i=>[i]);
-  const thr=S.thr/100;
-  for(;;){
-    let best=-1,bi=-1,bj=-1;
-    for(let a=0;a<cl.length;a++)for(let b=a+1;b<cl.length;b++){
-      let s=0;cl[a].forEach(i=>cl[b].forEach(j=>s+=M[i][j]));s/=cl[a].length*cl[b].length;
-      if(s>best){best=s;bi=a;bj=b}
+  // 자동 그룹: 'AI 방식'이고 AI 결과가 있으면 그 결과를, 아니면 평균 연결 군집화 (확정 그룹에 들어간 과제는 제외)
+  // haveAI: 저장된 AI 결과를 보여 줌 / pending: AI 방식인데 아직 결과가 없고 AI를 쓸 수 있음(또는 연결 확인 중)
+  // 그 밖에 AI 방식인데 AI를 쓸 수 없으면(서버 없음·키 없음) 키워드 계산을 참고용으로 대신 보여 준다
+  const haveAI=S.method==='ai'&&!!aiRes&&Array.isArray(aiRes.groups);
+  const aiUsable=TaskStorage.mode==='server'&&(llm===null||(!!llm.configured&&!llm.unsupported));
+  const pending=S.method==='ai'&&!haveAI&&aiUsable;
+  const fallback=S.method==='ai'&&!haveAI&&!aiUsable;
+  let auto;
+  if(pending){auto=[]}
+  else if(haveAI){
+    const used=new Set(taken);auto=[];
+    aiRes.groups.forEach(g=>{
+      const idx=(g.ids||[]).map(id=>byId.get(String(id))).filter(i=>i!==undefined&&!used.has(i));
+      if(idx.length<2)return;
+      idx.forEach(i=>used.add(i));
+      auto.push({key:'ai:'+idx.map(i=>docs[i].id).join(','),idx,confirmed:false,ai:true,name:String(g.name||'').trim(),reason:String(g.reason||'').trim()});
+    });
+  }else{
+    let cl=docs.map((_,i)=>i).filter(i=>!taken.has(i)).map(i=>[i]);
+    const thr=S.thr/100;
+    for(;;){
+      let best=-1,bi=-1,bj=-1;
+      for(let a=0;a<cl.length;a++)for(let b=a+1;b<cl.length;b++){
+        let s=0;cl[a].forEach(i=>cl[b].forEach(j=>s+=M[i][j]));s/=cl[a].length*cl[b].length;
+        if(s>best){best=s;bi=a;bj=b}
+      }
+      if(best<thr||bi<0)break;
+      cl[bi]=cl[bi].concat(cl[bj]);cl.splice(bj,1);
     }
-    if(best<thr||bi<0)break;
-    cl[bi]=cl[bi].concat(cl[bj]);cl.splice(bj,1);
+    auto=cl.filter(c=>c.length>=2).map(idx=>{idx.sort((a,b)=>a-b);return{key:'auto:'+idx.map(i=>docs[i].id).join(','),idx,confirmed:false}});
   }
-  const auto=cl.filter(c=>c.length>=2).map(idx=>{idx.sort((a,b)=>a-b);return{key:'auto:'+idx.map(i=>docs[i].id).join(','),idx,confirmed:false}});
   const grouped=new Set([...conf,...auto].flatMap(g=>g.idx));
-  const singles=docs.map((_,i)=>i).filter(i=>!grouped.has(i));
+  const singles=pending?[]:docs.map((_,i)=>i).filter(i=>!grouped.has(i));
 
   // 그룹별 근거(공통 키워드·평균 유사도)와 이름
   [...conf,...auto].forEach(g=>{
@@ -198,8 +235,9 @@ function compute(){
     let s=0,n=0;g.idx.forEach((i,x)=>g.idx.forEach((j,y)=>{if(y>x){s+=M[i][j];n++}}));g.avg=n?s/n:0;
     if(!g.name)g.name=g.kws.length?g.kws.slice(0,3).join(' · ')+' 유사 과제':'이름 없는 그룹';
   });
-  auto.sort((a,b)=>b.avg-a.avg);conf.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
-  return{docs,M,conf,auto,singles,idf};
+  if(!auto.some(g=>g.ai))auto.sort((a,b)=>b.avg-a.avg);
+  conf.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  return{docs,M,conf,auto,singles,idf,haveAI,pending,fallback};
 }
 let R=null;
 const shared=(i,j)=>[...R.docs[i].set].filter(w=>R.docs[j].set.has(w)).sort((a,b)=>R.idf(b)-R.idf(a)).slice(0,6);
@@ -218,7 +256,7 @@ function detail(g){
   const pairs=[];
   g.idx.forEach((i,x)=>g.idx.forEach((j,y)=>{if(y>x)pairs.push([i,j,R.M[i][j]])}));
   pairs.sort((a,b)=>b[2]-a[2]);
-  return `<div class="detail"><h4>과제 쌍별 유사도와 겹친 단어</h4><div class="tablewrap"><table>
+  return `<div class="detail"><h4>과제 쌍별 유사도와 겹친 단어 (키워드 계산)</h4><div class="tablewrap"><table>
     <thead><tr><th>과제 1</th><th>과제 2</th><th>유사도</th><th>겹친 단어</th></tr></thead>
     <tbody>${pairs.map(([i,j,s])=>{const k=shared(i,j);return `<tr><td>${esc(R.docs[i].t.title)}</td><td>${esc(R.docs[j].t.title)}</td><td>${pct(s)}</td><td>${k.length?k.map(w=>`<span class="chip kw">${esc(w)}</span>`).join(''):'<span class="sub">없음</span>'}</td></tr>`}).join('')}</tbody></table></div></div>`;
 }
@@ -232,30 +270,33 @@ function editBox(g){
 }
 function groupCard(g){
   const isEdit=editing&&editing.key===g.key;
+  const kwHtml=g.kws.length?g.kws.map(w=>`<span class="chip kw">${esc(w)}</span>`).join('')+'<span class="sub">2건 이상의 과제에 공통으로 나온 단어</span>':'<span class="sub">공통 단어 없음'+(g.reason?'':' (직접 조정한 그룹)')+'</span>';
+  const why=(g.reason?`<div class="why"><b>묶인 근거${g.confirmed?' (확정 당시 AI)':' (AI)'}</b>${esc(g.reason)}</div>`:'')
+    +`<div class="why"><b>${g.reason?'겹친 단어':'묶인 근거'}</b>${kwHtml}</div>`;
   return `<div class="group ${g.confirmed?'confirmed':''}">
     <div class="ghead"><span class="gname">${esc(g.name)}</span>
-      <span class="chip ${g.confirmed?'conf':'auto'}">${g.confirmed?'확정 '+esc(g.at||''):'자동 묶음'}</span>
-      <span class="sub">과제 ${g.idx.length}건${g.confirmed?'':' · 평균 유사도 '+pct(g.avg)}</span>
+      <span class="chip ${g.confirmed?'conf':g.ai?'ai':'auto'}">${g.confirmed?'확정 '+esc(g.at||''):g.ai?'AI 묶음':'키워드 묶음'}</span>
+      <span class="sub">과제 ${g.idx.length}건${g.confirmed||g.ai?'':' · 평균 유사도 '+pct(g.avg)}</span>
       <span class="gact"><button class="sm" data-detail="${esc(g.key)}">${open.has(g.key)?'근거 접기':'근거 상세'}</button>
         <button class="sm" data-edit="${esc(g.key)}">조정</button>
         ${g.confirmed?`<button class="sm" data-unconf="${g.gid}">확정 해제</button>`:`<button class="g sm" data-conf="${esc(g.key)}">확정</button>`}</span></div>
     ${isEdit?editBox(g):''}
-    <div class="tablewrap"><table><thead><tr><th>소속 과제</th><th>담당자</th><th>단계</th><th>진행률</th><th>그룹 내 유사도</th></tr></thead>
+    <div class="tablewrap"><table><thead><tr><th>소속 과제</th><th>담당자</th><th>단계</th><th>진행률</th><th>${g.ai||g.reason?'키워드 유사도 (참고)':'그룹 내 유사도'}</th></tr></thead>
       <tbody>${g.idx.map(i=>memberRow(g,i)).join('')}</tbody></table></div>
-    <div class="why"><b>묶인 근거</b>${g.kws.length?g.kws.map(w=>`<span class="chip kw">${esc(w)}</span>`).join('')+'<span class="sub">2건 이상의 과제에 공통으로 나온 단어</span>':'<span class="sub">공통 단어 없음 (직접 조정한 그룹)</span>'}</div>
+    ${why}
     ${open.has(g.key)?detail(g):''}</div>`;
 }
 function render(){
   R=compute();
-  const {docs,conf,auto,singles}=R,groups=[...conf,...auto];
-  const inG=groups.reduce((s,g)=>s+g.idx.length,0);
+  const {docs,conf,auto,singles,pending}=R,groups=[...conf,...auto];
+  const inG=groups.reduce((s,g)=>s+g.idx.length,0),pend=pending&&docs.length>=2;
   $('stats').innerHTML=
     `<div class="card stat"><span>비교 대상 과제</span><b>${docs.length}</b></div>`+
-    `<div class="card stat"><span>유사 과제 그룹</span><b>${groups.length}</b></div>`+
-    `<div class="card stat"><span>그룹에 속한 과제</span><b>${inG}</b></div>`+
-    `<div class="card stat"><span>유사 과제 없음</span><b>${singles.length}</b></div>`+
+    `<div class="card stat"><span>유사 과제 그룹</span><b>${pend&&!conf.length?'-':groups.length}</b></div>`+
+    `<div class="card stat"><span>그룹에 속한 과제</span><b>${pend&&!conf.length?'-':inG}</b></div>`+
+    `<div class="card stat"><span>유사 과제 없음</span><b>${pend?'-':singles.length}</b></div>`+
     `<div class="card stat"><span>확정한 그룹</span><b style="color:var(--done)">${conf.length}</b></div>`;
-  $('cntG').textContent=groups.length+'개';$('cntS').textContent=singles.length+'건';
+  $('cntG').textContent=pend&&!conf.length?'':groups.length+'개';$('cntS').textContent=pend?'':singles.length+'건';
   const total=tasks.length,pubN=tasks.filter(t=>t.registered).length;
   let empty='';
   if(!docs.length){
@@ -263,10 +304,71 @@ function render(){
       ?`<div class="empty">비교할 과제가 없습니다. 서비스 게시된 과제가 ${pubN}건입니다.${total?` <button class="sm" data-all="1">전체 과제(${total}건)로 보기</button>`:' 과제 목록에서 과제를 먼저 등록하세요.'}</div>`
       :'<div class="empty">등록된 과제가 없습니다. 과제 목록에서 과제를 먼저 등록하세요.</div>';
   }else if(docs.length<2)empty='<div class="empty">과제가 2건 이상이어야 서로 비교할 수 있습니다.</div>';
-  else if(!groups.length)empty='<div class="empty">기준 이상으로 비슷한 과제가 없습니다. 유사도 기준을 낮춰 보세요.</div>';
-  $('groups').innerHTML=groups.length?groups.map(groupCard).join(''):empty;
-  $('singles').innerHTML=singles.length?`<div class="singles">${singles.map(i=>{const d=docs[i];return `<div class="single">${esc(d.t.title)}${d.tok.length?'':' <span class="sub">(비교할 글자 없음)</span>'}</div>`}).join('')}</div>`:'<div class="empty">모든 과제가 그룹에 속해 있습니다.</div>';
+  else if(!groups.length)empty=R.haveAI?'<div class="empty">AI가 비슷한 과제를 찾지 못했습니다.</div>':'<div class="empty">기준 이상으로 비슷한 과제가 없습니다. 유사도 기준을 낮춰 보세요.</div>';
+  let html=groups.length?groups.map(groupCard).join(''):'';
+  if(pend)html+=llm===null?'<div class="empty">AI 연결 상태를 확인하는 중입니다…</div>':'<div class="empty">아직 AI가 묶은 결과가 없습니다. 위의 <b>AI로 유사과제 묶기</b>를 누르면 LLM이 과제명과 메모를 읽고 비슷한 과제를 묶습니다.</div>';
+  else if(!groups.length)html=empty;
+  $('groups').innerHTML=html;
+  $('singles').innerHTML=pend?'<div class="empty">AI 결과가 나오면 표시됩니다.</div>':singles.length?`<div class="singles">${singles.map(i=>{const d=docs[i];return `<div class="single">${esc(d.t.title)}${d.tok.length?'':' <span class="sub">(비교할 글자 없음)</span>'}</div>`}).join('')}</div>`:'<div class="empty">모든 과제가 그룹에 속해 있습니다.</div>';
   $('calcAt').textContent=calcAt?'계산 시각 '+calcAt:'';
+  const adj=" '조정'으로 그룹명을 고치거나 과제를 넣고 빼서 '확정'할 수 있습니다.";
+  $('groups').previousElementSibling.textContent=R.haveAI?'AI(LLM)가 과제명·메모를 읽고 묶은 결과입니다.'+adj
+    :R.pending?'AI 결과를 기다리고 있습니다. 확정한 그룹은 그대로 표시됩니다.'
+    :R.fallback?'AI를 쓸 수 없어(서버 없이 열었거나 API 키가 없음) 키워드 방식으로 대신 보여 주는 참고용 결과입니다.'+adj
+    :'키워드 방식(단어 겹침)으로 묶은 결과입니다.'+adj;
+  renderAI();
+}
+
+/* ---------- AI(LLM)로 묶기: 서버의 /api/similar/group 을 부른다 ---------- */
+const hash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return String(h)};
+const aiMemo=t=>S.memo?(t.memo||''):'';   // '메모' 체크를 끄면 AI에 메모를 보내지 않는다
+const curSig=()=>R?hash((S.memo?'m1':'m0')+'\n'+R.docs.map(d=>d.id+'|'+d.t.title+'|'+aiMemo(d.t)).join('\n')):'';
+function showErr(m){$('err').textContent=m||'';$('err').hidden=!m}
+async function api(method,url,body){
+  const res=await fetch(url,{method,headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,cache:'no-store'});
+  const data=await res.json().catch(()=>({}));
+  if(res.status===401){location.replace('login.html');return new Promise(()=>{})}
+  if(!res.ok)throw new Error(data.error||`요청 실패 (${res.status})`);
+  return data;
+}
+async function loadLLM(){
+  if(TaskStorage.mode!=='server'){llm=null;render();return}
+  try{llm=await api('GET','api/llm/status')}catch(e){llm={unsupported:true}}
+  render();
+}
+function renderAI(){
+  const server=TaskStorage.mode==='server',ok=!!(llm&&llm.configured&&!llm.unsupported);
+  let st,cls='auto',info='';
+  if(!server){st='사용 불가 (서버 없이 열림)';info='서버(python server.py)로 접속했을 때만 사용할 수 있습니다.'}
+  else if(!llm){st='확인 중…'}
+  else if(llm.unsupported){st='서버에 AI 기능 없음';info='서버 코드를 최신으로 받아 다시 실행하세요. (similar_llm.py 필요)'}
+  else if(llm.configured){st='연결됨 · '+llm.label+' · '+llm.model;cls='conf'}
+  else{st='AI 연결 필요';info=llm.canConfigure?'사이트 설정에서 AI 서비스를 연결하면 사용할 수 있습니다.':'사이트관리자가 AI 서비스를 연결하면 사용할 수 있습니다.'}
+  if(ok&&!aiRes&&S.method==='ai')info='버튼을 누르면 LLM이 과제를 읽고 비슷한 과제끼리 묶습니다.';
+  if(ok&&aiRes){info='AI 결과: '+aiRes.at+' · 모델 '+(aiRes.model||'');if(aiRes.sig!==curSig())info+=' · 과제나 메모 체크가 바뀌었습니다. 다시 묶는 것을 권합니다.'}
+  $('aiState').textContent=st;$('aiState').className='chip '+cls;$('aiInfo').textContent=info;
+  $('aiRun').disabled=aiBusy||!ok;$('aiRunLabel').textContent=aiBusy?'AI가 묶는 중… (최대 1~2분)':'AI로 유사과제 묶기';
+  $('aiKw').hidden=S.method!=='ai';$('aiShow').hidden=S.method!=='keyword';
+  ['fTitle','thr','recalc'].forEach(id=>$(id).disabled=!!(R&&R.haveAI));   // 메모 체크는 AI에도 쓰이므로 막지 않음
+  $('aiProv').textContent=llm&&llm.configured?' ('+llm.label+')':'';
+  const admin=typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin';
+  $('aiCfgNote').innerHTML=!server?'':admin?'AI 서비스 연결(Anthropic / OpenAI 호환 주소·API 키)은 <a href="settings.html">사이트 설정</a>에서 합니다.':'AI 서비스 연결은 사이트관리자가 사이트 설정에서 합니다.';
+}
+async function runAI(){
+  if(aiBusy)return;
+  if(!R||R.docs.length<2){showErr('비교할 과제가 2건 이상이어야 합니다.');return}
+  if(!aiAck){
+    if(!confirm('비교할 과제의 과제명'+(S.memo?'·메모':'')+'를 외부 AI 서비스('+((llm&&llm.label)||'')+')로 보냅니다.\n지금은 더미데이터 탐색용입니다. 실제 업무 자료는 보안 반출 승인 후에만 쓰세요. 계속할까요?'))return;
+    aiAck=true;
+  }
+  const items=R.docs.map(d=>({id:d.id,title:d.t.title,memo:aiMemo(d.t)})),sig=curSig();
+  aiBusy=true;showErr('');renderAI();
+  try{
+    const data=await api('POST','api/similar/group',{items});
+    aiRes={groups:data.groups||[],ungrouped:data.ungrouped||[],model:data.model||'',at:new Date().toLocaleString('ko-KR'),sig};
+    store(AKEY,aiRes);S.method='ai';store(SKEY,S);
+    aiBusy=false;recompute();showOk('AI가 '+aiRes.groups.length+'개 그룹으로 묶었습니다.');
+  }catch(e){aiBusy=false;showErr('AI로 묶지 못했습니다: '+e.message);renderAI()}
 }
 function recompute(){calcAt=new Date().toLocaleTimeString('ko-KR');editing=null;render()}
 function showOk(m){$('okmsg').textContent=m;$('okmsg').hidden=false;clearTimeout(okTimer);okTimer=setTimeout(()=>$('okmsg').hidden=true,3500)}
@@ -276,7 +378,7 @@ const find=key=>[...R.conf,...R.auto].find(g=>g.key===key);
 /* ---------- 이벤트 ---------- */
 function bindSettings(){
   $('scope').value=S.scope;$('fTitle').checked=S.title;$('fMemo').checked=S.memo;$('thr').value=S.thr;$('thrOut').textContent=S.thr+'%';
-  const upd=()=>{S={scope:$('scope').value,title:$('fTitle').checked,memo:$('fMemo').checked,thr:+$('thr').value};
+  const upd=()=>{S={...S,scope:$('scope').value,title:$('fTitle').checked,memo:$('fMemo').checked,thr:+$('thr').value};
     if(!S.title&&!S.memo){S.title=true;$('fTitle').checked=true}
     $('thrOut').textContent=S.thr+'%';store(SKEY,S);recompute()};
   ['scope','fTitle','fMemo','thr'].forEach(id=>$(id).addEventListener(id==='thr'?'input':'change',upd));
@@ -286,7 +388,7 @@ document.addEventListener('click',e=>{
   const d=e.target.dataset;
   if(d.all){S.scope='all';$('scope').value='all';store(SKEY,S);recompute()}
   if(d.detail){open.has(d.detail)?open.delete(d.detail):open.add(d.detail);render()}
-  if(d.edit){const g=find(d.edit);if(g){editing={key:g.key,gid:g.gid||null,name:g.name,idx:[...g.idx]};render()}}
+  if(d.edit){const g=find(d.edit);if(g){editing={key:g.key,gid:g.gid||null,name:g.name,reason:g.reason||'',idx:[...g.idx]};render()}}
   if(d.ecancel){editing=null;render()}
   if(d.erem!==undefined){e.preventDefault();editing.name=$('eName').value;editing.idx=editing.idx.filter(i=>i!==+d.erem);render()}
   if(d.eadd){const v=$('eAdd').value;if(v!==''){editing.name=$('eName').value;editing.idx.push(+v);render()}}
@@ -298,11 +400,15 @@ document.addEventListener('click',e=>{
     // 다른 확정 그룹에 있던 과제는 이 그룹으로 옮긴다
     confirmed=confirmed.map(c=>c.gid===editing.gid?c:{...c,ids:c.ids.filter(id=>!ids.includes(String(id)))}).filter(c=>c.ids.length>=2);
     const ex=confirmed.find(c=>c.gid===editing.gid);
-    if(ex){ex.name=name;ex.ids=ids;ex.at=at}else confirmed.push({gid:Date.now(),name,ids,at});
+    if(ex){ex.name=name;ex.ids=ids;ex.at=at;ex.reason=editing.reason||''}else confirmed.push({gid:Date.now(),name,ids,at,reason:editing.reason||''});
     saveConf();editing=null;recompute();showOk('그룹을 확정했습니다.');
   }
-  if(d.conf){const g=find(d.conf);if(g){confirmed.push({gid:Date.now(),name:g.name,ids:g.idx.map(i=>R.docs[i].id),at:new Date().toISOString().slice(0,10)});saveConf();recompute();showOk('그룹을 확정했습니다.')}}
+  if(d.conf){const g=find(d.conf);if(g){confirmed.push({gid:Date.now(),name:g.name,ids:g.idx.map(i=>R.docs[i].id),at:new Date().toISOString().slice(0,10),reason:g.reason||''});saveConf();recompute();showOk('그룹을 확정했습니다.')}}
   if(d.unconf){if(confirm('확정을 해제하면 이 그룹은 다시 자동 계산 결과로 돌아갑니다. 해제할까요?')){confirmed=confirmed.filter(c=>String(c.gid)!==d.unconf);saveConf();recompute();showOk('확정을 해제했습니다.')}}
+  const id=(e.target.closest('button')||e.target).id||'';
+  if(id==='aiRun')runAI();
+  if(id==='aiKw'){S.method='keyword';store(SKEY,S);recompute()}
+  if(id==='aiShow'){S.method='ai';store(SKEY,S);recompute()}
 });
 (async()=>{
   try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
@@ -310,6 +416,7 @@ document.addEventListener('click',e=>{
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   bindSettings();recompute();
+  loadLLM();
 })();
 </script>
 </body>

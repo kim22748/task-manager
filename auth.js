@@ -4,7 +4,7 @@
  *  - 이 파일을 불러오면 자동으로 로그인을 확인합니다. (로그인·회원가입 화면은 <script src="auth.js" data-guard="off">)
  *      · 서버(server.py)로 열었고 로그아웃 상태 → login.html 로 이동 (로그인 후 원래 화면으로 돌아옴)
  *      · 서버가 없을 때(GitHub Pages, 파일 더블클릭) → '디자인 미리보기' 모드: 로그인 없이 사이트관리자 화면으로 보여 줌
- *  - 로그인되면 기존 사이드바에 '내 정보'(+ 사이트관리자에게만 '사용자 관리') 메뉴를, 머리글에 이름·역할·로그아웃을 붙입니다.
+ *  - 로그인되면 기존 사이드바에 '내 정보'(+ 사이트관리자에게만 '사용자 관리'·'사이트 설정') 메뉴를, 머리글에 이름·역할·로그아웃을 붙입니다.
  *  - 과제참여자(member)에게는 class="w-only" 요소(등록·수정·삭제 버튼 등)를 숨깁니다. 실제 차단은 서버가 합니다.
  *
  *  Auth.guard({admin})  : 로그인 확인 결과(user)를 돌려주는 Promise. admin:true 면 사이트관리자가 아닐 때 대시보드로 이동
@@ -95,7 +95,7 @@ const Auth = (() => {
     const aside = document.querySelector('aside');
     if (aside && !aside.querySelector('.auth-grp')) {
       const menu = [['mypage.html', '내 정보']];
-      if (user.role === 'admin') menu.push(['admin-users.html', '사용자 관리']);
+      if (user.role === 'admin') menu.push(['admin-users.html', '사용자 관리'], ['settings.html', '사이트 설정']);
       aside.insertAdjacentHTML('beforeend', `<div class="auth-grp">계정</div>` +
         menu.map(([h, l]) => `<a href="${h}"${page() === h ? ' class="on"' : ''}>${l}</a>`).join(''));
     }

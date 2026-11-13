@@ -21,7 +21,13 @@
 - AI 과제 목록(`ai-projects.html`, 좌측 메뉴 'AI 과제 목록'): 명칭·목적·분류·단계·과제책임자·소속부서·접근권한범위 등록 게시판. 신규작성/수정은 같은 Modal 창을 사용하고, 수정은 기존 자료를 덮어씀
 - 로그인·사용자 관리(A01, `msshinlh/`에서 옮겨 옴): 로그인(`login.html`), 회원가입(`signup.html`, 사이트관리자 승인 후 사용), 내 정보·비밀번호 변경(`mypage.html`), 사이트관리자 전용 사용자 관리(`admin-users.html`: 가입 승인·역할 지정·비활성화·비밀번호 초기화·처리 이력)
   - 서버로 실행하면 모든 화면과 과제 API가 로그인을 요구합니다. 로그인하면 사이드바에 '계정' 메뉴, 머리글에 이름·역할·로그아웃이 붙습니다.
-  - 역할별 권한(서버에서 검사): 조회는 모든 역할, 과제·AI 과제 등록·수정·삭제·첨부는 사이트관리자·과제책임자, 서비스 게시·해제와 사용자 관리는 사이트관리자만
+  - 역할별 권한(서버에서 검사): 조회와 AI 유사과제 묶기는 모든 역할, 과제·AI 과제 등록·수정·삭제·첨부는 사이트관리자·과제책임자, 서비스 게시·해제·사용자 관리·사이트 설정은 사이트관리자만
+- 유사과제 탐색(`similar.html`, A04 — `kimyd/similar-llm`에서 옮겨 옴): 기본은 **AI(LLM) 묶기**. 'AI로 유사과제 묶기'를 누르면 LLM이 과제명(과 '메모'를 체크하면 메모)을 읽고 비슷한 과제를 묶어 그룹명·묶은 이유를 씁니다. AI를 쓸 수 없으면(서버 없음·AI 연결 안 됨) 단어 겹침으로 계산하는 키워드 방식을 참고용으로 보여 줍니다.
+  - AI 묶기 결과와 그룹 확정 내용은 **각자 브라우저에만 저장**되고 다른 사람과 공유되지 않습니다.
+  - 과제명(과 메모)이 **외부 AI 서비스로 전송**됩니다. 지금은 더미데이터 탐색용으로 허용했습니다(2026-11-13 결정). 실제 업무 자료는 보안 반출 승인 후에만 씁니다.
+- 사이트 설정(`settings.html`, 사이트관리자만): 유사과제 탐색에 쓸 AI 서비스를 연결합니다. **Anthropic** 또는 **OpenAI 호환**(OpenAI·vLLM·Ollama 등) 주소, 모델, API 키를 넣고 '연결 테스트'로 확인합니다.
+  - 키는 `data/llm_config.json`에만 저장되고 화면에는 끝 4자리만 보입니다. 서비스 종류나 주소를 바꾸면 키를 다시 넣어야 합니다(저장된 키가 다른 주소로 가지 않게).
+  - 서버 환경 변수 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`가 있으면 그 키가 우선합니다.
 - 더미데이터(`demo-data.json`): 가상 사용자 10명, AI 과제 10건, 과제 10건. 과제 담당자·AI 과제 책임자는 더미 사용자 이름과 같습니다. 날짜는 열 때마다 오늘 기준으로 맞춰집니다.
 
 ## 실행 — 실제 동작 확인 (8885 서버)
@@ -61,11 +67,13 @@ python3 server.py --reset-demo # 데이터를 더미데이터로 되돌리고 �
 | `server.py` | 저장 서버 + REST API (`/api/tasks`, `/api/ai-projects`) + 로그인 검사 |
 | `auth_users.py` | A01 로그인·회원가입·사용자 관리 API, 사용자 저장소 |
 | `auth.js` | 화면 공용 로그인 확인·계정 메뉴·미리보기 모드 |
-| `login.html` `signup.html` `mypage.html` `admin-users.html` | 로그인 / 회원가입 / 내 정보 / 사용자 관리 (`common.css` 스타일) |
+| `login.html` `signup.html` `mypage.html` `admin-users.html` `settings.html` | 로그인 / 회원가입 / 내 정보 / 사용자 관리 / 사이트 설정 (`common.css` 스타일) |
+| `similar.html` `similar_llm.py` | 유사과제 탐색 화면 / AI(LLM) 연결 API (`/api/llm/*`, `/api/similar/group`) |
 | `demo-data.json` `demo-data.js` | 더미데이터 / 오늘 날짜 기준으로 바꾸는 모듈 (서버는 `server.py`의 `demo_items()`가 같은 규칙) |
 | `data/tasks.json` | 저장된 과제 데이터 |
 | `data/ai_projects.json` | 저장된 AI 과제 데이터 |
 | `data/users.json` `data/audit.log` | 사용자(비밀번호는 해시) / 사용자 관리 처리 이력 |
+| `data/llm_config.json` | 사이트 설정의 AI 서비스 연결 정보(API 키 포함, git에 올라가지 않음) |
 | `data/files/<과제id>/` | 첨부 파일 원본 (목록은 과제의 `files` 항목) |
 
 ## 다음 단계(예정)

@@ -27,13 +27,13 @@
   "tasks": [
     {"title": "공시지가 검증 자동화", "s": "done", "assignee": "이도윤", "priority": "high", "progress": 100, "daysAgo": 45, "dueInDays": -10, "memo": "검증 규칙 32종 적용", "registered": true, "approver": "김하늘", "regReason": "주택공급처 전체 검토 업무에 적용 완료", "registeredDaysAgo": 8},
     {"title": "임대주택 하자 민원 분류", "s": "doing", "assignee": "한지민", "priority": "high", "progress": 60, "daysAgo": 38, "dueInDays": 12, "memo": "분류 정확도 검증 중"},
-    {"title": "보상 협의 회의록 요약", "s": "doing", "assignee": "이도윤", "priority": "mid", "progress": 85, "daysAgo": 30, "dueInDays": 2, "memo": "요약 형식 확정 대기"},
+    {"title": "보상 협의 회의록 요약", "s": "doing", "assignee": "이도윤", "priority": "mid", "progress": 85, "daysAgo": 30, "dueInDays": 2, "memo": "회의록 요약 형식 확정 대기"},
     {"title": "계약서 독소조항 검토 도우미", "s": "done", "assignee": "최지우", "priority": "high", "progress": 100, "daysAgo": 26, "dueInDays": -5, "memo": "", "registered": true, "approver": "김하늘", "regReason": "법무처 계약 검토 절차에 반영", "registeredDaysAgo": 4},
-    {"title": "단체협약 조항 검색", "s": "todo", "assignee": "정예린", "priority": "mid", "progress": 0, "daysAgo": 21, "dueInDays": 30, "memo": "데이터 범위 협의 필요"},
-    {"title": "법률 자문 이력 검색", "s": "todo", "assignee": "최지우", "priority": "low", "progress": 0, "daysAgo": 14, "dueInDays": 40, "memo": ""},
+    {"title": "단체협약 조항 검색", "s": "todo", "assignee": "정예린", "priority": "mid", "progress": 0, "daysAgo": 21, "dueInDays": 30, "memo": "조항 문서 검색 도우미, 데이터 범위 협의 필요"},
+    {"title": "법률 자문 이력 검색", "s": "todo", "assignee": "최지우", "priority": "low", "progress": 0, "daysAgo": 14, "dueInDays": 40, "memo": "자문 문서 검색 도우미"},
     {"title": "입찰 공고 요약 알림", "s": "done", "assignee": "김하늘", "priority": "mid", "progress": 100, "daysAgo": 9, "dueInDays": -1, "memo": "시범 운영 후 종료", "registered": true, "approver": "김하늘", "regReason": "시범 운영 결과 공유용 게시", "registeredDaysAgo": 1},
     {"title": "청약 문의 답변 초안", "s": "doing", "assignee": "이도윤", "priority": "high", "progress": 35, "daysAgo": 6, "dueInDays": -2, "memo": "답변 근거 연결 작업"},
-    {"title": "노사협의회 회의록 정리", "s": "doing", "assignee": "정예린", "priority": "mid", "progress": 100, "daysAgo": 3, "dueInDays": 5, "memo": "서비스 게시 승인 대기"},
+    {"title": "노사협의회 회의록 정리", "s": "doing", "assignee": "정예린", "priority": "mid", "progress": 100, "daysAgo": 3, "dueInDays": 5, "memo": "회의록 요약 정리 완료, 서비스 게시 승인 대기"},
     {"title": "공사 일보 현황판", "s": "todo", "assignee": "한지민", "priority": "low", "progress": 0, "daysAgo": 1, "dueInDays": 25, "memo": ""}
   ]
 }
