@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 의미 지도</title>
+<style>
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  aside a.child{padding:10px 24px 10px 40px;font-size:14px;color:rgba(255,255,255,.92);background:rgba(255,255,255,.08)}
+  aside a.child.on{background:var(--primary);color:#fff}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
+  .content{padding:24px;display:grid;gap:16px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub)}
+  .desc{color:var(--sub);font-size:13px;margin:0 0 12px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+  .stat span{color:var(--sub);font-size:14px}
+  .stat b{display:block;font-size:30px;margin-top:4px}
+  .notice{border-radius:8px;padding:10px 16px;font-size:14px}
+  .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice.info{background:#e6f4ff;border:1px solid #91caff}
+  .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
+  .notice[hidden]{display:none}
+  .opts{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end}
+  .opt{display:flex;flex-direction:column;gap:6px;font-size:14px}
+  .opt>b{font-weight:600}
+  .opt label{display:flex;align-items:center;gap:6px;font-size:14px}
+  select,input[type=text],button{font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  button{cursor:pointer}
+  button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.g{background:var(--done);border-color:var(--done);color:#fff}
+  button.sm{padding:3px 10px;font-size:13px}
+  input[type=range]{width:200px;vertical-align:middle}
+  input[type=checkbox]{width:16px;height:16px}
+  .chip{display:inline-block;padding:0 10px;border-radius:12px;font-size:12px;line-height:22px;white-space:nowrap}
+  .chip.dashed{border:1px dashed #d48806;background:#fffbe6;color:#ad6800}
+  .chip.kw{background:#f0f5ff;color:#1d39c4;border:1px solid #adc6ff;margin:2px 4px 2px 0}
+  .chip.auto{background:#f6f6f6;color:#595959;border:1px solid #d9d9d9}
+  .chip.conf{background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f}
+  .chip.pub{background:#e6fffb;color:#08979c;border:1px solid #87e8de}
+  .group{border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-top:12px;background:#fff}
+  .group.confirmed{border-color:#b7eb8f}
+  .ghead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .ghead .gname{font-weight:600;font-size:15px}
+  .ghead .gact{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+  th{background:#fafafa;font-weight:600}
+  .tablewrap{overflow-x:auto}
+  .why{margin:10px 0 0;font-size:13px}
+  .why b{margin-right:6px}
+  .bar{display:inline-block;width:80px;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;vertical-align:middle;margin-right:6px}
+  .bar i{display:block;height:100%;background:var(--primary)}
+  .detail{margin-top:10px;background:#fafafa;border-radius:6px;padding:10px 12px}
+  .detail h4{margin:0 0 6px;font-size:13px}
+  .edit{margin-top:10px;background:#fffbe6;border:1px dashed #d48806;border-radius:6px;padding:12px}
+  .edit .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .edit input[type=text]{min-width:240px}
+  .sub{color:var(--sub);font-size:12px}
+  .empty{text-align:center;color:var(--sub);padding:28px}
+  .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;background:#bfbfbf;white-space:nowrap}
+  .tag.doing{background:#1677ff}.tag.done{background:#52c41a}
+  .singles{display:flex;flex-wrap:wrap;gap:8px}
+  .single{border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;background:#fafafa}
+  @media(max-width:640px){aside{display:none}}
+  .chip.ai{background:#f9f0ff;color:#531dab;border:1px solid #d3adf7}
+  #aiRun{display:inline-flex;align-items:center;gap:6px}
+  .aiicon{flex:none}
+  button:disabled,input:disabled{opacity:.5;cursor:not-allowed}
+  /* 의미 지도 */
+  .seg{display:inline-flex;border:1px solid #d9d9d9;border-radius:6px;overflow:hidden}
+  .seg button{border:0;border-radius:0;padding:3px 14px;font-size:13px}
+  .seg button.on{background:var(--primary);color:#fff}
+  .mapbar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+  .mapbar label{display:flex;align-items:center;gap:6px}
+  .mapwrap{position:relative;border-radius:10px;overflow:hidden;background:#060d24;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 8px 28px rgba(5,12,40,.28)}
+  #mapCv{display:block;width:100%;height:580px;cursor:grab;touch-action:none}
+  #mapCv.drag{cursor:grabbing}
+  .mapbadge{position:absolute;left:14px;top:12px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+  .mapbadge span{font-size:12px;line-height:22px;padding:0 10px;border-radius:12px;color:#dbe7ff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(4px)}
+  .maphint{position:absolute;right:14px;bottom:10px;font-size:12px;color:rgba(219,231,255,.6);pointer-events:none}
+  .maptip{position:absolute;pointer-events:none;z-index:3;max-width:340px;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.55;color:#eaf2ff;background:rgba(9,18,48,.88);border:1px solid rgba(160,190,255,.28);box-shadow:0 8px 24px rgba(0,0,0,.4);backdrop-filter:blur(8px)}
+  .maptip[hidden]{display:none}
+  .maptip b{font-size:13px}
+  .maptip .m{opacity:.7}
+  .maplegend{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .maplegend button{padding:1px 10px;font-size:12px;border-radius:12px;display:inline-flex;align-items:center;gap:6px}
+  .maplegend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .maplegend button.dim{opacity:.4}
+</style>
+</head>
+<body>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a><a class="child on" href="semantic-map.html">└ 의미 지도</a></aside>
+<div class="main">
+  <header>의미 지도<small id="mode"></small></header>
+  <div class="content">
+    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 AI 과제로 지도를 그립니다. 서버에 저장된 AI 과제를 보려면 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
+    <div class="notice info">이 지도는 <a href="similar.html">유사과제 탐색</a>에서 만든 결과(AI가 묶은 그룹 또는 키워드로 묶은 그룹, 확정한 그룹 포함)를 그림으로 보여 줍니다. 그룹을 AI로 새로 묶거나 조정·확정하려면 <a href="similar.html">유사과제 탐색</a>에서 하세요. 이 페이지는 AI를 호출하지 않습니다.</div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="card" id="mapCard">
+      <h2>의미 지도 <em id="mapInfo"></em>
+        <span class="seg" id="mapSeg"><button data-m="2d">2D</button><button data-m="3d" class="on">3D</button></span>
+      </h2>
+      <p class="desc" id="mapDesc"></p>
+      <div class="sub" id="srcInfo" style="margin:-4px 0 10px"></div>
+      <div class="mapbar">
+        <span class="seg" id="viewSeg"><button data-v="ai">AI 결과</button><button data-v="keyword">키워드 결과</button></span>
+        <label>유사도 기준 <b id="thrOut" style="color:var(--primary)">10%</b> <input type="range" id="thr" min="5" max="90" step="5" value="10"></label>
+        <label><input type="checkbox" id="mapAuto" checked> 자동 회전(3D)</label>
+        <label><input type="checkbox" id="mapSingles" checked> 단독 과제 표시</label>
+        <button class="sm" id="mapReset">시점 초기화</button>
+      </div>
+      <div class="mapwrap"><canvas id="mapCv"></canvas><div class="mapbadge" id="mapBadge"></div><div class="maphint" id="mapHint"></div><div class="maptip" id="mapTip" hidden></div></div>
+      <div class="maplegend" id="mapLegend"></div>
+    </div>
+  </div>
+</div>
+<script src="demo-data.js"></script>
+<script src="auth.js"></script>
+<script src="ai-storage.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 비교 대상은 'AI 과제 목록'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
+const norm=p=>({id:p.id,title:p.title||'',memo:p.purpose||'',category:p.category||'',stage:p.stage||'',owner:p.ownerName||'',dept:p.ownerDept||''});
+const SKEY='similar-settings-v4',CKEY='similar-confirmed-v2';
+const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
+const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+
+const AKEY='similar-ai-v2';
+// 키워드 방식의 유사도 기준(%)은 슬라이더로 조정한다 (5~90%, 기본 10%). 낮출수록 느슨하게 묶는다.
+let tasks=[],S=Object.assign({title:true,memo:true,method:'ai',thr:10},load(SKEY,{}));
+let confirmed=load(CKEY,[]);
+let open=new Set(),editing=null,calcAt=null,okTimer;
+let aiRes=load(AKEY,null),aiAck=false,aiBusy=false,llm=null;
+
+llm={unsupported:true};   // 이 페이지는 AI를 부르지 않고, 유사과제 탐색에서 저장한 결과만 그린다
+
+/* ---------- 키워드 추출 · 유사도 (키워드 기반; 모델이 정해지면 이 부분만 교체) ---------- */
+const STOP=new Set(['과제','관련','위한','통한','대한','및','등','있는','하는','위해','통해','대해']);
+// 2글자 이상 조사는 항상 떼고, 1글자 조사는 떼고 남은 말이 다른 곳에 그대로 나올 때만 뗀다 (예: '공시지가'의 '가'를 조사로 오인하지 않기 위함)
+const JOSA2=['으로써','으로','에서','에게','까지','부터','에는'];
+const JOSA1=['과','와','을','를','은','는','이','가','의','에','도','로'];
+const words=text=>String(text||'').toLowerCase().split(/[^0-9a-z가-힣]+/).filter(Boolean);
+function tokenize(text,raw){
+  const out=[];
+  words(text).forEach(w=>{
+    if(/[가-힣]/.test(w)&&w.length>2){
+      const j2=JOSA2.find(j=>w.endsWith(j)&&w.length-j.length>=2);
+      if(j2)w=w.slice(0,-j2.length);
+      else{const j1=JOSA1.find(j=>w.endsWith(j)&&w.length-j.length>=2&&(raw.has(w.slice(0,-j.length))||(raw.stems[w.slice(0,-j.length)]||0)>=2));if(j1)w=w.slice(0,-j1.length)}
+    }
+    if(w.length<2||/^\d+$/.test(w)||STOP.has(w))return;
+    out.push(/[가-힣]/.test(w)&&w.length>2?w.slice(0,2):w);   // 어간 근사: 한글 단어는 앞 두 글자만 쓴다 (가상 100건·50건으로 비교해 단어 그대로 쓸 때보다 낫거나 같았음)
+  });
+  return out;
+}
+const docText=t=>[S.title?t.title:'',S.memo?t.memo:''].join(' ');
+
+function compute(){
+  const scope=tasks;
+  const raw=new Set(scope.flatMap(t=>words(docText(t))));
+  // 같은 어간에 서로 다른 조사가 붙은 단어가 2개 이상이면(예: 대시보드를·대시보드는) 어간으로 합친다
+  raw.stems={};
+  raw.forEach(w=>JOSA1.forEach(j=>{if(w.endsWith(j)&&w.length-j.length>=2){const s=w.slice(0,-j.length);raw.stems[s]=(raw.stems[s]||0)+1}}));
+  const docs=scope.map(t=>({t,id:String(t.id),tok:tokenize(docText(t),raw)}));
+  const N=docs.length,df={};
+  docs.forEach(d=>{d.set=new Set(d.tok);d.set.forEach(w=>df[w]=(df[w]||0)+1)});
+  const idf=w=>Math.pow(Math.log((N+1)/((df[w]||0)+1))+1,2);   // 흔한 단어보다 드문 단어를 더 크게 반영 (제곱)
+  docs.forEach(d=>{const tf={};d.tok.forEach(w=>tf[w]=(tf[w]||0)+1);d.vec={};let n=0;
+    for(const w in tf){d.vec[w]=tf[w]*idf(w);n+=d.vec[w]**2}d.norm=Math.sqrt(n)});
+  const sim=(a,b)=>{if(!a.norm||!b.norm)return 0;let s=0;for(const w in a.vec)if(b.vec[w])s+=a.vec[w]*b.vec[w];return s/(a.norm*b.norm)};
+  const M=docs.map((a,i)=>docs.map((b,j)=>i===j?1:sim(a,b)));
+  const byId=new Map(docs.map((d,i)=>[d.id,i]));
+
+  // 확정 그룹 (현재 비교 대상에 남아 있는 과제만)
+  const conf=[];
+  confirmed.forEach(c=>{const idx=c.ids.map(id=>byId.get(String(id))).filter(i=>i!==undefined);if(idx.length>=2)conf.push({key:'c:'+c.gid,gid:c.gid,name:c.name,at:c.at,reason:c.reason||'',idx,confirmed:true})});
+  const taken=new Set(conf.flatMap(g=>g.idx));
+
+  // 자동 그룹: 'AI 방식'이고 AI 결과가 있으면 그 결과를, 아니면 평균 연결 군집화 (확정 그룹에 들어간 과제는 제외)
+  // haveAI: 저장된 AI 결과를 보여 줌 / pending: AI 방식인데 아직 결과가 없고 AI를 쓸 수 있음(또는 연결 확인 중)
+  // 그 밖에 AI 방식인데 AI를 쓸 수 없으면(서버 없음·키 없음) 키워드 계산을 참고용으로 대신 보여 준다
+  const haveAI=S.method==='ai'&&!!aiRes&&Array.isArray(aiRes.groups);
+  const aiUsable=AIStorage.mode==='server'&&(llm===null||(!!llm.configured&&!llm.unsupported));
+  const pending=S.method==='ai'&&!haveAI&&aiUsable;
+  const fallback=S.method==='ai'&&!haveAI&&!aiUsable;
+  let auto;
+  if(pending){auto=[]}
+  else if(haveAI){
+    const used=new Set(taken);auto=[];
+    aiRes.groups.forEach((g,gi)=>{
+      const idx=(g.ids||[]).map(id=>byId.get(String(id))).filter(i=>i!==undefined&&!used.has(i));
+      if(idx.length<2)return;
+      idx.forEach(i=>used.add(i));
+      auto.push({key:'ai:'+idx.map(i=>docs[i].id).join(','),idx,confirmed:false,ai:true,name:String(g.name||'').trim(),reason:String(g.reason||'').trim(),_ai:gi,_rel:Array.isArray(g.related)?g.related:[]});
+    });
+    // AI 가 낸 그룹 사이 의미 관계(번호)를 지금 화면의 그룹으로 연결한다 (지도에서 가까운 그룹을 잇는 데 씀)
+    const byAi=new Map(auto.map(a=>[a._ai,a]));
+    auto.forEach(a=>{a.rel=a._rel.map(j=>byAi.get(j)).filter(x=>x&&x!==a)});
+  }else{
+    let cl=docs.map((_,i)=>i).filter(i=>!taken.has(i)).map(i=>[i]);
+    const thr=S.thr/100;
+    for(;;){
+      let best=-1,bi=-1,bj=-1;
+      for(let a=0;a<cl.length;a++)for(let b=a+1;b<cl.length;b++){
+        let s=0;cl[a].forEach(i=>cl[b].forEach(j=>s+=M[i][j]));s/=cl[a].length*cl[b].length;
+        if(s>best){best=s;bi=a;bj=b}
+      }
+      if(best<thr||bi<0)break;
+      cl[bi]=cl[bi].concat(cl[bj]);cl.splice(bj,1);
+    }
+    auto=cl.filter(c=>c.length>=2).map(idx=>{idx.sort((a,b)=>a-b);return{key:'auto:'+idx.map(i=>docs[i].id).join(','),idx,confirmed:false}});
+  }
+  const grouped=new Set([...conf,...auto].flatMap(g=>g.idx));
+  const singles=pending?[]:docs.map((_,i)=>i).filter(i=>!grouped.has(i));
+
+  // 그룹별 근거(공통 키워드·평균 유사도)와 이름
+  [...conf,...auto].forEach(g=>{
+    const cnt={};g.idx.forEach(i=>docs[i].set.forEach(w=>cnt[w]=(cnt[w]||0)+1));
+    g.kws=Object.keys(cnt).filter(w=>cnt[w]>=2).sort((a,b)=>cnt[b]-cnt[a]||idf(b)-idf(a)||a.localeCompare(b,'ko')).slice(0,6);
+    let s=0,n=0;g.idx.forEach((i,x)=>g.idx.forEach((j,y)=>{if(y>x){s+=M[i][j];n++}}));g.avg=n?s/n:0;
+    if(!g.name)g.name=g.kws.length?g.kws.slice(0,3).join(' · ')+' 유사 과제':'이름 없는 그룹';
+  });
+  if(!auto.some(g=>g.ai))auto.sort((a,b)=>b.avg-a.avg);
+  conf.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  return{docs,M,conf,auto,singles,idf,haveAI,pending,fallback};
+}
+let R=null;
+
+/* ---------- 의미 지도 (2D·3D 도식화) ----------
+ * 디자인 레퍼런스(GitHub, 모두 MIT): vasturiano/force-graph · 3d-force-graph 의 예제
+ *   highlight(마우스를 올린 노드와 이웃만 밝힘) · directional-links-particles(선을 따라 흐르는 입자)
+ *   bloom-effect(어두운 우주 배경 + 빛 번짐) · camera-auto-orbit(자동 회전) · click-to-focus(클릭하면 카메라 이동)
+ *   gradient-links · curved-links(그라데이션·곡선 연결선)
+ * 코드를 가져온 것이 아니라 기법만 참고해 canvas 로 직접 구현했습니다. 외부 라이브러리·CDN 없음(폐쇄망에서도 동작). */
+const MAP={mode:'3d',auto:true,singles:true,cam:{yaw:.6,pitch:.38,zoom:1,tx:0,ty:0,tz:0},tgt:{yaw:.6,pitch:.38,zoom:1,tx:0,ty:0,tz:0},
+  L:null,hits:[],focusKey:null,hoverKey:null,drag:null,vis:true,raf:0,W:0,H:0};
+const HUE=i=>(i*137.508+205)%360;
+const gcol=(i,a,l=62)=>`hsla(${HUE(i)},85%,${l}%,${a})`;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fib=(i,n)=>{const k=(i+.5)/Math.max(n,1),ph=Math.acos(1-2*k),th=Math.PI*(1+Math.sqrt(5))*i;return[Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)]};
+const STARS=Array.from({length:160},(_,i)=>({x:Math.abs(Math.sin(i*12.9898)*43758.5453)%1,y:Math.abs(Math.sin(i*78.233)*12345.6789)%1,r:.4+((i*37)%10)/10*1.1,p:i*1.7,l:i%3}));
+
+// 그룹 사이 관계(AI 의미 관계는 강하게, 키워드 관계는 약하게)를 당기는 힘으로, 나머지는 밀어내는 힘으로 배치한다
+function buildMapLayout(){
+  if(!R)return null;
+  const groups=[...R.conf,...R.auto],N=groups.length,flat=MAP.mode==='2d';
+  const gi=new Map(groups.map((g,i)=>[g,i])),Em=new Map();
+  const add=(a,b,ai)=>{if(a===b)return;const k=a<b?a+'-'+b:b+'-'+a,e=Em.get(k);if(!e)Em.set(k,{a:Math.min(a,b),b:Math.max(a,b),ai});else if(ai)e.ai=true};
+  groups.forEach((g,i)=>{
+    if(g.ai){(g.rel||[]).forEach(o=>{const j=gi.get(o);if(j!==undefined)add(i,j,true)})}
+    else{   // AI 관계가 없는 그룹(키워드 묶음·직접 확정한 그룹)은 단어가 겹치는 정도가 높은 그룹 최대 2개와 약하게 잇는다
+      const sc=groups.map((o,j)=>{if(j===i)return -1;let s=0;g.idx.forEach(a=>o.idx.forEach(b=>s+=R.M[a][b]));return s/(g.idx.length*o.idx.length)});
+      sc.map((s,j)=>[s,j]).filter(x=>x[0]>.01).sort((p,q)=>q[0]-p[0]).slice(0,2).forEach(x=>add(i,x[1],false));
+    }
+  });
+  const E=[...Em.values()];
+  const P=Array.from({length:N},(_,i)=>{const p=fib(i,N).map(v=>v*.7);if(flat)p[2]=0;return p});
+  for(let it=0;it<500;it++){
+    const F=P.map(()=>[0,0,0]),step=it<250?1:.5;
+    for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){
+      const d=[0,1,2].map(k=>P[i][k]-P[j][k]),d2=d[0]*d[0]+d[1]*d[1]+d[2]*d[2]+1e-3,dist=Math.sqrt(d2),f=.012/d2;
+      for(let k=0;k<3;k++){F[i][k]+=f*d[k]/dist;F[j][k]-=f*d[k]/dist}
+    }
+    E.forEach(e=>{const d=[0,1,2].map(k=>P[e.b][k]-P[e.a][k]),dist=Math.sqrt(d[0]*d[0]+d[1]*d[1]+d[2]*d[2])+1e-6,f=(e.ai?.12:.06)*(dist-.28);
+      for(let k=0;k<3;k++){F[e.a][k]+=f*d[k]/dist;F[e.b][k]-=f*d[k]/dist}});
+    for(let i=0;i<N;i++){for(let k=0;k<3;k++)P[i][k]+=(F[i][k]-.06*P[i][k])*step;if(flat)P[i][2]=0}
+  }
+  let mx=1e-6;P.forEach(p=>p.forEach(v=>mx=Math.max(mx,Math.abs(v))));
+  P.forEach(p=>{for(let k=0;k<3;k++)p[k]=p[k]/mx*.8});
+  const nodes=groups.map((g,i)=>{const n=g.idx.length;return{g,i,c:P[i],rad:.05+.02*Math.sqrt(n),mem:g.idx.map((ix,k)=>({d:R.docs[ix],v:fib(k,n),ph:k*.9}))}});
+  const sing=R.singles.map((ix,k,a)=>({d:R.docs[ix],v:(flat?[Math.cos(2*Math.PI*k/a.length),Math.sin(2*Math.PI*k/a.length),0]:fib(k,a.length)).map(v=>v*1.12)}));
+  return{nodes,sing,E,groups};
+}
+
+function proj(p,W,H){
+  const c=MAP.cam,s=Math.min(W,H)*.42*c.zoom,x=p[0]-c.tx,y=p[1]-c.ty,z=p[2]-c.tz;
+  if(MAP.mode==='2d')return{x:W/2+x*s,y:H/2-y*s,z:0,k:1};
+  const cy=Math.cos(c.yaw),sy=Math.sin(c.yaw),cp=Math.cos(c.pitch),sp=Math.sin(c.pitch);
+  const x1=x*cy+z*sy,z1=-x*sy+z*cy,y2=y*cp-z1*sp,z2=y*sp+z1*cp,f=3/(3+z2);
+  return{x:W/2+x1*s*f,y:H/2-y2*s*f,z:z2,k:f};
+}
+
+function drawMap(now){
+  const cv=$('mapCv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+  if(!W||!H)return;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  MAP.W=W;MAP.H=H;
+  const c=cv.getContext('2d'),cam=MAP.cam,tg=MAP.tgt,L=MAP.L;
+  // 카메라를 목표값으로 부드럽게 이동 (클릭하면 날아가듯 이동)
+  ['pitch','zoom','tx','ty','tz'].forEach(k=>cam[k]+=(tg[k]-cam[k])*.09);
+  if(MAP.mode==='3d'){
+    if(MAP.auto&&!MAP.drag&&!MAP.focusKey){tg.yaw+=.0022;cam.yaw+=.0022}
+    else cam.yaw+=(tg.yaw-cam.yaw)*.09;
+  }
+  c.setTransform(dpr,0,0,dpr,0,0);c.globalCompositeOperation='source-over';c.globalAlpha=1;
+  // 배경: 어두운 우주 + 별
+  const bg=c.createRadialGradient(W*.5,H*.45,20,W*.5,H*.5,Math.max(W,H)*.75);
+  bg.addColorStop(0,'#10204a');bg.addColorStop(.55,'#07102b');bg.addColorStop(1,'#030617');
+  c.fillStyle=bg;c.fillRect(0,0,W,H);
+  STARS.forEach(s=>{
+    const par=MAP.mode==='3d'?(cam.yaw*18*(s.l+1)):0,x=((s.x*W+par)%W+W)%W,tw=.35+.65*Math.abs(Math.sin(now*.0007+s.p));
+    c.globalAlpha=.25+.5*tw*(s.l===2?1:.6);c.fillStyle='#cfe0ff';c.beginPath();c.arc(x,s.y*H,s.r*(s.l===2?1.2:.9),0,7);c.fill();
+  });
+  c.globalAlpha=1;
+  MAP.hits=[];
+  if(!L||!L.nodes.length){
+    c.fillStyle='rgba(219,231,255,.7)';c.font='14px "Malgun Gothic",sans-serif';c.textAlign='center';
+    c.fillText(MAP.msg||'표시할 결과가 없습니다.',W/2,H/2);return;
+  }
+  // 강조 대상: 마우스를 올린 그룹(없으면 클릭해 고른 그룹)과 그 이웃만 밝히고 나머지는 흐리게
+  const act=MAP.hoverKey||MAP.focusKey;let on=null,actI=-1;
+  if(act){actI=L.nodes.findIndex(n=>n.g.key===act);if(actI>=0){on=new Set([actI]);L.E.forEach(e=>{if(e.a===actI)on.add(e.b);if(e.b===actI)on.add(e.a)})}}
+  const na=i=>on?(on.has(i)?1:.13):1;
+  const s0=Math.min(W,H)*.42*cam.zoom,t=now;
+  // 1) 연결선: 곡선 + 그라데이션, AI 관계는 빛나는 선과 흐르는 입자, 키워드 관계는 얇은 점선
+  L.E.forEach((e,ei)=>{
+    const A=proj(L.nodes[e.a].c,W,H),B=proj(L.nodes[e.b].c,W,H);
+    const dx=B.x-A.x,dy=B.y-A.y,dist=Math.hypot(dx,dy)||1,sg=(e.a*7+e.b*3)%2?1:-1,off=dist*.18*sg;
+    const cx=(A.x+B.x)/2-dy/dist*off,cy2=(A.y+B.y)/2+dx/dist*off;
+    const hi=on&&(e.a===actI||e.b===actI),a=on?(hi?1:.08):1,depth=clamp(.45+.55*(A.k+B.k)/2,.3,1);
+    const gr=c.createLinearGradient(A.x,A.y,B.x,B.y);gr.addColorStop(0,gcol(e.a,.9,66));gr.addColorStop(1,gcol(e.b,.9,66));
+    c.save();c.strokeStyle=gr;
+    if(e.ai){
+      c.globalCompositeOperation='lighter';
+      c.globalAlpha=.2*a*depth;c.lineWidth=(hi?9:6)*A.k;c.beginPath();c.moveTo(A.x,A.y);c.quadraticCurveTo(cx,cy2,B.x,B.y);c.stroke();   // 빛 번짐
+      c.globalAlpha=.9*a*depth;c.lineWidth=(hi?2.6:1.5)*A.k;c.beginPath();c.moveTo(A.x,A.y);c.quadraticCurveTo(cx,cy2,B.x,B.y);c.stroke();
+      for(let q=0;q<(hi?4:3);q++){   // 선을 따라 흐르는 입자
+        const u=((t*.00022*(1+(ei%3)*.25)+q/(hi?4:3)+ei*.137)%1),m=1-u;
+        const px=m*m*A.x+2*m*u*cx+u*u*B.x,py=m*m*A.y+2*m*u*cy2+u*u*B.y,pr=(hi?3.6:2.4)*A.k;
+        const pg=c.createRadialGradient(px,py,0,px,py,pr*3.2);pg.addColorStop(0,`rgba(255,255,255,${.95*a*depth})`);pg.addColorStop(1,'rgba(255,255,255,0)');
+        c.globalAlpha=1;c.fillStyle=pg;c.beginPath();c.arc(px,py,pr*3.2,0,7);c.fill();
+      }
+    }else{
+      c.globalAlpha=.4*a*depth;c.lineWidth=1*A.k;c.setLineDash([4,5]);c.beginPath();c.moveTo(A.x,A.y);c.quadraticCurveTo(cx,cy2,B.x,B.y);c.stroke();
+    }
+    c.restore();
+  });
+  // 이름표가 서로 겹치면 가까운(앞쪽) 그룹부터 자리를 잡고, 겹치는 뒤쪽 그룹은 위로 비켜 놓는다
+  const placed=[];
+  L.nodes.map(n=>{const P=proj(n.c,W,H);return{n,P,R0:n.rad*s0*P.k*1.5}}).sort((a,b)=>a.P.z-b.P.z).forEach(o=>{
+    const nm=o.n.g.name.length>N_LABEL_MAX?o.n.g.name.slice(0,N_LABEL_MAX)+'…':o.n.g.name;
+    c.font=`600 ${Math.round(11+2.5*o.P.k)}px "Malgun Gothic",sans-serif`;
+    const w=c.measureText(nm).width+10,h=17,hit=y=>placed.some(r=>Math.abs(r.x-o.P.x)<(r.w+w)/2&&Math.abs(r.y-y)<h);
+    let y=o.P.y-o.R0-7,tries=0;
+    while(hit(y)&&tries<6){y-=h*.9;tries++}
+    const clash=hit(y);
+    o.n._lab={y,nm,hide:clash&&!(on&&on.has(o.n.i))};
+    if(!clash)placed.push({x:o.P.x,y,w});
+  });
+  // 2) 그룹(빛나는 구)·과제(점)를 먼 것부터 그린다
+  const items=[];
+  L.nodes.forEach(n=>{
+    const P=proj(n.c,W,H),al=na(n.i),dep=clamp(.4+.6*P.k,.3,1)*al,isAct=n.i===actI;
+    const R0=n.rad*s0*P.k*1.5*(isAct?1+.05*Math.sin(t*.004):1);
+    items.push({z:P.z,draw(){
+      c.save();
+      c.globalCompositeOperation='lighter';
+      const halo=c.createRadialGradient(P.x,P.y,R0*.2,P.x,P.y,R0*2.4);halo.addColorStop(0,gcol(n.i,.34*dep,60));halo.addColorStop(1,gcol(n.i,0,60));
+      c.globalAlpha=1;c.fillStyle=halo;c.beginPath();c.arc(P.x,P.y,R0*2.4,0,7);c.fill();
+      const core=c.createRadialGradient(P.x-R0*.25,P.y-R0*.3,R0*.1,P.x,P.y,R0);core.addColorStop(0,gcol(n.i,.55*dep,78));core.addColorStop(.7,gcol(n.i,.16*dep,55));core.addColorStop(1,gcol(n.i,.05*dep,50));
+      c.fillStyle=core;c.beginPath();c.arc(P.x,P.y,R0,0,7);c.fill();
+      c.globalCompositeOperation='source-over';
+      c.globalAlpha=.85*dep;c.strokeStyle=gcol(n.i,.9,70);c.lineWidth=isAct?2:1.1;c.beginPath();c.arc(P.x,P.y,R0,0,7);c.stroke();
+      c.restore();
+    }});
+    MAP.hits.push({x:P.x,y:P.y,r:Math.max(R0,12),z:P.z+2,kind:'g',n});
+    n.mem.forEach(m=>{
+      const ang=t*.0004+m.ph,ca=Math.cos(ang),sa=Math.sin(ang);   // 구 안에서 과제 점들이 천천히 도는 모습
+      const ox=m.v[0]*ca+m.v[2]*sa,oz=-m.v[0]*sa+m.v[2]*ca,br=1+.06*Math.sin(t*.002+m.ph);
+      const Q=proj([n.c[0]+ox*n.rad*br,n.c[1]+m.v[1]*n.rad*br,n.c[2]+oz*n.rad*br],W,H),rr=Math.max(2.2,3.6*Q.k);
+      items.push({z:Q.z,draw(){
+        c.save();c.globalCompositeOperation='lighter';
+        const g2=c.createRadialGradient(Q.x,Q.y,0,Q.x,Q.y,rr*3);g2.addColorStop(0,gcol(n.i,.8*dep,82));g2.addColorStop(1,gcol(n.i,0,70));
+        c.fillStyle=g2;c.beginPath();c.arc(Q.x,Q.y,rr*3,0,7);c.fill();
+        c.globalCompositeOperation='source-over';c.globalAlpha=dep;c.fillStyle='#fff';c.beginPath();c.arc(Q.x,Q.y,rr*.8,0,7);c.fill();c.restore();
+      }});
+      MAP.hits.push({x:Q.x,y:Q.y,r:Math.max(rr+4,8),z:Q.z,kind:'m',n,m});
+    });
+    // 이름표 (뒤쪽 그룹은 흐리게)
+    items.push({z:P.z-.5,draw(){
+      c.save();c.globalAlpha=clamp(.25+.75*P.k,.2,1)*(on?(on.has(n.i)?1:.25):1);
+      const lb=n._lab||{y:P.y-R0-7,nm:n.g.name,hide:false};
+      c.font=`600 ${Math.round(11+2.5*P.k)}px "Malgun Gothic",sans-serif`;c.textAlign='center';c.lineJoin='round';
+      if(!lb.hide){c.strokeStyle='rgba(4,9,28,.9)';c.lineWidth=4;c.strokeText(lb.nm,P.x,lb.y);c.fillStyle='#eaf2ff';c.fillText(lb.nm,P.x,lb.y)}
+      c.font=`700 ${Math.round(10+2*P.k)}px "Malgun Gothic",sans-serif`;c.fillStyle=gcol(n.i,1,82);c.fillText(n.g.idx.length+'건',P.x,P.y+4);
+      c.restore();
+    }});
+  });
+  if(MAP.singles)L.sing.forEach(S=>{
+    const Q=proj(S.v.map(v=>v),W,H),rr=Math.max(1.8,2.6*Q.k),al=on?.12:.8;
+    items.push({z:Q.z,draw(){c.save();c.globalAlpha=al*clamp(.4+.6*Q.k,.3,1);c.fillStyle='#8aa4d6';c.beginPath();c.arc(Q.x,Q.y,rr,0,7);c.fill();c.restore()}});
+    MAP.hits.push({x:Q.x,y:Q.y,r:Math.max(rr+4,8),z:Q.z,kind:'s',S});
+  });
+  items.sort((p,q)=>q.z-p.z).forEach(o=>o.draw());
+  c.globalAlpha=1;
+  if(MAP.pend){   // AI 결과 대기 중: 확정한 그룹만 보이므로 안내 문구를 얹는다
+    c.fillStyle='rgba(219,231,255,.75)';c.font='14px "Malgun Gothic",sans-serif';c.textAlign='center';
+    c.fillText('AI 결과가 나오면 나머지 과제도 이 지도에 그려집니다.',W/2,H-34);
+  }
+}
+let N_LABEL_MAX=14;
+
+function frame(now){
+  MAP.raf=requestAnimationFrame(frame);
+  if(!MAP.vis||document.hidden)return;
+  drawMap(now);
+}
+
+function renderMap(){
+  if(!R)return;
+  MAP.L=buildMapLayout();
+  const L=MAP.L,haveAI=R.haveAI,N=L?L.nodes.length:0;
+  N_LABEL_MAX=N>22?9:N>14?12:16;
+  MAP.msg=R.pending?'AI 결과를 기다리고 있습니다. 위의 「AI로 유사과제 묶기」를 누르면 지도가 그려집니다.':R.docs.length<2?'AI 과제가 2건 이상이어야 지도를 그릴 수 있습니다.':'묶인 그룹이 없습니다.';
+  if(MAP.focusKey&&!(L&&L.nodes.some(n=>n.g.key===MAP.focusKey)))setFocus(null);
+  const aiE=L?L.E.filter(e=>e.ai).length:0,kwE=L?L.E.length-aiE:0;
+  $('mapInfo').textContent=N?`그룹 ${N}개 · 연결 ${L.E.length}개 · 단독 ${L.sing.length}건`:'';
+  MAP.pend=R.pending&&R.docs.length>=2;
+  $('mapDesc').textContent=haveAI
+    ?'AI(LLM)가 각 AI 과제가 무엇인지 읽고 묶은 그룹을 빛나는 구로 그렸습니다. 구 사이의 선은 AI가 "업무·대상·목적이 이어진다"고 판단한 관계이고, 가까이 놓인 그룹일수록 의미가 가깝습니다. 단어 일치는 쓰지 않습니다.'
+    :R.pending?'AI 결과를 기다리고 있습니다. 위의 「AI로 유사과제 묶기」를 누르면 AI가 의미로 판단한 그룹과 관계로 지도가 그려집니다.'
+    :'지금은 키워드 방식 결과로 그린 참고용 지도입니다. 점선은 그룹 사이 단어가 겹치는 정도로 만든 관계라, 뜻이 가까워도 단어가 다르면 멀리 놓일 수 있습니다. 의미 기준 지도는 AI 결과가 있을 때 그려집니다.';
+  $('mapBadge').innerHTML=N?`<span>${haveAI?'AI 의미 관계':'키워드(단어) 관계'}</span><span>${MAP.mode==='3d'?'3D':'2D'}</span>${aiE?`<span>AI 관계선 ${aiE}</span>`:''}${kwE?`<span>단어 관계선 ${kwE}</span>`:''}`:'';
+  $('mapHint').textContent=MAP.mode==='3d'?'드래그: 회전 · 휠: 확대/축소 · 클릭: 그룹으로 이동':'드래그: 이동 · 휠: 확대/축소 · 클릭: 그룹으로 이동';
+  document.querySelectorAll('#mapSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===MAP.mode));
+  $('mapLegend').innerHTML=N?L.nodes.map(n=>`<button data-mk="${esc(n.g.key)}" class="${MAP.focusKey&&MAP.focusKey!==n.g.key?'dim':''}" style="border-color:${gcol(n.i,.9,55)}"><i style="background:${gcol(n.i,1,62)};box-shadow:0 0 8px ${gcol(n.i,.9,62)}"></i>${esc(n.g.name)} (${n.g.idx.length})</button>`).join(''):'';
+}
+function setFocus(key){
+  MAP.focusKey=key||null;const tg=MAP.tgt;
+  const n=key&&MAP.L?MAP.L.nodes.find(x=>x.g.key===key):null;
+  if(n){tg.tx=n.c[0];tg.ty=n.c[1];tg.tz=n.c[2];tg.zoom=MAP.mode==='2d'?1.9:1.8}
+  else{tg.tx=tg.ty=tg.tz=0;tg.zoom=1}
+}
+function resetView(){setFocus(null);const tg=MAP.tgt;tg.yaw=.6;tg.pitch=.38;MAP.cam.yaw=.6}
+
+(()=>{
+  const cv=$('mapCv'),tip=$('mapTip');
+  const pick=(x,y)=>{let best=null;MAP.hits.forEach(h=>{const d=Math.hypot(h.x-x,h.y-y);if(d<=h.r){const pr=h.kind==='m'?0:h.kind==='g'?1:2;if(!best||h.z<best.h.z-.001||(Math.abs(h.z-best.h.z)<=.001&&pr<best.pr))best={h,pr}}});return best&&best.h};
+  const showTip=(h,x,y)=>{
+    if(!h){tip.hidden=true;MAP.hoverKey=null;cv.style.cursor='';return}
+    const n=h.n;MAP.hoverKey=n?n.g.key:null;cv.style.cursor='pointer';let html='';
+    if(h.kind==='g'){
+      const near=MAP.L.E.filter(e=>e.a===n.i||e.b===n.i).map(e=>MAP.L.nodes[e.a===n.i?e.b:e.a].g.name);
+      html=`<b>${esc(n.g.name)}</b> · ${n.g.idx.length}건 ${n.g.ai?'<span class="m">· AI 묶음</span>':n.g.confirmed?'<span class="m">· 확정</span>':'<span class="m">· 키워드 묶음</span>'}<br>${esc(n.g.reason||'')}${near.length?`<br><span class="m">가까운 그룹: ${near.map(esc).join(', ')}</span>`:''}`;
+    }else{
+      const d=(h.m||h.S).d.t;
+      html=`<b>${esc(d.title)}</b><br>${esc(d.memo.length>140?d.memo.slice(0,140)+'…':d.memo)}<br><span class="m">${esc(d.category)}${d.owner?' · '+esc(d.owner):''}${d.dept?' ('+esc(d.dept)+')':''}${d.stage?' · '+esc(d.stage):''}${h.kind==='s'?' · 단독':''}</span>`;
+    }
+    tip.innerHTML=html;tip.hidden=false;
+    const w=cv.parentElement.clientWidth;tip.style.left=Math.min(x+16,w-tip.offsetWidth-8)+'px';tip.style.top=Math.max(6,Math.min(y+16,cv.clientHeight-tip.offsetHeight-8))+'px';
+  };
+  cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);MAP.drag={x:e.clientX,y:e.clientY,moved:false};cv.classList.add('drag')});
+  cv.addEventListener('pointermove',e=>{
+    const b=cv.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,d=MAP.drag;
+    if(d){
+      const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>3)d.moved=true;
+      if(d.moved){
+        if(MAP.mode==='3d'){MAP.tgt.yaw+=dx*.008;MAP.cam.yaw+=dx*.008;MAP.tgt.pitch=clamp(MAP.tgt.pitch+dy*.008,-1.3,1.3)}
+        else{const s=Math.min(MAP.W,MAP.H)*.42*MAP.cam.zoom;MAP.tgt.tx-=dx/s;MAP.cam.tx-=dx/s;MAP.tgt.ty+=dy/s;MAP.cam.ty+=dy/s}
+        d.x=e.clientX;d.y=e.clientY;tip.hidden=true;return;
+      }
+    }
+    showTip(pick(x,y),x,y);
+  });
+  cv.addEventListener('pointerup',e=>{
+    const d=MAP.drag;MAP.drag=null;cv.classList.remove('drag');
+    if(d&&!d.moved){const b=cv.getBoundingClientRect(),h=pick(e.clientX-b.left,e.clientY-b.top);
+      if(h&&h.n){setFocus(MAP.focusKey===h.n.g.key?null:h.n.g.key);renderMap()}else if(MAP.focusKey){setFocus(null);renderMap()}}
+  });
+  cv.addEventListener('pointerleave',()=>{if(!MAP.drag){tip.hidden=true;MAP.hoverKey=null}});
+  cv.addEventListener('wheel',e=>{e.preventDefault();MAP.tgt.zoom=clamp(MAP.tgt.zoom*(e.deltaY<0?1.12:.89),.5,4)},{passive:false});
+  document.querySelectorAll('#mapSeg button').forEach(b=>b.onclick=()=>{MAP.mode=b.dataset.m;resetView();renderMap()});
+  $('mapAuto').onchange=e=>{MAP.auto=e.target.checked};
+  $('mapSingles').onchange=e=>{MAP.singles=e.target.checked};
+  $('mapReset').onclick=()=>{resetView();renderMap()};
+  const lg=$('mapLegend');
+  lg.addEventListener('click',e=>{const b=e.target.closest('[data-mk]');if(!b)return;const k=b.dataset.mk;setFocus(MAP.focusKey===k?null:k);renderMap()});
+  lg.addEventListener('mouseover',e=>{const b=e.target.closest('[data-mk]');MAP.hoverKey=b?b.dataset.mk:null});
+  lg.addEventListener('mouseleave',()=>{MAP.hoverKey=null});
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{MAP.vis=es[0].isIntersecting}).observe(cv);
+  MAP.raf=requestAnimationFrame(frame);
+})();
+
+/* ---------- 이 페이지의 화면 ---------- */
+function render(){
+  R=compute();
+  const hasAI=!!aiRes&&Array.isArray(aiRes.groups);
+  renderMap();
+  const L=MAP.L,N=L?L.nodes.length:0;
+  $('stats').innerHTML=
+    `<div class="card stat"><span>비교 대상 과제</span><b>${R.docs.length}</b></div>`+
+    `<div class="card stat"><span>그룹</span><b>${N}</b></div>`+
+    `<div class="card stat"><span>그룹 사이 연결</span><b>${L?L.E.length:0}</b></div>`+
+    `<div class="card stat"><span>단독 과제</span><b>${L?L.sing.length:0}</b></div>`;
+  document.querySelectorAll('#viewSeg button').forEach(b=>{
+    const ai=b.dataset.v==='ai';b.disabled=ai&&!hasAI;b.classList.toggle('on',R.haveAI?ai:!ai);
+  });
+  $('thr').value=S.thr;$('thrOut').textContent=S.thr+'%';$('thr').disabled=R.haveAI;   // 유사도 기준은 키워드 방식에서만 쓰인다
+  $('srcInfo').textContent=R.haveAI?('AI 결과: '+aiRes.at+' · 모델 '+(aiRes.model||'')):hasAI?'AI 결과가 있습니다. 위에서 「AI 결과」를 선택하면 의미 관계 지도로 볼 수 있습니다.':'아직 AI 결과가 없어 키워드 결과로 그렸습니다. 유사과제 탐색에서 「AI로 유사과제 묶기」를 실행하면 의미 지도를 볼 수 있습니다.';
+}
+document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>{S={...S,method:b.dataset.v};store(SKEY,S);render()});
+$('thr').addEventListener('input',()=>{S={...S,thr:+$('thr').value};store(SKEY,S);render()});
+// 서버가 '로컬 시연 모드'(API 키 없이 저장된 묶음 결과를 쓰는 모드)이고 이 브라우저에 AI 결과가 없으면, 그 결과를 받아 이 페이지에서만 쓴다.
+// 저장하지 않으며 비용·외부 전송이 없다. (유사과제 탐색에서 「AI로 유사과제 묶기」를 눌렀던 브라우저가 아니어도 지도가 바로 보이게 하기 위함)
+async function loadDemoAI(server){
+  if(!server||(aiRes&&Array.isArray(aiRes.groups))||tasks.length<2)return;
+  try{
+    const st=await (await fetch('api/llm/status',{cache:'no-store'})).json();
+    if(!st||!st.demo)return;
+    const res=await fetch('api/similar/group',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+      body:JSON.stringify({items:tasks.map(t=>({id:String(t.id),title:t.title,memo:S.memo?(t.memo||''):''}))})});
+    const data=await res.json();
+    if(!res.ok)return;
+    aiRes={groups:data.groups||[],ungrouped:data.ungrouped||[],model:data.model||'',at:new Date().toLocaleString('ko-KR'),sig:''};
+    S={...S,method:'ai'};
+  }catch(e){}
+}
+(async()=>{
+  try{tasks=(await AIStorage.init()).map(norm)}catch(e){tasks=[]}
+  const server=AIStorage.mode==='server';
+  $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
+  $('warn').hidden=server;
+  await loadDemoAI(server);
+  render();
+})();
+</script>
+</body>
+</html>

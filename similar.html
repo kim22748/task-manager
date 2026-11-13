@@ -80,7 +80,7 @@
 </style>
 </head>
 <body>
-<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a class="on" href="similar.html">유사과제 탐색</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a class="on" href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
   <header>유사과제 탐색<small id="mode"></small></header>
   <div class="content">
@@ -92,7 +92,7 @@
     <div class="card" id="aiCard">
       <h2>AI로 유사과제 찾기 <span class="chip auto" id="aiState">확인 중…</span></h2>
       <p class="desc">LLM이 AI 과제의 명칭(과 목적)을 읽고 비슷한 과제끼리 묶은 뒤 그룹명과 묶은 이유를 씁니다. 결과는 아래 그룹 목록에 나오고, 조정·확정은 그대로 할 수 있습니다. AI 결과는 <b>이 브라우저에만 저장</b>되며 다른 사람과 공유되지 않습니다.</p>
-      <div class="notice warn" style="margin-bottom:12px">비교할 AI 과제의 <b>명칭(목적을 체크하면 목적도)이 외부 AI 서비스<span id="aiProv"></span>로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 사용하세요.</div>
+      <div class="notice warn" id="aiNotice" style="margin-bottom:12px">비교할 AI 과제의 <b>명칭(목적을 체크하면 목적도)이 외부 AI 서비스<span id="aiProv"></span>로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 사용하세요.</div>
       <div class="opts">
         <button class="p" id="aiRun" disabled><svg class="aiicon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg><span id="aiRunLabel">AI로 유사과제 묶기</span></button>
         <button id="aiKw" hidden>키워드 방식으로 보기 (참고용)</button>
@@ -336,6 +336,7 @@ function renderAI(){
   if(!server){st='사용 불가 (서버 없이 열림)';info='서버(python server.py)로 접속했을 때만 사용할 수 있습니다.'}
   else if(!llm){st='확인 중…'}
   else if(llm.unsupported){st='서버에 AI 기능 없음';info='서버 코드를 최신으로 받아 다시 실행하세요. (similar_llm.py 필요)'}
+  else if(llm.demo){st='로컬 시연 모드 · API 호출 없음';cls='conf'}
   else if(llm.configured){st='연결됨 · '+llm.label+' · '+llm.model;cls='conf'}
   else{st='AI 연결 필요';info=llm.canConfigure?'사이트 설정에서 AI 서비스를 연결하면 사용할 수 있습니다.':'사이트관리자가 AI 서비스를 연결하면 사용할 수 있습니다.'}
   if(ok&&!aiRes&&S.method==='ai')info='버튼을 누르면 LLM이 과제를 읽고 비슷한 과제끼리 묶습니다.';
@@ -344,14 +345,16 @@ function renderAI(){
   $('aiRun').disabled=aiBusy||!ok;$('aiRunLabel').textContent=aiBusy?'AI가 묶는 중… (최대 1~2분)':'AI로 유사과제 묶기';
   $('aiKw').hidden=S.method!=='ai';$('aiShow').hidden=S.method!=='keyword';
   ['fTitle','thr','recalc'].forEach(id=>$(id).disabled=!!(R&&R.haveAI));   // 목적 체크는 AI에도 쓰이므로 막지 않음
-  $('aiProv').textContent=llm&&llm.configured?' ('+llm.label+')':'';
+  if(!window.__aiNoticeOrig)window.__aiNoticeOrig=$('aiNotice').innerHTML;
+  $('aiNotice').innerHTML=llm&&llm.demo?'<b>로컬 시연 모드</b>입니다. API를 부르지 않고, Claude가 AI 과제의 명칭과 목적을 직접 읽어 <b>프로젝트가 무슨 일을 하는지(맥락)</b>를 기준으로 묶어 저장해 둔 결과를 불러옵니다. 단어가 같은지는 쓰지 않으며, 외부로 전송되지 않습니다.':window.__aiNoticeOrig;
+  if($('aiProv'))$('aiProv').textContent=llm&&llm.configured?' ('+llm.label+')':'';   // 시연 모드에서는 이 요소가 없다
   const admin=typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin';
   $('aiCfgNote').innerHTML=!server?'':admin?'AI 서비스 연결(Anthropic / OpenAI 호환 주소·API 키)은 <a href="settings.html">사이트 설정</a>에서 합니다.':'AI 서비스 연결은 사이트관리자가 사이트 설정에서 합니다.';
 }
 async function runAI(){
   if(aiBusy)return;
   if(!R||R.docs.length<2){showErr('비교할 과제가 2건 이상이어야 합니다.');return}
-  if(!aiAck){
+  if(!aiAck&&!(llm&&llm.demo)){   // 로컬 시연 모드는 외부로 보내지 않으므로 확인창을 띄우지 않는다
     if(!confirm('비교할 AI 과제의 명칭'+(S.memo?'·목적':'')+'을 외부 AI 서비스('+((llm&&llm.label)||'')+')로 보냅니다.\n지금은 더미데이터 탐색용입니다. 실제 업무 자료는 보안 반출 승인 후에만 쓰세요. 계속할까요?'))return;
     aiAck=true;
   }
