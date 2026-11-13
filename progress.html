@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaskFlow · 과제 진행률</title>
+<title>TaskFlow · 내 과제 진행률</title>
 <style>
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a}
   *{box-sizing:border-box}
@@ -71,14 +71,22 @@
   a.tlink:hover{text-decoration:underline}
   a.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:14px;margin-left:4px}
   .att-ok{background:var(--done)}.att-no{background:#fa8c16}
+  .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 24px}
+  .who label{font-weight:600;font-size:14px}
+  .who select{font:inherit;font-size:14px;padding:4px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;min-width:200px}
   @media(max-width:640px){aside{display:none}}
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child on" href="progress.html">└ 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
-  <header>과제 진행률<small id="mode"></small></header>
+  <header>내 과제 진행률<small id="mode"></small></header>
   <div class="content">
+    <div class="card who">
+      <label for="who">담당자</label>
+      <select id="who" title="누구의 내 과제 진행률을 볼지 고릅니다"></select>
+      <span class="sub" id="whoInfo"></span>
+    </div>
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="okmsg" hidden></div>
@@ -157,6 +165,22 @@ function dday(t){
 const dueTag=t=>{const d=dday(t);return d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'};
 let tasks=[],selected=new Set(),fileMap={};
 async function loadFiles(){try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}}
+// 누구의 과제를 볼지: '' = 전체. 로그인했으면 처음엔 내 이름(담당자)의 과제를 보여 준다.
+let who='';
+const WHO_KEY='progress-who';
+const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
+const assignees=()=>[...new Set(tasks.map(t=>(t.assignee||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+const mine=t=>!who||(t.assignee||'').trim()===who;
+function pickWho(){
+  const me=myName();let saved='';
+  try{saved=localStorage.getItem(WHO_KEY)||''}catch(e){}
+  who=me||(assignees().includes(saved)?saved:'');
+}
+function renderWho(){
+  const me=myName(),names=assignees().filter(n=>n!==me);
+  $('who').innerHTML=(me?`<option value="${esc(me)}">내 과제 (${esc(me)})</option>`:'')+'<option value="">전체</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('who').value=who;
+}
 const inA=t=>t.s==='doing'&&prog(t)<100&&!t.registered;
 const inB=t=>prog(t)===100&&!t.registered;
 const inC=t=>!!t.registered;
@@ -173,8 +197,12 @@ async function persist(fn,okText){
 }
 
 function render(){
-  const A=tasks.filter(inA),B=tasks.filter(inB),C=tasks.filter(inC),review=tasks.filter(t=>t.s==='todo'&&!t.registered).length;
+  renderWho();
+  const mt=tasks.filter(mine);
+  const A=mt.filter(inA),B=mt.filter(inB),C=mt.filter(inC),review=mt.filter(t=>t.s==='todo'&&!t.registered).length;
   const avg=A.length?Math.round(A.reduce((s,t)=>s+prog(t),0)/A.length):0;
+  const all=mt.length?Math.round(mt.reduce((s,t)=>s+prog(t),0)/mt.length):0;
+  $('whoInfo').textContent=mt.length?`${who?who+' 님의 ':'전체 '}과제 ${mt.length}건 · 전체 평균 진행률 ${all}%`:`${who?who+' 님의 ':''}과제가 없습니다.`;
   $('stats').innerHTML=
     `<div class="card stat"><span>진행 중 과제</span><b>${A.length}</b></div>`+
     `<div class="card stat"><span>진행 중 평균 진행률</span><b>${A.length?avg+'%':'-'}</b></div>`+
@@ -188,7 +216,7 @@ function render(){
     <td>${dueTag(t)}</td>
     <td><div class="pcell"><input type="range" min="0" max="100" step="5" value="${prog(t)}" data-range="${t.id}"><output data-out="${t.id}">${prog(t)}%</output></div></td>
     <td class="act"><button class="p" data-save="${t.id}">저장</button><button data-full="${t.id}">100% 완료</button></td></tr>`).join('')
-    :'<tr><td colspan="5" class="empty">진행 중인 과제가 없습니다. 과제 목록에서 단계를 \'진행\'으로 바꾸면 여기에 나타납니다.</td></tr>';
+    :`<tr><td colspan="5" class="empty">${who?`${esc(who)} 님의 진행 중인 과제가 없습니다.`:'진행 중인 과제가 없습니다. 과제 목록에서 단계를 \'진행\'으로 바꾸면 여기에 나타납니다.'}</td></tr>`;
   $('reviewNote').textContent=review?`검토 단계 과제 ${review}건은 과제 목록에서 '진행'으로 바꾸면 이 목록에 나타납니다.`:'';
 
   $('rowsB').innerHTML=B.length?B.map(t=>`<tr>
@@ -223,7 +251,12 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const d=e.target.dataset;
   if(d.chk){e.target.checked?selected.add(d.chk):selected.delete(d.chk);render()}
-  if(e.target.id==='chkAll'){selected=new Set(e.target.checked?tasks.filter(inB).map(t=>String(t.id)):[]);render()}
+  if(e.target.id==='chkAll'){selected=new Set(e.target.checked?tasks.filter(inB).filter(mine).map(t=>String(t.id)):[]);render()}
+  if(e.target.id==='who'){
+    who=e.target.value;selected=new Set();
+    if(!myName()){try{localStorage.setItem(WHO_KEY,who)}catch(err){}}   // 로그인 없이 볼 때는 마지막 선택을 기억
+    render();
+  }
 });
 document.addEventListener('click',e=>{
   const d=e.target.dataset,task=id=>tasks.find(t=>String(t.id)===String(id));
@@ -261,6 +294,7 @@ $('regForm').addEventListener('submit',e=>{
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   await loadFiles();
+  pickWho();
   render();
 })();
 </script>

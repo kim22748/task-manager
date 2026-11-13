@@ -71,9 +71,9 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child on" href="progress.html">└ 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
-  <header><a href="progress.html">← 과제 진행률</a>과제 상세<small id="mode"></small></header>
+  <header><a href="progress.html">← 내 과제 진행률</a>과제 상세<small id="mode"></small></header>
   <div class="content" id="app">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 올린 파일도 이 브라우저에서만 보입니다. 팀이 함께 보려면 <code>python3 server.py</code>로 실행한 주소(<code>http://localhost:8885</code>)에서 올려 주세요.</div>
     <div class="notice err" id="err" hidden></div>
@@ -189,7 +189,7 @@ document.addEventListener('click',async e=>{
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   try{await reload()}catch(e){showError('불러오지 못했습니다: '+e.message)}
-  if(!task){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="progress.html">과제 진행률로 돌아가기</a></div>`;return}
+  if(!task){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="progress.html">내 과제 진행률로 돌아가기</a></div>`;return}
   render();
 })();
 </script>
