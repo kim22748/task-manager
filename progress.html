@@ -61,7 +61,8 @@
   dialog h3{margin:0 0 12px;font-size:16px}
   dialog label{display:block;font-size:14px;margin:12px 0 4px;font-weight:600}
   dialog label i{color:#ff4d4f;font-style:normal}
-  dialog input[type=text],dialog textarea{width:100%;font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px}
+  dialog input[type=text],dialog textarea,dialog select,dialog input[type=date]{width:100%;font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  .tag.ai{background:#f9f0ff;color:#531dab;border:1px solid #d3adf7;text-decoration:none;line-height:20px;margin-left:6px}
   dialog textarea{min-height:88px;resize:vertical}
   dialog ul{margin:0;padding-left:18px;font-size:13px;max-height:96px;overflow:auto}
   dialog .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
@@ -72,6 +73,11 @@
   a.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:14px;margin-left:4px}
   .att-ok{background:var(--done)}.att-no{background:#fa8c16}
   tr.flash td{background:#fffbe6}
+  .seg{display:flex;gap:2px;margin-top:4px;width:120px}
+  .seg i{flex:1;height:5px;border-radius:2px;background:#f0f0f0}
+  .seg i.on{background:var(--c)}
+  .aipurpose{max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card h2 a.goai{margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none}
   .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 24px}
   .who label{font-weight:600;font-size:14px}
   .who select{font:inherit;font-size:14px;padding:4px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;min-width:200px}
@@ -103,6 +109,15 @@
     </div>
 
     <div class="stats" id="stats"></div>
+
+    <div class="card">
+      <h2>내 AI 과제 <em id="cntAI"></em><a class="goai" href="ai-projects.html">AI 과제 목록에서 관리 →</a></h2>
+      <p class="desc">AI 과제 목록에 <b>과제책임자</b>로 등록한 과제입니다. 단계는 AI 과제 목록에서 바꿉니다.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>명칭</th><th>분류</th><th>진행 단계</th><th>소속부서</th><th>접근권한</th><th>최종 수정</th></tr></thead>
+        <tbody id="rowsAI"></tbody>
+      </table></div>
+    </div>
 
     <div class="card">
       <h2>① 진행 중 과제 <em id="cntA"></em></h2>
@@ -149,6 +164,7 @@
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script src="storage.js"></script>
+<script src="ai-storage.js"></script>
 <script src="file-storage.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -164,14 +180,23 @@ function dday(t){
   return{txt:`${t.due} (D-${diff})`,cls:diff<=3?'due-soon':'due-ok'};
 }
 const dueTag=t=>{const d=dday(t);return d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'};
-let tasks=[],selected=new Set(),fileMap={};
+let tasks=[],selected=new Set(),fileMap={},aiItems=[];
+// AI 과제 목록(ai-projects.html)의 단계와 색상 — 단계가 뒤로 갈수록 진행이 많이 된 것
+const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
 async function loadFiles(){try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}}
 // 누구의 과제를 볼지: '' = 전체. 로그인했으면 처음엔 내 이름(담당자)의 과제를 보여 준다.
 let who='';
 const WHO_KEY='progress-who';
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
-const assignees=()=>[...new Set(tasks.map(t=>(t.assignee||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+// 선택 상자의 사람 목록: 과제 담당자 + AI 과제 책임자
+const assignees=()=>[...new Set([...tasks.map(t=>(t.assignee||'').trim()),...aiItems.map(p=>(p.ownerName||'').trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
 const mine=t=>!who||(t.assignee||'').trim()===who;
+// AI 과제 목록에도 같은 명칭·같은 책임자로 등록된 과제인지 (진행률 과제와 AI 과제의 연결 기준)
+const sameKey=s=>String(s||'').trim();
+const aiLinked=t=>aiItems.some(p=>sameKey(p.title)===sameKey(t.title)&&sameKey(p.ownerName)===sameKey(t.assignee));
+const aiBadge=t=>aiLinked(t)?'<a class="tag ai" href="ai-projects.html" title="AI 과제 목록에도 등록된 과제입니다">AI 과제</a>':'';
+const mineAI=p=>!who||(p.ownerName||'').trim()===who;
 const focusId=new URLSearchParams(location.search).get('task'); // '세부 진행 현황'에서 넘어온 과제
 function pickWho(){
   const me=myName();let saved='';
@@ -215,16 +240,29 @@ function render(){
   const A=mt.filter(inA),B=mt.filter(inB),C=mt.filter(inC),review=mt.filter(t=>t.s==='todo'&&!t.registered).length;
   const avg=A.length?Math.round(A.reduce((s,t)=>s+prog(t),0)/A.length):0;
   const all=mt.length?Math.round(mt.reduce((s,t)=>s+prog(t),0)/mt.length):0;
-  $('whoInfo').textContent=mt.length?`${who?who+' 님의 ':'전체 '}과제 ${mt.length}건 · 전체 평균 진행률 ${all}%`:`${who?who+' 님의 ':''}과제가 없습니다.`;
+  const mp=aiItems.filter(mineAI).sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  $('whoInfo').textContent=(mt.length?`${who?who+' 님의 ':'전체 '}과제 ${mt.length}건 · 전체 평균 진행률 ${all}%`:`${who?who+' 님의 ':''}과제가 없습니다.`)+` · AI 과제 ${mp.length}건`;
   $('stats').innerHTML=
+    `<div class="card stat"><span>내 AI 과제</span><b style="color:#722ed1">${mp.length}</b></div>`+
     `<div class="card stat"><span>진행 중 과제</span><b>${A.length}</b></div>`+
     `<div class="card stat"><span>진행 중 평균 진행률</span><b>${A.length?avg+'%':'-'}</b></div>`+
     `<div class="card stat"><span>서비스 게시 대기</span><b style="color:${B.length?'#fa8c16':'inherit'}">${B.length}</b></div>`+
     `<div class="card stat"><span>서비스 게시 완료</span><b style="color:var(--done)">${C.length}</b></div>`;
   $('cntA').textContent=A.length+'건';$('cntB').textContent=B.length+'건';$('cntC').textContent=C.length+'건';
+  $('cntAI').textContent=mp.length+'건';
+  $('rowsAI').innerHTML=mp.length?mp.map(p=>{
+    const idx=Math.max(0,AI_STAGES.indexOf(p.stage)),col=AI_COLOR[p.stage]||'#8c8c8c';
+    return `<tr data-ai="${esc(p.id)}">
+      <td><b>${esc(p.title)}</b>${p.purpose?`<div class="sub aipurpose">${esc(p.purpose)}</div>`:''}</td>
+      <td>${esc(p.category)||'-'}</td>
+      <td><span class="tag" style="background:${col}">${esc(p.stage)}</span> <span class="sub">${idx+1}/${AI_STAGES.length}</span>
+        <div class="seg" style="--c:${col}" title="${AI_STAGES.map((s,i)=>(i===idx?'● ':'')+s).join(' → ')}">${AI_STAGES.map((s,i)=>`<i class="${i<=idx?'on':''}"></i>`).join('')}</div></td>
+      <td>${esc(p.ownerDept)||'-'}</td><td>${esc(p.access)||'-'}</td>
+      <td class="sub">${esc(String(p.updatedAt||p.createdAt||'').slice(0,10))||'-'}</td></tr>`}).join('')
+    :`<tr><td colspan="6" class="empty">${who?`${esc(who)} 님이 과제책임자로 등록한 AI 과제가 없습니다.`:'등록된 AI 과제가 없습니다.'} <a class="tlink" href="ai-projects.html">AI 과제 목록</a>에서 등록하세요.</td></tr>`;
 
   $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>`<tr data-row="${t.id}">
-    <td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+    <td>${esc(t.title)}${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
     <td>${esc(t.assignee)||'-'}</td>
     <td>${dueTag(t)}</td>
     <td><div class="pcell"><input type="range" min="0" max="100" step="5" value="${prog(t)}" data-range="${t.id}"><output data-out="${t.id}">${prog(t)}%</output></div></td>
@@ -234,7 +272,7 @@ function render(){
 
   $('rowsB').innerHTML=B.length?B.map(t=>`<tr data-row="${t.id}">
     <td><input type="checkbox" data-chk="${t.id}" ${selected.has(String(t.id))?'checked':''}></td>
-    <td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+    <td>${esc(t.title)}${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
     <td>${esc(t.assignee)||'-'}</td>
     <td><span class="tag st">${STAGE[t.s]||esc(t.s)}</span></td>
     <td>${dueTag(t)}</td>
@@ -248,7 +286,7 @@ function render(){
   $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>{
     const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}&from=progress`;
     return `<tr data-row="${t.id}">
-    <td><a class="tlink" href="${href}">${esc(t.title)}</a></td><td>${esc(t.assignee)||'-'}</td>
+    <td><a class="tlink" href="${href}">${esc(t.title)}</a>${aiBadge(t)}</td><td>${esc(t.assignee)||'-'}</td>
     <td>${esc(t.registeredAt)||'-'}</td>
     <td>${esc(t.approver)||'-'}</td>
     <td class="reason">${esc(t.regReason)||'-'}</td>
@@ -307,6 +345,7 @@ $('regForm').addEventListener('submit',e=>{
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   await loadFiles();
+  try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}   // AI 과제 목록 (내가 과제책임자로 등록한 과제를 보여 주기 위해)
   pickWho();
   render();
   focusRow();

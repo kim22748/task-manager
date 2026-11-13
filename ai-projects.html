@@ -152,6 +152,7 @@
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script src="ai-storage.js"></script>
+<script src="storage.js"></script>
 <script>
 const CATEGORIES=['개발','법률','노사','IT'];
 const STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
@@ -211,14 +212,30 @@ function openModal(id){
   $('purpose').value=t?t.purpose:'';
   $('category').innerHTML=(t?'':'<option value="">선택</option>')+opts(CATEGORIES,t&&t.category);
   $('stage').innerHTML=(t?'':'')+opts(STAGES,t?t.stage:STAGES[0]);
-  $('ownerName').value=t?t.ownerName:'';
-  $('ownerDept').value=t?t.ownerDept:'';
+  // 새로 등록할 때는 로그인한 사람을 과제책임자로 미리 채운다 → '내 과제 진행률'의 '내 AI 과제'에 바로 나타남
+  const me=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+  $('ownerName').value=t?t.ownerName:(me?me.name:'');
+  $('ownerDept').value=t?t.ownerDept:(me?me.dept||'':'');
   $('access').innerHTML=ACCESS.map(a=>`<label><input type="radio" name="access" value="${a}"${t?(t.access===a?' checked':''):(a===ACCESS[0]?' checked':'')}>${a}</label>`).join('');
   clearInvalid();
   $('overlay').hidden=false;
   $('title').focus();
 }
 function closeModal(){if(saving)return;$('overlay').hidden=true;editingId=null}
+// AI 과제를 새로 등록하면 '내 과제 진행률'에도 같은 명칭·책임자의 과제를 만들어 '진행'으로 시작한다.
+// (이미 같은 명칭·담당자의 과제가 있으면 중복해서 만들지 않는다.) 실패하면 안내 문구를 돌려준다.
+async function linkProgressTask(f){
+  if(typeof TaskStorage==='undefined')return '';
+  try{
+    await TaskStorage.init();
+    const key=s=>String(s||'').trim();
+    const list=await TaskStorage.list();
+    if(list.some(t=>key(t.title)===key(f.title)&&key(t.assignee)===key(f.ownerName)))return '';
+    const t=await TaskStorage.create({title:f.title,assignee:f.ownerName});
+    await TaskStorage.update(t.id,{s:'doing'});
+    return '';
+  }catch(err){return 'AI 과제는 등록했지만 내 과제 진행률에는 올리지 못했습니다: '+err.message}
+}
 $('form').onsubmit=async e=>{
   e.preventDefault();
   if(saving)return;
@@ -231,8 +248,10 @@ $('form').onsubmit=async e=>{
   if(!ok){return}
   saving=true;$('btnSave').disabled=true;
   try{
-    if(editingId)await AIStorage.update(editingId,f);else await AIStorage.create(f);
-    saving=false;$('overlay').hidden=true;editingId=null;showError('');
+    let linkWarn='';
+    if(editingId)await AIStorage.update(editingId,f);
+    else{await AIStorage.create(f);linkWarn=await linkProgressTask(f)}
+    saving=false;$('overlay').hidden=true;editingId=null;showError(linkWarn);
     await reload();
   }catch(err){$('mErr').textContent='저장하지 못했습니다: '+err.message;$('mErr').hidden=false}
   finally{saving=false;$('btnSave').disabled=false}
