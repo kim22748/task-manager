@@ -11,6 +11,7 @@
 const TaskStorage = (() => {
   const LOCAL_KEY = 'tasks-v1';
   const MIGRATED_KEY = 'tasks-v1-migrated';
+  const VERSION_KEY = 'tasks-v1-demo-version';   // 어떤 더미데이터로 채웠는지 (demo-data.js 의 version)
   const API = 'api/tasks';
   let mode = 'server';
 
@@ -56,17 +57,21 @@ const TaskStorage = (() => {
     return data;
   }
 
-  // 서버 없이 처음 열었으면(브라우저 저장소에 과제 키가 없으면) 더미데이터로 채운다
+  // 서버 없는 화면: 브라우저 저장소가 비었거나, 팀이 더미데이터(demo-data.json)를 바꿨으면 새 더미데이터로 다시 채운다.
+  // (서버 없는 화면은 디자인 확인용이므로, 더미데이터가 바뀌면 이 브라우저에서 고친 내용은 새 더미데이터로 바뀝니다)
   async function readLocalOrDemo() {
-    let raw = null;
-    try { raw = localStorage.getItem(LOCAL_KEY); } catch (e) { return []; }
-    if (raw !== null || typeof DemoData === 'undefined') return readLocal();
+    let raw = null, seen = null;
+    try { raw = localStorage.getItem(LOCAL_KEY); seen = localStorage.getItem(VERSION_KEY); } catch (e) { return []; }
+    if (typeof DemoData === 'undefined') return readLocal();
+    let demo;
+    try { demo = await DemoData.load(); } catch (e) { return readLocal(); }   // 파일로 열어 불러올 수 없으면 있는 그대로
+    if (raw !== null && seen === demo.version) return readLocal();
     try {
-      const { tasks } = await DemoData.load();
-      writeLocal(tasks);
-      try { localStorage.setItem(MIGRATED_KEY, 'demo'); } catch (e) {}   // 더미데이터는 나중에 서버로 옮기지 않음
-      return tasks;
-    } catch (e) { return []; }
+      writeLocal(demo.tasks);
+      localStorage.setItem(VERSION_KEY, demo.version);
+      localStorage.setItem(MIGRATED_KEY, 'demo');   // 더미데이터는 나중에 서버로 옮기지 않음
+    } catch (e) {}
+    return demo.tasks;
   }
 
   // 예전에 localStorage 에만 저장돼 있던 과제를 서버로 한 번 옮긴다

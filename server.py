@@ -916,7 +916,7 @@ def main():
         print("더미데이터로 되돌렸습니다: 과제·AI 과제·사용자 (첨부 파일 삭제)")
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"과제 관리 서버: http://{args.host}:{args.port}  (저장 파일: {DATA_FILE})")
-    print(f"시연 계정: 100001(사이트관리자) / 100002(과제책임자) / 100003(과제참여자) — 비밀번호 {DEFAULT_SEED_PASSWORD}")
+    print(f"시연 계정: 100001(사이트관리자) / 100002(과제책임자) / 100007(과제참여자) — 비밀번호 {DEFAULT_SEED_PASSWORD}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

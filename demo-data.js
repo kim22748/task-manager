@@ -4,7 +4,9 @@
  * - 서버 없이 열었을 때(GitHub Pages 등) 브라우저 저장소가 비어 있으면 storage.js / ai-storage.js 가 이 데이터를 씁니다.
  * - 서버(server.py)는 같은 규칙의 demo_items() 로 data/ 파일을 채웁니다. 한쪽을 고치면 다른 쪽도 고쳐 주세요.
  *
- *   await DemoData.load()  → { tasks, aiProjects, users }
+ *   await DemoData.load()  → { tasks, aiProjects, users, version }
+ *   version 은 demo-data.json 내용의 지문(해시)입니다. 팀이 더미데이터를 바꾸면 값이 달라지고,
+ *   storage.js / ai-storage.js 가 이를 보고 서버 없는 화면(GitHub Pages)의 브라우저 저장 데이터를 새 더미데이터로 다시 채웁니다.
  */
 const DemoData = (() => {
   let cache = null;
@@ -57,7 +59,10 @@ const DemoData = (() => {
     if (cache) return cache;
     const res = await fetch('demo-data.json', { cache: 'no-store' });
     if (!res.ok) throw new Error(`더미데이터를 불러오지 못했습니다 (${res.status})`);
-    cache = build(await res.json());
+    const text = await res.text();
+    let h = 0x811c9dc5;                                   // FNV-1a 32bit: 내용이 바뀌었는지만 알면 되므로 간단한 해시
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    cache = { ...build(JSON.parse(text)), version: h.toString(16) };
     return cache;
   }
 
