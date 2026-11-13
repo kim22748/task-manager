@@ -20,7 +20,7 @@
   .content{padding:24px;display:grid;gap:16px}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
   .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-  .card h2{margin:0 0 16px;font-size:16px}
+  .card h2{margin:0 0 16px;font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .stat span{color:var(--sub);font-size:14px}
   .stat b{display:block;font-size:30px;margin-top:4px}
   .rate{display:flex;align-items:center;gap:16px}
@@ -41,6 +41,11 @@
   .tag{padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
   .sub{color:var(--sub);font-size:12px}
   .empty{text-align:center;color:var(--sub);padding:24px}
+  a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
+  a.tlink:hover{text-decoration:underline}
+  a.btnlink{display:inline-block;padding:2px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px}
+  a.btnlink:hover{background:#e6f4ff}
+  .pubact{display:flex;align-items:center;gap:8px;flex-shrink:0}
   @media(max-width:640px){aside{display:none}}
 </style>
 </head>
@@ -51,7 +56,9 @@
   <div class="content" id="app"></div>
 </div>
 <script src="storage.js"></script>
+<script src="file-storage.js"></script>
 <script>
+let fileMap={}; // 과제id → 첨부 파일 목록 (서비스 게시 완료 카드의 첨부 현황용)
 const STATUS={todo:['검토','var(--todo)','#bfbfbf'],doing:['진행','var(--doing)','#1677ff'],done:['종료','var(--done)','#52c41a']};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function render(tasks){
@@ -78,10 +85,17 @@ const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFu
 const max=Math.max(1,...dayCnt);
 
 const recent=tasks.slice(0,5);
+// 서비스 게시 완료 과제: 게시일이 최근인 순. 과제명·'상세'를 누르면 과제 상세(올라간 파일·상세 현황·이력)로 이동
+const published=tasks.filter(t=>t.registered).sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
+const pubRows=published.slice(0,5).map(t=>{
+  const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}`;
+  return `<li><span><a class="tlink" href="${href}">${esc(t.title)}</a><br><span class="sub">${esc(t.assignee||'담당자 없음')} · 게시일 ${esc(t.registeredAt||'-')} · 승인자 ${esc(t.approver||'-')}</span></span>
+    <span class="pubact"><span class="tag" style="background:${req===3?'#52c41a':'#fa8c16'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3 · ${fs.length}개</span><a class="btnlink" href="${href}">상세</a></span></li>`}).join('');
 document.getElementById('app').innerHTML=`
 <div class="stats">
   <div class="card stat"><span>전체 과제</span><b>${total}</b></div>
   ${Object.entries(STATUS).map(([k,[n,c]])=>`<div class="card stat"><span>${n}</span><b style="color:${k==='todo'?'inherit':c}">${cnt(k)}</b></div>`).join('')}
+  <div class="card stat"><span>서비스 게시 완료</span><b style="color:var(--done)">${published.length}</b></div>
   <div class="card stat"><span>마감 지연</span><b style="color:${overdue?'#ff4d4f':'inherit'}">${overdue}</b></div>
   <div class="card stat"><span>평균 진행률</span><b style="color:var(--primary)">${avgProg}%</b></div>
   <div class="card stat"><span>마감 임박(3일)</span><b style="color:${soon?'#fa8c16':'inherit'}">${soon}</b></div>
@@ -105,6 +119,11 @@ document.getElementById('app').innerHTML=`
     <div class="chart">${days.map((d,i)=>`<div class="col"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/max*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
   </div>
 </div>
+<div class="card"><h2>서비스 게시 완료 <span class="sub">${published.length}건</span><a href="progress.html" style="margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none">과제 진행률에서 관리 →</a></h2>
+  <div class="sub" style="margin-bottom:8px">과제명이나 '상세'를 누르면 올라간 파일과 상세 현황을 볼 수 있습니다.</div>
+  ${published.length?`<ul>${pubRows}</ul>${published.length>5?`<div class="sub" style="padding-top:8px">최근 5건만 표시합니다. 전체 ${published.length}건은 <a class="tlink" href="progress.html">과제 진행률</a>에서 확인하세요.</div>`:''}`
+  :'<div class="empty">서비스 게시된 과제가 아직 없습니다. 진행률 100%를 달성한 과제를 <a class="tlink" href="progress.html">과제 진행률</a>에서 서비스 게시하면 여기에 나타납니다.</div>'}
+</div>
 <div class="card"><h2>최근 변경 이력</h2>
   ${feed.length?`<ul>${feed.map(({t,h})=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(h.text)}</span></span><span class="sub">${fmtAt(h.at)}</span></li>`).join('')}</ul>`:'<div class="empty">아직 기록된 변경 이력이 없습니다.</div>'}
 </div>
@@ -114,7 +133,7 @@ document.getElementById('app').innerHTML=`
 </div>`;
 }
 // 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
-TaskStorage.init().then(render).catch(()=>render([]));
+TaskStorage.init().then(async tasks=>{try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}render(tasks)}).catch(()=>render([]));
 </script>
 </body>
 </html>
