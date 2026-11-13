@@ -84,15 +84,15 @@
 <div class="main">
   <header>유사과제 탐색<small id="mode"></small></header>
   <div class="content">
-    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 비교합니다. 서버에 저장된 과제를 보려면 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
+    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 AI 과제를 비교합니다. 서버에 저장된 AI 과제를 보려면 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="okmsg" hidden></div>
-    <div class="notice info">기본은 <b>AI(LLM) 비교</b>입니다. LLM이 <b>과제명(과 '메모'를 체크하면 메모)을 읽고 뜻이 비슷한 과제</b>를 묶은 뒤 그룹명과 묶은 이유를 씁니다. AI를 쓸 수 없을 때(서버 없이 열었거나 AI 연결이 설정되지 않았을 때)는 단어가 겹치는 정도를 계산하는 <b>키워드 방식</b>으로 대신 보여 줍니다. <span class="sub">(과제 개요·기획서 본문은 아직 저장된 데이터가 없어 비교에 쓰지 않습니다.)</span></div>
+    <div class="notice info"><b>AI 과제 목록</b>에 등록된 AI 과제를 불러와 비교합니다. 기본은 <b>AI(LLM) 비교</b>로, LLM이 <b>AI 과제의 명칭과 목적을 함께 읽고 뜻이 비슷한 과제</b>를 묶은 뒤 그룹명과 묶은 이유를 씁니다. AI를 쓸 수 없을 때(서버 없이 열었거나 AI 연결이 설정되지 않았을 때)는 단어가 겹치는 정도를 계산하는 <b>키워드 방식</b>으로 대신 보여 줍니다. <span class="sub">(기획서 본문은 아직 저장된 데이터가 없어 비교에 쓰지 않습니다.)</span></div>
 
     <div class="card" id="aiCard">
       <h2>AI로 유사과제 찾기 <span class="chip auto" id="aiState">확인 중…</span></h2>
-      <p class="desc">LLM이 과제명(과 메모)을 읽고 비슷한 과제끼리 묶은 뒤 그룹명과 묶은 이유를 씁니다. 결과는 아래 그룹 목록에 나오고, 조정·확정은 그대로 할 수 있습니다. AI 결과는 <b>이 브라우저에만 저장</b>되며 다른 사람과 공유되지 않습니다.</p>
-      <div class="notice warn" style="margin-bottom:12px">비교할 과제의 <b>과제명(메모를 체크하면 메모도)이 외부 AI 서비스<span id="aiProv"></span>로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 사용하세요.</div>
+      <p class="desc">LLM이 AI 과제의 명칭(과 목적)을 읽고 비슷한 과제끼리 묶은 뒤 그룹명과 묶은 이유를 씁니다. 결과는 아래 그룹 목록에 나오고, 조정·확정은 그대로 할 수 있습니다. AI 결과는 <b>이 브라우저에만 저장</b>되며 다른 사람과 공유되지 않습니다.</p>
+      <div class="notice warn" style="margin-bottom:12px">비교할 AI 과제의 <b>명칭(목적을 체크하면 목적도)이 외부 AI 서비스<span id="aiProv"></span>로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 사용하세요.</div>
       <div class="opts">
         <button class="p" id="aiRun" disabled><svg class="aiicon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg><span id="aiRunLabel">AI로 유사과제 묶기</span></button>
         <button id="aiKw" hidden>키워드 방식으로 보기 (참고용)</button>
@@ -104,12 +104,10 @@
 
     <div class="card">
       <h2>비교 설정</h2>
-      <p class="desc">'비교 대상 과제'와 '메모' 체크는 AI·키워드 방식 모두에 적용됩니다(메모를 끄면 AI에도 메모를 보내지 않습니다). '과제명' 체크와 '유사도 기준'은 키워드 방식에서만 쓰입니다(AI에는 과제명을 항상 보냅니다). 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
+      <p class="desc">비교 대상은 'AI 과제 목록'의 모든 AI 과제입니다. '목적' 체크는 AI·키워드 방식 모두에 적용됩니다(목적을 끄면 AI에도 목적을 보내지 않습니다). '명칭' 체크와 '유사도 기준'은 키워드 방식에서만 쓰입니다(AI에는 명칭을 항상 보냅니다). 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
       <div class="opts">
-        <div class="opt"><b>비교 대상 과제</b>
-          <select id="scope"><option value="published">서비스 게시된 과제만</option><option value="all">전체 과제</option></select></div>
         <div class="opt"><b>비교 항목</b>
-          <div style="display:flex;gap:16px"><label><input type="checkbox" id="fTitle" checked>과제명</label><label><input type="checkbox" id="fMemo" checked>메모</label></div></div>
+          <div style="display:flex;gap:16px"><label><input type="checkbox" id="fTitle" checked>명칭</label><label><input type="checkbox" id="fMemo" checked>목적</label></div></div>
         <div class="opt"><b>유사도 기준 <span id="thrOut" style="color:var(--primary)">30%</span></b>
           <input type="range" id="thr" min="10" max="90" step="5" value="30"></div>
         <div class="opt"><button class="p" id="recalc">다시 계산</button></div>
@@ -136,18 +134,18 @@
 </div>
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
-<script src="storage.js"></script>
+<script src="ai-storage.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const STAGE={todo:['검토',''],doing:['진행','doing'],done:['종료','done']};
-const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
-const SKEY='similar-settings-v2',CKEY='similar-confirmed-v1';
+// 비교 대상은 'AI 과제 목록'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
+const norm=p=>({id:p.id,title:p.title||'',memo:p.purpose||'',category:p.category||'',stage:p.stage||'',owner:p.ownerName||'',dept:p.ownerDept||''});
+const SKEY='similar-settings-v3',CKEY='similar-confirmed-v2';
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
 
-const AKEY='similar-ai-v1';
-let tasks=[],S=Object.assign({scope:'published',title:true,memo:true,thr:30,method:'ai'},load(SKEY,{}));
+const AKEY='similar-ai-v2';
+let tasks=[],S=Object.assign({title:true,memo:true,thr:30,method:'ai'},load(SKEY,{}));
 let confirmed=load(CKEY,[]);
 let open=new Set(),editing=null,calcAt=null,okTimer;
 let aiRes=load(AKEY,null),aiAck=false,aiBusy=false,llm=null;
@@ -174,7 +172,7 @@ function tokenize(text,raw){
 const docText=t=>[S.title?t.title:'',S.memo?t.memo:''].join(' ');
 
 function compute(){
-  const scope=tasks.filter(t=>S.scope==='all'||t.registered);
+  const scope=tasks;
   const raw=new Set(scope.flatMap(t=>words(docText(t))));
   // 같은 어간에 서로 다른 조사가 붙은 단어가 2개 이상이면(예: 대시보드를·대시보드는) 어간으로 합친다
   raw.stems={};
@@ -198,7 +196,7 @@ function compute(){
   // haveAI: 저장된 AI 결과를 보여 줌 / pending: AI 방식인데 아직 결과가 없고 AI를 쓸 수 있음(또는 연결 확인 중)
   // 그 밖에 AI 방식인데 AI를 쓸 수 없으면(서버 없음·키 없음) 키워드 계산을 참고용으로 대신 보여 준다
   const haveAI=S.method==='ai'&&!!aiRes&&Array.isArray(aiRes.groups);
-  const aiUsable=TaskStorage.mode==='server'&&(llm===null||(!!llm.configured&&!llm.unsupported));
+  const aiUsable=AIStorage.mode==='server'&&(llm===null||(!!llm.configured&&!llm.unsupported));
   const pending=S.method==='ai'&&!haveAI&&aiUsable;
   const fallback=S.method==='ai'&&!haveAI&&!aiUsable;
   let auto;
@@ -245,11 +243,11 @@ const pct=v=>Math.round(v*100)+'%';
 
 /* ---------- 화면 ---------- */
 function memberRow(g,i){
-  const d=R.docs[i],t=d.t,st=STAGE[t.s]||[t.s,''];
+  const d=R.docs[i],t=d.t;
   const others=g.idx.filter(j=>j!==i);
   const my=others.length?others.reduce((s,j)=>s+R.M[i][j],0)/others.length:0;
-  return `<tr><td>${esc(t.title)}${t.registered?' <span class="chip pub">서비스 게시</span>':''}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
-    <td>${esc(t.assignee)||'-'}</td><td><span class="tag ${st[1]}">${st[0]}</span></td><td>${prog(t)}%</td>
+  return `<tr><td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo.length>120?t.memo.slice(0,120)+'…':t.memo)}</div>`:''}</td>
+    <td>${esc(t.category)||'-'}</td><td>${esc(t.owner)||'-'}${t.dept?`<div class="sub">${esc(t.dept)}</div>`:''}</td><td><span class="tag">${esc(t.stage)||'-'}</span></td>
     <td><span class="bar"><i style="width:${Math.round(my*100)}%"></i></span>${pct(my)}</td></tr>`;
 }
 function detail(g){
@@ -281,7 +279,7 @@ function groupCard(g){
         <button class="sm" data-edit="${esc(g.key)}">조정</button>
         ${g.confirmed?`<button class="sm" data-unconf="${g.gid}">확정 해제</button>`:`<button class="g sm" data-conf="${esc(g.key)}">확정</button>`}</span></div>
     ${isEdit?editBox(g):''}
-    <div class="tablewrap"><table><thead><tr><th>소속 과제</th><th>담당자</th><th>단계</th><th>진행률</th><th>${g.ai||g.reason?'키워드 유사도 (참고)':'그룹 내 유사도'}</th></tr></thead>
+    <div class="tablewrap"><table><thead><tr><th>소속 AI 과제 (명칭·목적)</th><th>분류</th><th>과제책임자</th><th>단계</th><th>${g.ai||g.reason?'키워드 유사도 (참고)':'그룹 내 유사도'}</th></tr></thead>
       <tbody>${g.idx.map(i=>memberRow(g,i)).join('')}</tbody></table></div>
     ${why}
     ${open.has(g.key)?detail(g):''}</div>`;
@@ -297,22 +295,18 @@ function render(){
     `<div class="card stat"><span>유사 과제 없음</span><b>${pend?'-':singles.length}</b></div>`+
     `<div class="card stat"><span>확정한 그룹</span><b style="color:var(--done)">${conf.length}</b></div>`;
   $('cntG').textContent=pend&&!conf.length?'':groups.length+'개';$('cntS').textContent=pend?'':singles.length+'건';
-  const total=tasks.length,pubN=tasks.filter(t=>t.registered).length;
   let empty='';
-  if(!docs.length){
-    empty=S.scope==='published'
-      ?`<div class="empty">비교할 과제가 없습니다. 서비스 게시된 과제가 ${pubN}건입니다.${total?` <button class="sm" data-all="1">전체 과제(${total}건)로 보기</button>`:' 과제 목록에서 과제를 먼저 등록하세요.'}</div>`
-      :'<div class="empty">등록된 과제가 없습니다. 과제 목록에서 과제를 먼저 등록하세요.</div>';
-  }else if(docs.length<2)empty='<div class="empty">과제가 2건 이상이어야 서로 비교할 수 있습니다.</div>';
+  if(!docs.length)empty='<div class="empty">비교할 AI 과제가 없습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 AI 과제를 먼저 등록하세요.</div>';
+  else if(docs.length<2)empty='<div class="empty">AI 과제가 2건 이상이어야 서로 비교할 수 있습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 더 등록하세요.</div>';
   else if(!groups.length)empty=R.haveAI?'<div class="empty">AI가 비슷한 과제를 찾지 못했습니다.</div>':'<div class="empty">기준 이상으로 비슷한 과제가 없습니다. 유사도 기준을 낮춰 보세요.</div>';
   let html=groups.length?groups.map(groupCard).join(''):'';
-  if(pend)html+=llm===null?'<div class="empty">AI 연결 상태를 확인하는 중입니다…</div>':'<div class="empty">아직 AI가 묶은 결과가 없습니다. 위의 <b>AI로 유사과제 묶기</b>를 누르면 LLM이 과제명과 메모를 읽고 비슷한 과제를 묶습니다.</div>';
+  if(pend)html+=llm===null?'<div class="empty">AI 연결 상태를 확인하는 중입니다…</div>':'<div class="empty">아직 AI가 묶은 결과가 없습니다. 위의 <b>AI로 유사과제 묶기</b>를 누르면 LLM이 AI 과제의 명칭과 목적을 읽고 비슷한 과제를 묶습니다.</div>';
   else if(!groups.length)html=empty;
   $('groups').innerHTML=html;
   $('singles').innerHTML=pend?'<div class="empty">AI 결과가 나오면 표시됩니다.</div>':singles.length?`<div class="singles">${singles.map(i=>{const d=docs[i];return `<div class="single">${esc(d.t.title)}${d.tok.length?'':' <span class="sub">(비교할 글자 없음)</span>'}</div>`}).join('')}</div>`:'<div class="empty">모든 과제가 그룹에 속해 있습니다.</div>';
   $('calcAt').textContent=calcAt?'계산 시각 '+calcAt:'';
   const adj=" '조정'으로 그룹명을 고치거나 과제를 넣고 빼서 '확정'할 수 있습니다.";
-  $('groups').previousElementSibling.textContent=R.haveAI?'AI(LLM)가 과제명·메모를 읽고 묶은 결과입니다.'+adj
+  $('groups').previousElementSibling.textContent=R.haveAI?'AI(LLM)가 AI 과제의 명칭·목적을 읽고 묶은 결과입니다.'+adj
     :R.pending?'AI 결과를 기다리고 있습니다. 확정한 그룹은 그대로 표시됩니다.'
     :R.fallback?'AI를 쓸 수 없어(서버 없이 열었거나 API 키가 없음) 키워드 방식으로 대신 보여 주는 참고용 결과입니다.'+adj
     :'키워드 방식(단어 겹침)으로 묶은 결과입니다.'+adj;
@@ -321,7 +315,7 @@ function render(){
 
 /* ---------- AI(LLM)로 묶기: 서버의 /api/similar/group 을 부른다 ---------- */
 const hash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return String(h)};
-const aiMemo=t=>S.memo?(t.memo||''):'';   // '메모' 체크를 끄면 AI에 메모를 보내지 않는다
+const aiMemo=t=>S.memo?(t.memo||''):'';   // '목적' 체크를 끄면 AI에 목적을 보내지 않는다 (서버로는 memo 항목으로 보냄)
 const curSig=()=>R?hash((S.memo?'m1':'m0')+'\n'+R.docs.map(d=>d.id+'|'+d.t.title+'|'+aiMemo(d.t)).join('\n')):'';
 function showErr(m){$('err').textContent=m||'';$('err').hidden=!m}
 async function api(method,url,body){
@@ -332,12 +326,12 @@ async function api(method,url,body){
   return data;
 }
 async function loadLLM(){
-  if(TaskStorage.mode!=='server'){llm=null;render();return}
+  if(AIStorage.mode!=='server'){llm=null;render();return}
   try{llm=await api('GET','api/llm/status')}catch(e){llm={unsupported:true}}
   render();
 }
 function renderAI(){
-  const server=TaskStorage.mode==='server',ok=!!(llm&&llm.configured&&!llm.unsupported);
+  const server=AIStorage.mode==='server',ok=!!(llm&&llm.configured&&!llm.unsupported);
   let st,cls='auto',info='';
   if(!server){st='사용 불가 (서버 없이 열림)';info='서버(python server.py)로 접속했을 때만 사용할 수 있습니다.'}
   else if(!llm){st='확인 중…'}
@@ -345,11 +339,11 @@ function renderAI(){
   else if(llm.configured){st='연결됨 · '+llm.label+' · '+llm.model;cls='conf'}
   else{st='AI 연결 필요';info=llm.canConfigure?'사이트 설정에서 AI 서비스를 연결하면 사용할 수 있습니다.':'사이트관리자가 AI 서비스를 연결하면 사용할 수 있습니다.'}
   if(ok&&!aiRes&&S.method==='ai')info='버튼을 누르면 LLM이 과제를 읽고 비슷한 과제끼리 묶습니다.';
-  if(ok&&aiRes){info='AI 결과: '+aiRes.at+' · 모델 '+(aiRes.model||'');if(aiRes.sig!==curSig())info+=' · 과제나 메모 체크가 바뀌었습니다. 다시 묶는 것을 권합니다.'}
+  if(ok&&aiRes){info='AI 결과: '+aiRes.at+' · 모델 '+(aiRes.model||'');if(aiRes.sig!==curSig())info+=' · AI 과제나 목적 체크가 바뀌었습니다. 다시 묶는 것을 권합니다.'}
   $('aiState').textContent=st;$('aiState').className='chip '+cls;$('aiInfo').textContent=info;
   $('aiRun').disabled=aiBusy||!ok;$('aiRunLabel').textContent=aiBusy?'AI가 묶는 중… (최대 1~2분)':'AI로 유사과제 묶기';
   $('aiKw').hidden=S.method!=='ai';$('aiShow').hidden=S.method!=='keyword';
-  ['fTitle','thr','recalc'].forEach(id=>$(id).disabled=!!(R&&R.haveAI));   // 메모 체크는 AI에도 쓰이므로 막지 않음
+  ['fTitle','thr','recalc'].forEach(id=>$(id).disabled=!!(R&&R.haveAI));   // 목적 체크는 AI에도 쓰이므로 막지 않음
   $('aiProv').textContent=llm&&llm.configured?' ('+llm.label+')':'';
   const admin=typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin';
   $('aiCfgNote').innerHTML=!server?'':admin?'AI 서비스 연결(Anthropic / OpenAI 호환 주소·API 키)은 <a href="settings.html">사이트 설정</a>에서 합니다.':'AI 서비스 연결은 사이트관리자가 사이트 설정에서 합니다.';
@@ -358,7 +352,7 @@ async function runAI(){
   if(aiBusy)return;
   if(!R||R.docs.length<2){showErr('비교할 과제가 2건 이상이어야 합니다.');return}
   if(!aiAck){
-    if(!confirm('비교할 과제의 과제명'+(S.memo?'·메모':'')+'를 외부 AI 서비스('+((llm&&llm.label)||'')+')로 보냅니다.\n지금은 더미데이터 탐색용입니다. 실제 업무 자료는 보안 반출 승인 후에만 쓰세요. 계속할까요?'))return;
+    if(!confirm('비교할 AI 과제의 명칭'+(S.memo?'·목적':'')+'을 외부 AI 서비스('+((llm&&llm.label)||'')+')로 보냅니다.\n지금은 더미데이터 탐색용입니다. 실제 업무 자료는 보안 반출 승인 후에만 쓰세요. 계속할까요?'))return;
     aiAck=true;
   }
   const items=R.docs.map(d=>({id:d.id,title:d.t.title,memo:aiMemo(d.t)})),sig=curSig();
@@ -377,16 +371,15 @@ const find=key=>[...R.conf,...R.auto].find(g=>g.key===key);
 
 /* ---------- 이벤트 ---------- */
 function bindSettings(){
-  $('scope').value=S.scope;$('fTitle').checked=S.title;$('fMemo').checked=S.memo;$('thr').value=S.thr;$('thrOut').textContent=S.thr+'%';
-  const upd=()=>{S={...S,scope:$('scope').value,title:$('fTitle').checked,memo:$('fMemo').checked,thr:+$('thr').value};
+  $('fTitle').checked=S.title;$('fMemo').checked=S.memo;$('thr').value=S.thr;$('thrOut').textContent=S.thr+'%';
+  const upd=()=>{S={...S,title:$('fTitle').checked,memo:$('fMemo').checked,thr:+$('thr').value};
     if(!S.title&&!S.memo){S.title=true;$('fTitle').checked=true}
     $('thrOut').textContent=S.thr+'%';store(SKEY,S);recompute()};
-  ['scope','fTitle','fMemo','thr'].forEach(id=>$(id).addEventListener(id==='thr'?'input':'change',upd));
+  ['fTitle','fMemo','thr'].forEach(id=>$(id).addEventListener(id==='thr'?'input':'change',upd));
   $('recalc').onclick=()=>{recompute();showOk('다시 계산했습니다.')};
 }
 document.addEventListener('click',e=>{
   const d=e.target.dataset;
-  if(d.all){S.scope='all';$('scope').value='all';store(SKEY,S);recompute()}
   if(d.detail){open.has(d.detail)?open.delete(d.detail):open.add(d.detail);render()}
   if(d.edit){const g=find(d.edit);if(g){editing={key:g.key,gid:g.gid||null,name:g.name,reason:g.reason||'',idx:[...g.idx]};render()}}
   if(d.ecancel){editing=null;render()}
@@ -411,8 +404,8 @@ document.addEventListener('click',e=>{
   if(id==='aiShow'){S.method='ai';store(SKEY,S);recompute()}
 });
 (async()=>{
-  try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
-  const server=TaskStorage.mode==='server';
+  try{tasks=(await AIStorage.init()).map(norm)}catch(e){tasks=[]}
+  const server=AIStorage.mode==='server';
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   bindSettings();recompute();
