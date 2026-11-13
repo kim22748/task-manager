@@ -43,6 +43,7 @@
   .notice{border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:14px}
   .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
   .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
   .notice[hidden]{display:none}
   /* Modal */
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
@@ -62,6 +63,19 @@
   .radios{display:flex;gap:16px;flex-wrap:wrap}
   .radios label{display:flex;align-items:center;gap:4px;margin:0}
   .radios input{width:auto}
+  button.danger{color:#ff4d4f;border-color:#ff4d4f}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  /* 사이트관리자 전용 (엑셀 저장·올리기, 선택 삭제). 실제 차단은 서버가 한다 */
+  html:not([data-role=admin]) .admin-only{display:none!important}
+  th.chk,td.chk{width:36px;padding-right:0}
+  td.chk input,th.chk input{width:16px;height:16px;padding:0}
+  tr.sel td{background:#e6f4ff}
+  .modal.wide{max-width:860px}
+  .modal .body{padding:16px 24px;overflow-y:auto}
+  .modal .body table{min-width:0}
+  .modal .body th,.modal .body td{padding:6px 8px;font-size:13px}
+  .errlist{margin:0 0 12px;padding:10px 16px 10px 32px;background:#fff2f0;border:1px solid #ffccc7;border-radius:8px;font-size:13px;max-height:180px;overflow:auto}
+  .hint{color:var(--sub);font-size:12px}
   @media(max-width:640px){aside{display:none}.row2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -72,6 +86,7 @@
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
+    <div class="notice ok" id="ok" hidden></div>
     <div class="stats" id="stats"></div>
     <div class="card">
       <div class="toolbar">
@@ -79,10 +94,15 @@
         <select id="fStage" title="단계"></select>
         <input id="q" type="search" placeholder="명칭·목적·책임자·부서 검색">
         <span class="grow"></span>
+        <button class="admin-only danger" id="btnBulkDel" type="button" disabled title="체크한 AI 과제를 한 번에 삭제">선택 삭제</button>
+        <button class="admin-only" id="btnExport" type="button" title="지금 목록 전체를 엑셀(.xlsx)로 내려받기">엑셀로 저장</button>
+        <button class="admin-only" id="btnImport" type="button" title="엑셀(.xlsx)로 여러 건을 한 번에 등록">엑셀 올리기</button>
+        <button class="admin-only" id="btnTemplate" type="button" title="엑셀 올리기용 빈 양식">양식 내려받기</button>
+        <input type="file" id="fileXlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
         <button class="p w-only" id="btnNew" type="button">신규작성</button>
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th>명칭 / 목적</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>접근권한범위</th><th>수정일</th><th></th></tr></thead>
+        <thead><tr><th class="chk admin-only"><input type="checkbox" id="chkAll" title="보이는 과제 전체 선택"></th><th>명칭 / 목적</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>접근권한범위</th><th>수정일</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </div>
@@ -114,6 +134,21 @@
   </div>
 </div>
 
+<!-- 엑셀 올리기: 검사 결과 확인 후 등록 -->
+<div class="overlay" id="impOverlay" hidden>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <h2 id="impTitle">엑셀로 AI 과제 올리기</h2>
+    <div class="body">
+      <p id="impSum" style="margin-top:0"></p>
+      <ol class="errlist" id="impErr" hidden></ol>
+      <div class="tablewrap"><table><thead><tr><th>행</th><th>명칭</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>접근권한범위</th></tr></thead><tbody id="impRows"></tbody></table></div>
+      <p class="hint" id="impMore"></p>
+      <p class="hint">명칭과 과제책임자가 같은 과제는 중복으로 보고 등록하지 않습니다. 올린 내용은 '사이트 설정 → 작업 기록'에 남습니다.</p>
+      <div class="foot"><button type="button" id="impCancel">취소</button><button type="button" class="p" id="impOk">등록</button></div>
+    </div>
+  </div>
+</div>
+
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script src="ai-storage.js"></script>
@@ -122,10 +157,13 @@ const CATEGORIES=['개발','법률','노사','IT'];
 const STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
 const ACCESS=['전사','소속부서','사용자별 지정'];
 const STAGE_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
-let items=[],editingId=null,saving=false;
+let items=[],editingId=null,saving=false,selected=new Set(),impFile=null,impBusy=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const showError=msg=>{const el=$('err');el.textContent=msg||'';el.hidden=!msg};
+const showError=msg=>{const el=$('err');el.textContent=msg||'';el.hidden=!msg;if(msg)$('ok').hidden=true};
+let okTimer;const showOk=msg=>{$('ok').textContent=msg;$('ok').hidden=false;$('err').hidden=true;clearTimeout(okTimer);okTimer=setTimeout(()=>$('ok').hidden=true,4000)};
+const isAdmin=()=>typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin';
+const serverOnly=what=>{showError(`${what} 기능은 서버(server.py)로 실행한 주소에서 사이트관리자로 로그인해야 쓸 수 있습니다.`);};
 const fmtDate=s=>{const d=new Date(s);return isNaN(d)?'-':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const opts=(list,sel)=>list.map(v=>`<option value="${v}"${v===sel?' selected':''}>${v}</option>`).join('');
 
@@ -140,14 +178,22 @@ function render(){
   $('stats').innerHTML=`<div class="card stat"><span>전체</span><b>${items.length}</b></div>`+
     STAGES.map(s=>`<div class="card stat"><span>${s}</span><b>${items.filter(t=>t.stage===s).length}</b></div>`).join('');
   const list=visible();
-  $('rows').innerHTML=list.length?list.map(t=>`<tr>
+  const ids=new Set(items.map(t=>String(t.id)));selected.forEach(id=>{if(!ids.has(id))selected.delete(id)});
+  $('rows').innerHTML=list.length?list.map(t=>`<tr${selected.has(String(t.id))?' class="sel"':''}>
+    <td class="chk admin-only"><input type="checkbox" data-chk="${t.id}"${selected.has(String(t.id))?' checked':''} aria-label="선택"></td>
     <td>${esc(t.title)}<span class="purpose">${esc(t.purpose)}</span></td>
     <td>${esc(t.category)}</td>
     <td><span class="tag" style="background:${STAGE_COLOR[t.stage]||'#8c8c8c'}">${esc(t.stage)}</span></td>
     <td>${esc(t.ownerName)}</td><td>${esc(t.ownerDept)}</td><td>${esc(t.access)}</td>
     <td>${fmtDate(t.updatedAt)}</td>
     <td class="act"><button class="w-only" data-edit="${t.id}">수정</button><button class="w-only" data-del="${t.id}">삭제</button></td></tr>`).join('')
-    :`<tr><td colspan="8" class="empty">${items.length?'조건에 맞는 AI 과제가 없습니다.':'등록된 AI 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
+    :`<tr><td colspan="9" class="empty">${items.length?'조건에 맞는 AI 과제가 없습니다.':'등록된 AI 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
+  updateSel(list);
+}
+function updateSel(list=visible()){
+  const vis=list.map(t=>String(t.id)),n=vis.filter(id=>selected.has(id)).length;
+  $('chkAll').checked=!!vis.length&&n===vis.length;$('chkAll').indeterminate=n>0&&n<vis.length;
+  $('btnBulkDel').disabled=!selected.size;$('btnBulkDel').textContent=selected.size?`선택 삭제 (${selected.size})`:'선택 삭제';
 }
 async function reload(){try{items=await AIStorage.list()}catch(e){showError('목록을 불러오지 못했습니다: '+e.message)}render()}
 
@@ -196,6 +242,11 @@ $('btnCancel').onclick=closeModal;
 $('overlay').addEventListener('mousedown',e=>{if(e.target===$('overlay'))closeModal()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('overlay').hidden)closeModal()});
 
+document.addEventListener('change',e=>{
+  const d=e.target.dataset;
+  if(d.chk){e.target.checked?selected.add(d.chk):selected.delete(d.chk);e.target.closest('tr').classList.toggle('sel',e.target.checked);updateSel()}
+  if(e.target.id==='chkAll'){const on=e.target.checked;visible().forEach(t=>on?selected.add(String(t.id)):selected.delete(String(t.id)));render()}
+});
 document.addEventListener('click',async e=>{
   const d=e.target.dataset;
   if(d.edit)openModal(d.edit);
@@ -204,6 +255,76 @@ document.addEventListener('click',async e=>{
     reload();
   }
 });
+// ---------- 사이트관리자: 선택 삭제 · 엑셀 저장 · 엑셀 올리기 ----------
+async function req(method,url,body,headers){
+  const res=await fetch(url,{method,headers,body,cache:'no-store'});
+  if(res.status===401){location.replace('login.html');return new Promise(()=>{})}
+  return res;
+}
+async function errorOf(res){const d=await res.json().catch(()=>({}));return d.error||`요청 실패 (${res.status})`}
+async function download(url,fallbackName){
+  if(AIStorage.mode!=='server')return serverOnly('엑셀 내려받기');
+  const res=await req('GET',url);
+  if(!res.ok)return showError('내려받지 못했습니다: '+await errorOf(res));
+  const cd=res.headers.get('Content-Disposition')||'',m=/filename\*=UTF-8''([^;]+)/.exec(cd);
+  const a=document.createElement('a');a.href=URL.createObjectURL(await res.blob());a.download=m?decodeURIComponent(m[1]):fallbackName;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  showOk(`${a.download} 파일을 내려받았습니다.`);
+}
+$('btnExport').onclick=()=>download('api/ai-projects/export','AI과제목록.xlsx');
+$('btnTemplate').onclick=()=>download('api/ai-projects/template','AI과제_올리기_양식.xlsx');
+
+$('btnBulkDel').onclick=async()=>{
+  const ids=[...selected];if(!ids.length)return;
+  const names=ids.map(id=>(items.find(t=>String(t.id)===id)||{}).title).filter(Boolean);
+  if(!confirm(`선택한 AI 과제 ${ids.length}건을 삭제할까요? 되돌릴 수 없습니다.\n\n`+names.slice(0,10).map(n=>'· '+n).join('\n')+(names.length>10?`\n… 외 ${names.length-10}건`:'')))return;
+  $('btnBulkDel').disabled=true;
+  try{
+    let n;
+    if(AIStorage.mode==='server'){
+      const res=await req('POST','api/ai-projects/bulk-delete',JSON.stringify({ids}),{'Content-Type':'application/json'});
+      if(!res.ok)throw new Error(await errorOf(res));
+      n=(await res.json()).deleted;
+    }else{for(const id of ids)await AIStorage.remove(id);n=ids.length}
+    selected.clear();showOk(`AI 과제 ${n}건을 삭제했습니다.`);
+  }catch(err){showError('삭제하지 못했습니다: '+err.message)}
+  reload();
+};
+
+$('btnImport').onclick=()=>{if(AIStorage.mode!=='server')return serverOnly('엑셀 올리기');$('fileXlsx').value='';$('fileXlsx').click()};
+$('fileXlsx').onchange=async()=>{
+  const f=$('fileXlsx').files[0];if(!f)return;
+  if(!/\.xlsx$/i.test(f.name))return showError('엑셀(.xlsx) 파일만 올릴 수 있습니다. (.xls 는 엑셀에서 .xlsx 로 다시 저장해 주세요)');
+  if(f.size>5*1024*1024)return showError('엑셀 파일은 5MB 이하만 올릴 수 있습니다.');
+  showError('');
+  const res=await req('POST','api/ai-projects/import?dry=1',f,{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  if(!res.ok)return showError('엑셀을 읽지 못했습니다: '+await errorOf(res));
+  const r=await res.json();impFile=f;
+  $('impTitle').textContent='엑셀로 AI 과제 올리기 — '+f.name;
+  $('impSum').innerHTML=r.errors.length
+    ?`등록할 수 있는 행 <b>${r.count}건</b>, 고쳐야 할 행 <b style="color:#ff4d4f">${r.errors.length}건</b>입니다. 틀린 행을 엑셀에서 고친 뒤 다시 올려 주세요. (한 행이라도 틀리면 아무것도 등록하지 않습니다)`
+    :`<b>${r.count}건</b>을 새로 등록합니다. 아래 내용을 확인한 뒤 '등록'을 누르세요. (기존 AI 과제는 그대로 두고 추가만 합니다)`;
+  $('impErr').hidden=!r.errors.length;
+  $('impErr').innerHTML=r.errors.slice(0,100).map(x=>`<li>${x.row}행: ${esc(x.error)}</li>`).join('')+(r.errors.length>100?`<li>… 외 ${r.errors.length-100}건</li>`:'');
+  $('impRows').innerHTML=r.rows.slice(0,50).map(x=>`<tr><td>${x.row}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${esc(x.stage)}</td><td>${esc(x.ownerName)}</td><td>${esc(x.ownerDept)}</td><td>${esc(x.access)}</td></tr>`).join('')
+    ||'<tr><td colspan="7" class="empty">등록할 수 있는 행이 없습니다.</td></tr>';
+  $('impMore').textContent=r.count>50?`처음 50건만 보여 줍니다. (전체 ${r.count}건)`:'';
+  $('impOk').disabled=!!r.errors.length||!r.count;$('impOk').textContent=`${r.count}건 등록`;
+  $('impOverlay').hidden=false;
+};
+const closeImp=()=>{if(impBusy)return;$('impOverlay').hidden=true;impFile=null};
+$('impCancel').onclick=closeImp;
+$('impOverlay').addEventListener('mousedown',e=>{if(e.target===$('impOverlay'))closeImp()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('impOverlay').hidden)closeImp()});
+$('impOk').onclick=async()=>{
+  if(!impFile||impBusy)return;
+  impBusy=true;$('impOk').disabled=true;
+  try{
+    const res=await req('POST','api/ai-projects/import?name='+encodeURIComponent(impFile.name),impFile,{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    if(!res.ok)throw new Error(await errorOf(res));
+    const r=await res.json();impBusy=false;closeImp();showOk(`엑셀에서 AI 과제 ${r.created}건을 등록했습니다.`);reload();
+  }catch(err){impBusy=false;$('impOk').disabled=false;$('impSum').innerHTML=`<span style="color:#ff4d4f">등록하지 못했습니다: ${esc(err.message)}</span>`}
+};
 ['q'].forEach(id=>$(id).oninput=render);
 $('fCategory').onchange=$('fStage').onchange=render;
 

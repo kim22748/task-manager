@@ -31,6 +31,13 @@ API:
     POST   /api/ai-projects        AI 과제 등록
     PUT    /api/ai-projects/<id>   AI 과제 수정 (등록 때와 같은 항목 전체)
     DELETE /api/ai-projects/<id>   AI 과제 삭제
+    GET    /api/ai-projects/export        (사이트관리자) AI 과제 목록을 엑셀(.xlsx)로 내려받기
+    GET    /api/ai-projects/template      (사이트관리자) 엑셀 올리기 양식 내려받기
+    POST   /api/ai-projects/import[?dry=1] (사이트관리자) 엑셀로 한 번에 등록 (요청 본문 = .xlsx 파일, 5MB·1000행 이하)
+                                   dry=1 이면 검사 결과만 돌려주고 저장하지 않음. 한 행이라도 틀리면 아무것도 저장하지 않음
+    POST   /api/ai-projects/bulk-delete   (사이트관리자) 선택한 AI 과제 한 번에 삭제 {"ids": [...]}
+    GET    /api/work-log                  (사이트관리자) AI 과제 삭제·엑셀 올리기 작업 기록 (최근 500건)
+                                   AI 과제는 명칭+과제책임자가 같으면 중복으로 보고 등록·수정·올리기를 막습니다 (409)
 
     /api/llm/*, /api/similar/group   유사과제 탐색 AI(LLM) 창구 — similar_llm.py 맨 위 설명 참고
 """
@@ -51,6 +58,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 import similar_llm  # 유사과제 탐색 AI(LLM) 창구 (A04)
+import work_log  # AI 과제 삭제·엑셀 올리기 작업 기록 (data/work_log.jsonl)
+import xlsx_util  # 엑셀(.xlsx) 쓰기·읽기 (표준 라이브러리만)
 from auth_users import DEFAULT_SEED_PASSWORD, DEMO_FILE, AuthMixin, ValidationError, users_store
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -64,6 +73,18 @@ AI_DATA_FILE = BASE_DIR / "data" / "ai_projects.json"
 AI_CATEGORIES = ["개발", "법률", "노사", "IT"]
 AI_STAGES = ["기획중", "개발중", "승인요청", "승인검토중", "활용중", "활용종료"]
 AI_ACCESS = ["전사", "소속부서", "사용자별 지정"]
+# 엑셀 열: (항목, 머리글, 같은 뜻으로 받아 주는 머리글들, 열 너비)
+AI_COLUMNS = [
+    ("title", "명칭", ("과제명", "AI 과제명"), 30),
+    ("purpose", "목적", (), 60),
+    ("category", "분류", (), 10),
+    ("stage", "단계", (), 12),
+    ("ownerName", "과제책임자", ("과제책임자 이름", "책임자"), 14),
+    ("ownerDept", "소속부서", ("과제책임자 소속부서", "부서"), 16),
+    ("access", "접근권한범위", ("접근권한",), 14),
+]
+MAX_XLSX = 5 * 1024 * 1024   # 올리는 엑셀 파일 최대 크기
+MAX_IMPORT_ROWS = 1000
 STATUSES = {"todo", "doing", "done"}
 PRIORITIES = {"high", "mid", "low"}
 MAX_TITLE = 200
@@ -309,6 +330,7 @@ class AIProjectStore:
     def create(self, fields):
         with self.lock:
             items = self._read()
+            check_duplicate(items, fields)
             now = datetime.now().astimezone().isoformat(timespec="seconds")
             item = {"id": self._new_id(items), **fields, "createdAt": now, "updatedAt": now}
             items.insert(0, item)
@@ -320,6 +342,7 @@ class AIProjectStore:
             items = self._read()
             for it in items:
                 if it["id"] == item_id:
+                    check_duplicate(items, fields, skip_id=item_id)
                     it.update(fields)
                     it["updatedAt"] = datetime.now().astimezone().isoformat(timespec="seconds")
                     self._write(items)
@@ -327,14 +350,51 @@ class AIProjectStore:
             return None
 
     def delete(self, item_id):
+        """지운 과제를 돌려준다 (없으면 None)."""
         with self.lock:
             items = self._read()
-            kept = [it for it in items if it["id"] != item_id]
-            if len(kept) == len(items):
-                return False
-            self._write(kept)
-            return True
+            gone = next((it for it in items if it["id"] == item_id), None)
+            if gone is not None:
+                self._write([it for it in items if it["id"] != item_id])
+            return gone
 
+    def create_many(self, rows):
+        """여러 건을 한 번에 저장 (모두 저장하거나 하나도 저장하지 않음). 엑셀 순서대로 위에서부터 보이게 한다."""
+        with self.lock:
+            items = self._read()
+            for fields in rows:          # 검사와 저장 사이에 다른 사람이 같은 과제를 등록했을 수도 있어 다시 확인
+                check_duplicate(items, fields)
+            if len({dup_key(f) for f in rows}) != len(rows):
+                raise ValidationError("올리는 파일 안에 명칭·과제책임자가 같은 행이 있습니다.", HTTPStatus.CONFLICT)
+            now = datetime.now().astimezone().isoformat(timespec="seconds")
+            new = []
+            for fields in rows:
+                item = {"id": self._new_id(items + new), **fields, "createdAt": now, "updatedAt": now}
+                new.append(item)
+            self._write(new + items)
+            return new
+
+    def delete_many(self, ids):
+        """지운 과제 목록을 돌려준다."""
+        with self.lock:
+            items = self._read()
+            ids = set(ids)
+            gone = [it for it in items if it["id"] in ids]
+            if gone:
+                self._write([it for it in items if it["id"] not in ids])
+            return gone
+
+
+def dup_key(fields):
+    """중복 판단 기준: 명칭 + 과제책임자 (앞뒤·연속 공백과 영문 대소문자는 무시)."""
+    norm = lambda v: re.sub(r"\s+", " ", str(v or "")).strip().casefold()
+    return norm(fields.get("title")), norm(fields.get("ownerName"))
+
+
+def check_duplicate(items, fields, skip_id=None):
+    key = dup_key(fields)
+    if any(it.get("id") != skip_id and dup_key(it) == key for it in items):
+        raise ValidationError(f"이미 같은 명칭·과제책임자의 AI 과제가 있습니다. ({fields.get('title')} / {fields.get('ownerName')})", HTTPStatus.CONFLICT)
 
 def clean_title(value):
     if not isinstance(value, str) or not value.strip():
@@ -589,6 +649,127 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             fn()
         self._handle(run)
 
+    # ---- AI 과제 엑셀 (사이트관리자) ----
+    def _require_admin_write(self):
+        self._check_origin()
+        return self._require(admin=True)
+
+    def _send_xlsx(self, data, filename):
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(filename)}")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _ai_xlsx(self, rows, extra_headers=()):
+        heads = [c[1] for c in AI_COLUMNS] + list(extra_headers)
+        widths = [c[3] for c in AI_COLUMNS] + [20] * len(extra_headers)
+        idx = {k: i for i, (k, *_r) in enumerate(AI_COLUMNS)}
+        choices = {idx["category"]: AI_CATEGORIES, idx["stage"]: AI_STAGES, idx["access"]: AI_ACCESS}
+        return xlsx_util.write_xlsx(heads, rows, sheet="AI 과제", widths=widths, choices=choices)
+
+    def _ai_export(self):
+        self._require(admin=True)
+        fmt = lambda v: str(v or "").replace("T", " ")[:19]
+        items = sorted(ai_store.list(), key=lambda t: str(t.get("updatedAt", "")), reverse=True)
+        rows = [[t.get(k, "") for k, *_r in AI_COLUMNS] + [fmt(t.get("createdAt")), fmt(t.get("updatedAt"))] for t in items]
+        self._send_xlsx(self._ai_xlsx(rows, ("등록일시", "수정일시")), f"AI과제목록_{date.today().strftime('%Y%m%d')}.xlsx")
+
+    def _ai_template(self):
+        self._require(admin=True)
+        sample = [["(예시) 회의록 요약 도우미", "회의 녹취를 요약해 결정 사항을 정리한다. 이 줄은 지우고 쓰세요.", "개발", "기획중", "홍길동", "데이터운영팀", "소속부서"]]
+        self._send_xlsx(self._ai_xlsx(sample), "AI과제_올리기_양식.xlsx")
+
+    def _ai_import(self):
+        self._require_admin_write()
+        try:
+            length = int(self.headers.get("Content-Length") or -1)
+        except ValueError:
+            length = -1
+        if length <= 0:
+            raise ValidationError("엑셀 파일을 선택하세요.")
+        if length > MAX_XLSX:
+            raise ValidationError(f"엑셀 파일은 {MAX_XLSX // (1024 * 1024)}MB 이하만 올릴 수 있습니다.")
+        data = self.rfile.read(length)
+        try:
+            table = xlsx_util.read_xlsx(data, max_rows=MAX_IMPORT_ROWS)
+        except xlsx_util.XlsxError as e:
+            raise ValidationError(str(e))
+        # 머리글 줄: 내용이 있는 첫 줄 (read_xlsx 는 내용이 있는 줄만 행 번호와 함께 돌려준다)
+        if not table:
+            raise ValidationError("엑셀 파일이 비어 있습니다.")
+        norm = lambda v: re.sub(r"[\s*]", "", str(v))
+        heads = [norm(v) for v in table[0][1]]
+        col = {}
+        for key, label, alias, _w in AI_COLUMNS:
+            for name in (label, *alias):
+                if norm(name) in heads:
+                    col[key] = heads.index(norm(name))
+                    break
+        missing = [label for key, label, *_r in AI_COLUMNS if key not in col]
+        if missing:
+            raise ValidationError("첫 줄(머리글)에 이 열이 없습니다: " + ", ".join(missing) + ". '양식 내려받기'로 받은 파일에 맞춰 주세요.")
+        ok_rows, errors = [], []
+        existing = {dup_key(it): it for it in ai_store.list()}
+        seen = {}                             # 파일 안에서 먼저 나온 같은 과제의 행 번호
+        for n, r in table[1:]:
+            cell = lambda k: str(r[col[k]]).strip() if col[k] < len(r) else ""
+            body = {k: cell(k) for k in col}
+            if not any(body.values()):
+                continue                      # 빈 줄은 건너뜀
+            if body["title"].startswith("(예시)"):
+                continue                      # 양식의 예시 줄
+            try:
+                fields = clean_ai_project(body)
+            except ValidationError as e:
+                errors.append({"row": n, "error": str(e)})
+                continue
+            key = dup_key(fields)
+            if key in existing:
+                errors.append({"row": n, "error": "이미 등록된 AI 과제와 명칭·과제책임자가 같습니다 (중복)."})
+            elif key in seen:
+                errors.append({"row": n, "error": f"{seen[key]}행과 명칭·과제책임자가 같습니다 (중복)."})
+            else:
+                seen[key] = n
+                ok_rows.append({"row": n, **fields})
+        if not ok_rows and not errors:
+            raise ValidationError("등록할 AI 과제가 없습니다. 둘째 줄부터 내용을 넣어 주세요.")
+        if len(ok_rows) + len(errors) > MAX_IMPORT_ROWS:
+            raise ValidationError(f"한 번에 {MAX_IMPORT_ROWS}건까지만 올릴 수 있습니다.")
+        dry = parse_qs(urlsplit(self.path).query).get("dry") == ["1"]
+        if dry or errors:
+            status = HTTPStatus.OK if dry else HTTPStatus.BAD_REQUEST
+            return self._json(status, {"dry": True, "count": len(ok_rows), "rows": ok_rows[:200], "errors": errors,
+                                       **({} if dry else {"error": f"틀린 행이 {len(errors)}개 있어 아무것도 저장하지 않았습니다."})})
+        created = ai_store.create_many([{k: v for k, v in row.items() if k != "row"} for row in ok_rows])
+        name = (parse_qs(urlsplit(self.path).query).get("name") or [""])[0]
+        work_log.record(self._user(), "ai_import", created, file_name=name)
+        self._json(HTTPStatus.CREATED, {"created": len(created)})
+
+    def _ai_bulk_delete(self):
+        self._require_admin_write()
+        body = self._body()
+        ids = body.get("ids") if isinstance(body, dict) else None
+        if not isinstance(ids, list) or not ids or len(ids) > 5000:
+            raise ValidationError("삭제할 AI 과제를 선택하세요.")
+        clean = []
+        for v in ids:
+            try:
+                clean.append(int(v))
+            except (TypeError, ValueError):
+                raise ValidationError("AI 과제 ID가 올바르지 않습니다.")
+        gone = ai_store.delete_many(clean)
+        if gone:
+            work_log.record(self._user(), "ai_bulk_delete", gone)
+        self._json(HTTPStatus.OK, {"deleted": len(gone)})
+
+    def _work_log(self):
+        self._require(admin=True)
+        self._json(HTTPStatus.OK, {"actions": work_log.ACTIONS, "items": work_log.read()})
+
     # ---- 정적 파일: data/ 폴더·서버 코드·숨김 파일은 직접 노출하지 않음 ----
     def do_GET(self):
         route = self._route()
@@ -602,6 +783,12 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._handle_read(lambda: self._json(HTTPStatus.OK, store.list()))
         if route == "/api/ai-projects":
             return self._handle_read(lambda: self._json(HTTPStatus.OK, ai_store.list()))
+        if route == "/api/ai-projects/export":
+            return self._handle(self._ai_export)
+        if route == "/api/ai-projects/template":
+            return self._handle(self._ai_template)
+        if route == "/api/work-log":
+            return self._handle(self._work_log)
         if (route.startswith("/api/") or route.startswith("/data") or route.endswith((".py", ".pyc"))
                 or "/." in route or "__pycache__" in route):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -643,6 +830,10 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._handle_write(lambda: self._json(HTTPStatus.CREATED, ai_store.create(clean_ai_project(self._body()))))
         if route == "/api/tasks/import":
             return self._handle_write(import_many)
+        if route == "/api/ai-projects/import":
+            return self._handle(self._ai_import)
+        if route == "/api/ai-projects/bulk-delete":
+            return self._handle(self._ai_bulk_delete)
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_PUT(self):
@@ -703,7 +894,10 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         target = ai_store if route.startswith("/api/ai-projects/") else store
 
         def delete():
-            if target.delete(self._task_id()):
+            gone = target.delete(self._task_id())
+            if gone:
+                if target is ai_store:
+                    work_log.record(self._user(), "ai_delete", [gone])
                 self._json(HTTPStatus.NO_CONTENT)
             else:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})

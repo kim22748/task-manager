@@ -16,6 +16,11 @@ const AIStorage = (() => {
   const readLocal = () => { try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || []; } catch (e) { return []; } };
   const writeLocal = items => { localStorage.setItem(LOCAL_KEY, JSON.stringify(items)); };
   const nowIso = () => new Date().toISOString();
+  // 중복 기준: 명칭 + 과제책임자 (공백·영문 대소문자 무시) — 서버의 dup_key 와 같은 규칙
+  const dupKey = f => [f.title, f.ownerName].map(v => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase()).join('\u0000');
+  const checkDup = (items, f, skipId) => {
+    if (items.some(x => x.id != skipId && dupKey(x) === dupKey(f))) throw new Error(`이미 같은 명칭·과제책임자의 AI 과제가 있습니다. (${f.title} / ${f.ownerName})`);
+  };
 
   async function request(method, url, body) {
     const res = await fetch(url, {
@@ -67,6 +72,7 @@ const AIStorage = (() => {
     async create(fields) {
       if (mode === 'server') return request('POST', API, fields);
       const items = readLocal();
+      checkDup(items, fields);
       const item = { id: Date.now(), ...fields, createdAt: nowIso(), updatedAt: nowIso() };
       items.unshift(item); writeLocal(items);
       return item;
@@ -78,6 +84,7 @@ const AIStorage = (() => {
       const items = readLocal();
       const it = items.find(x => x.id == id);
       if (!it) throw new Error('AI 과제를 찾을 수 없습니다.');
+      checkDup(items, fields, id);
       Object.assign(it, fields, { updatedAt: nowIso() });
       writeLocal(items);
       return it;

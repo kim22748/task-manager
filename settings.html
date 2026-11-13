@@ -7,15 +7,25 @@
   .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
   .state{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 16px;font-size:14px}
   code{background:#f5f5f5;padding:0 4px;border-radius:4px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid #f0f0f0;margin-bottom:16px}
+  .tabs a{padding:10px 16px;text-decoration:none;color:var(--sub);font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tabs a.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+  section[hidden]{display:none}
+  .logtbl td{vertical-align:top}
+  .logtbl .items{margin:0;padding-left:18px;font-size:13px}
+  .logtbl details summary{cursor:pointer;color:var(--primary);font-size:13px}
+  .sub{color:var(--sub);font-size:12px}
 </style></head>
 <body>
 <aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
 <header>사이트 설정</header>
-<div class="content" style="max-width:720px">
+<div class="content" style="max-width:960px">
+  <nav class="tabs" id="tabs"><a href="#ai" data-tab="ai">AI 서비스 연결</a><a href="#log" data-tab="log">작업 기록</a></nav>
   <div class="notice warn" id="pv" hidden><b>디자인 미리보기</b> — 서버가 없어 저장·연결 테스트를 할 수 없습니다. <code>server.py</code>로 실행한 주소에서 사이트관리자로 로그인해 설정하세요.</div>
   <div class="notice err" id="err" hidden></div><div class="notice ok" id="ok" hidden></div>
-  <div class="card">
+  <section id="tab-ai">
+  <div class="card" style="max-width:720px">
     <h3 style="margin-top:0">AI 서비스 연결 <small style="font-weight:400;color:var(--sub)">유사과제 탐색의 'AI로 유사과제 묶기'에 쓰입니다</small></h3>
     <div class="state" id="state"></div>
     <div class="notice warn">이 기능을 쓰면 비교할 과제의 <b>과제명(과 메모)이 아래 주소의 외부 AI 서비스로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 쓰세요.</div>
@@ -34,6 +44,20 @@
       서버에 환경 변수 <code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code>가 있으면 그 키가 우선합니다.
       다른 PC에서 이 화면에 접속해 키를 넣으면 HTTPS가 아닌 경우 키가 암호화되지 않고 전송되므로, 가능하면 서버 PC에서 입력하세요.</div>
   </div>
+  </section>
+  <section id="tab-log" hidden>
+  <div class="card">
+    <h3 style="margin-top:0">작업 기록 <small style="font-weight:400;color:var(--sub)">AI 과제 삭제(1건·선택 삭제)와 엑셀 올리기를 누가 언제 했는지 남깁니다 (최근 500건)</small></h3>
+    <div class="toolbar">
+      <select id="lAction"><option value="">전체 작업</option></select>
+      <input id="lQ" type="search" placeholder="처리자·과제명·파일명 검색" style="min-width:220px">
+      <span class="grow"></span><span class="sub" id="lCount"></span>
+      <button type="button" id="lReload">새로고침</button>
+    </div>
+    <div class="tablewrap"><table class="logtbl"><thead><tr><th style="width:150px">일시</th><th>처리자</th><th>작업</th><th>건수</th><th>내용</th></tr></thead><tbody id="lRows"></tbody></table></div>
+    <div class="hint" style="margin-top:10px">기록은 서버 PC의 <code>data/work_log.jsonl</code>에 남고 GitHub에 올라가지 않습니다. 사용자 가입 승인·역할 변경 기록은 '사용자 관리' 화면 아래 '처리 이력'에 있습니다.</div>
+  </div>
+  </section>
 </div></div>
 <script src="auth.js"></script>
 <script>
@@ -76,8 +100,46 @@ async function act(fn,okText){
 form.onsubmit=e=>{ e.preventDefault(); act(()=>Auth.api('PUT','api/llm/config',{provider:prov(),endpoint:endpoint.value.trim(),model:model.value.trim(),key:key.value.trim()}),'설정을 저장했습니다. \'연결 테스트\'로 확인해 보세요.'); };
 btnTest.onclick=()=>act(()=>Auth.api('POST','api/llm/test'),r=>`연결 성공 (${r.label} · 모델 ${r.model})`);
 btnDel.onclick=()=>{ if(confirm('AI 연결 설정과 저장된 API 키를 삭제할까요?')) act(()=>Auth.api('DELETE','api/llm/config'),'설정을 삭제했습니다.'); };
+// ---------- 탭 ----------
+let logData=null;
+function showTab(){
+  const t=location.hash==='#log'?'log':'ai';
+  document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on',a.dataset.tab===t));
+  document.getElementById('tab-ai').hidden=t!=='ai';document.getElementById('tab-log').hidden=t!=='log';
+  err.hidden=ok.hidden=true;
+  if(t==='log'&&!logData)loadLog();
+}
+window.addEventListener('hashchange',showTab);
+
+// ---------- 작업 기록 ----------
+const fmtAt=s=>String(s||'').replace('T',' ').slice(0,19);
+async function loadLog(){
+  if(Auth.preview){logData={actions:{ai_delete:'AI 과제 삭제',ai_bulk_delete:'AI 과제 선택 삭제',ai_import:'AI 과제 엑셀 올리기'},items:[]};renderLog();return}
+  try{logData=await Auth.api('GET','api/work-log');renderLog()}catch(ex){msg(err,'작업 기록을 불러오지 못했습니다: '+ex.message)}
+}
+function renderLog(){
+  const A=logData.actions,sel=lAction.value;
+  if(lAction.options.length===1)lAction.innerHTML+=Object.entries(A).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  const q=lQ.value.trim().toLowerCase();
+  const list=logData.items.filter(r=>(!sel||r.action===sel)&&(!q||[r.actorName,r.actor,r.file,...(r.items||[]).map(i=>i.title)].some(v=>String(v||'').toLowerCase().includes(q))));
+  lCount.textContent=`${list.length}건`;
+  const color={ai_delete:'#ff4d4f',ai_bulk_delete:'#ff4d4f',ai_import:'#1677ff'};
+  const li=i=>`<li>${Auth.esc(i.title)} <span class="sub">${Auth.esc(i.ownerName)}${i.ownerDept?' · '+Auth.esc(i.ownerDept):''}</span></li>`;
+  lRows.innerHTML=list.map(r=>{
+    const its=r.items||[],head=its.slice(0,3),rest=its.slice(3);
+    return `<tr><td>${Auth.esc(fmtAt(r.at))}</td>
+      <td>${Auth.esc(r.actorName)} <span class="sub">${Auth.esc(r.actor)}</span>${r.actorRole&&Auth.ROLE[r.actorRole]?'<br>'+Auth.tag(Auth.ROLE[r.actorRole]):''}</td>
+      <td>${Auth.tag([A[r.action]||r.action,color[r.action]||'#8c8c8c'])}</td><td>${r.count}</td>
+      <td>${r.file?`<div class="sub">파일: ${Auth.esc(r.file)}</div>`:''}<ul class="items">${head.map(li).join('')}</ul>
+        ${rest.length?`<details><summary>나머지 ${rest.length}건 보기</summary><ul class="items">${rest.map(li).join('')}</ul></details>`:''}</td></tr>`;
+  }).join('')||`<tr><td colspan="5" class="empty">${Auth.preview?'디자인 미리보기에서는 작업 기록이 없습니다.':'아직 기록된 작업이 없습니다.'}</td></tr>`;
+}
+lAction.onchange=renderLog;lQ.oninput=renderLog;
+lReload.onclick=async()=>{logData=null;await loadLog();if(logData)msg(ok,'작업 기록을 새로 불러왔습니다.')};
+
 (async()=>{
   await Auth.guard({admin:true});
+  showTab();
   if(Auth.preview){ pv.hidden=false; cfg={provider:'anthropic',endpoint:DEF.anthropic.endpoint,model:DEF.anthropic.model,configured:false,defaults:DEF}; fill(); return; }
   try{ cfg=await Auth.api('GET','api/llm/config'); fill(); }catch(ex){ msg(err,ex.message); }
 })();
