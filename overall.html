@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 전체 과제 진행 현황</title>
+<style>
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;
+        --review:#bfbfbf;--doing:#1677ff;--wait:#fa8c16;--pub:#52c41a;--end:#722ed1;--danger:#ff4d4f}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  aside a.child{padding:10px 24px 10px 40px;font-size:14px;color:rgba(255,255,255,.92);background:rgba(255,255,255,.08)}
+  aside a.child.on{background:var(--primary);color:#fff}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  header a{font-weight:400;font-size:14px;color:var(--primary);text-decoration:none}
+  header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
+  .content{padding:24px;display:grid;gap:16px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03);min-width:0}
+  .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub)}
+  .desc{color:var(--sub);font-size:13px;margin:0 0 16px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+  .stat span{color:var(--sub);font-size:14px}
+  .stat b{display:block;font-size:28px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .stat small{color:var(--sub);font-size:12px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+  .stack{display:flex;height:28px;border-radius:6px;overflow:hidden;background:#f0f0f0}
+  .stack i{display:block;height:100%;cursor:pointer}
+  .stack i:hover{opacity:.8}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px}
+  .legend button{border:0;background:none;padding:2px 0;display:flex;align-items:center;gap:6px;font:inherit;font-size:14px;cursor:pointer;color:var(--text)}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .legend em{font-style:normal;color:var(--sub)}
+  .bars{display:flex;align-items:flex-end;gap:12px;height:150px;padding-top:18px}
+  .bars button{flex:1;height:100%;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font:inherit;font-size:12px;color:var(--sub);cursor:pointer;min-width:0}
+  .bars button em{font-style:normal;color:var(--text);margin-bottom:2px}
+  .bars button div{width:100%;max-width:56px;background:var(--primary);border-radius:4px 4px 0 0;min-height:2px}
+  .bars button:hover div,.bars button.sel div{background:#003eb3}
+  .bars button span{margin-top:6px;white-space:nowrap}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .toolbar input{font:inherit;font-size:14px;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;min-width:200px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips button{font:inherit;font-size:13px;padding:3px 12px;border:1px solid #d9d9d9;border-radius:14px;background:#fff;cursor:pointer}
+  .chips button.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .tablewrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+  th{background:#fafafa;font-weight:600;white-space:nowrap}
+  td.act{white-space:nowrap;text-align:right}
+  .pbar{display:flex;align-items:center;gap:8px;min-width:150px}
+  .pbar div{flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
+  .pbar i{display:block;height:100%}
+  .pbar span{width:40px;text-align:right;font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .due-over{background:var(--danger)}.due-soon{background:var(--wait)}.due-ok{background:#8c8c8c}
+  .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
+  a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
+  a.tlink:hover{text-decoration:underline}
+  a.btnlink{display:inline-block;padding:4px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px}
+  a.btnlink:hover{background:#e6f4ff}
+  .sub{color:var(--sub);font-size:12px}
+  .empty{text-align:center;color:var(--sub);padding:28px}
+  .notice{border-radius:8px;padding:10px 16px;font-size:14px}
+  .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice[hidden]{display:none}
+  @media(max-width:640px){aside{display:none}.content{padding:16px}}
+</style>
+</head>
+<body>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
+<div class="main">
+  <header><a href="dashboard.html">← 대시보드</a>전체 과제 진행 현황<small id="mode"></small></header>
+  <div class="content">
+    <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 보여줍니다. 팀 전체 과제를 보려면 서버(<code>python server.py</code>)로 실행한 주소에서 열어 주세요.</div>
+    <div class="stats" id="stats"></div>
+    <div class="grid2">
+      <div class="card"><h2>진행 상태별 현황</h2><p class="desc">막대나 범례를 누르면 아래 목록이 그 상태로 좁혀집니다.</p><div id="stage"></div></div>
+      <div class="card"><h2>진행률 분포</h2><p class="desc">전체 과제를 진행률 구간으로 나눈 건수</p><div id="dist"></div></div>
+    </div>
+    <div class="card">
+      <h2>과제별 진행 현황 <em id="cnt"></em></h2>
+      <p class="desc">과제명이나 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)로 이동합니다. 진행률을 고치려면 <a class="tlink" href="progress.html">과제 진행률</a>에서 하세요.</p>
+      <div class="toolbar">
+        <input type="search" id="q" placeholder="과제명·담당자 검색">
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>과제</th><th>담당자</th><th>상태</th><th>진행률</th><th>마감일</th><th>첨부</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+<script src="storage.js"></script>
+<script src="file-storage.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
+// 과제 한 건의 진행 상태: 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
+function statusOf(t){
+  if(t.registered)return '게시 완료';
+  if(prog(t)>=100)return '게시 대기';
+  if(t.s==='doing')return '진행 중';
+  if(t.s==='done')return '종료';
+  return '검토';
+}
+const STATES=[['검토','var(--review)'],['진행 중','var(--doing)'],['게시 대기','var(--wait)'],['게시 완료','var(--pub)'],['종료','var(--end)']];
+const COLOR=Object.fromEntries(STATES);
+const BUCKETS=[['0%',0,0],['1–49%',1,49],['50–99%',50,99],['100%',100,100]];
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+function dueTag(t){
+  if(!t.due)return '<span class="sub">-</span>';
+  const diff=Math.round((new Date(t.due+'T00:00:00')-today())/864e5);
+  const done=statusOf(t)==='게시 완료'||statusOf(t)==='종료';
+  if(!done&&diff<0)return `<span class="tag due-over">${t.due} (D+${-diff} 지연)</span>`;
+  if(!done&&diff<=3)return `<span class="tag due-soon">${t.due} (${diff===0?'오늘':'D-'+diff})</span>`;
+  return `<span class="tag due-ok">${t.due}</span>`;
+}
+
+let tasks=[],fileMap={};
+const state={status:'',bucket:null,q:''};
+
+function matches(t){
+  if(state.status&&statusOf(t)!==state.status)return false;
+  if(state.bucket&&!(prog(t)>=state.bucket[0]&&prog(t)<=state.bucket[1]))return false;
+  const q=state.q.trim().toLowerCase();
+  return !q||(t.title||'').toLowerCase().includes(q)||(t.assignee||'').toLowerCase().includes(q);
+}
+function toggle(key,val){state[key]=(JSON.stringify(state[key])===JSON.stringify(val))?(key==='status'?'':null):val;render()}
+
+function render(){
+  const n=tasks.length,cnt=s=>tasks.filter(t=>statusOf(t)===s).length;
+  const avg=n?Math.round(tasks.reduce((s,t)=>s+prog(t),0)/n):0;
+  const late=tasks.filter(t=>t.due&&!['게시 완료','종료'].includes(statusOf(t))&&new Date(t.due+'T00:00:00')<today()).length;
+  $('stats').innerHTML=[
+    ['전체 과제',n,'',''],
+    ['진행 중',cnt('진행 중'),'var(--doing)',n?Math.round(cnt('진행 중')/n*100)+'%':''],
+    ['게시 대기',cnt('게시 대기'),cnt('게시 대기')?'var(--wait)':'','진행률 100%'],
+    ['게시 완료',cnt('게시 완료'),'var(--pub)',n?Math.round(cnt('게시 완료')/n*100)+'%':''],
+    ['전체 평균 진행률',n?avg+'%':'-','var(--primary)','단순평균'],
+    ['마감 지연',late,late?'var(--danger)':'','']
+  ].map(([t,v,c,s])=>`<div class="card stat"><span>${t}</span><b${c?` style="color:${c}"`:''}>${v}</b><small>${s||'&nbsp;'}</small></div>`).join('');
+
+  $('stage').innerHTML=n?`<div class="stack">${STATES.map(([s,c])=>cnt(s)?`<i data-s="${s}" style="width:${cnt(s)/n*100}%;background:${c}" title="${s} ${cnt(s)}건"></i>`:'').join('')}</div>
+    <div class="legend">${STATES.map(([s,c])=>`<button data-s="${s}"><i style="background:${c}"></i>${s} <b>${cnt(s)}건</b> <em>(${n?Math.round(cnt(s)/n*100):0}%)</em></button>`).join('')}</div>`
+    :'<div class="empty">등록된 과제가 없습니다. 과제 목록에서 추가해 보세요.</div>';
+  $('stage').querySelectorAll('[data-s]').forEach(el=>el.onclick=()=>toggle('status',el.dataset.s));
+
+  const bc=BUCKETS.map(([l,a,b])=>({l,a,b,n:tasks.filter(t=>prog(t)>=a&&prog(t)<=b).length}));
+  const max=Math.max(1,...bc.map(x=>x.n));
+  $('dist').innerHTML=n?`<div class="bars">${bc.map((x,i)=>`<button data-i="${i}" class="${state.bucket&&state.bucket[0]===x.a?'sel':''}" title="${x.l} ${x.n}건"><em>${x.n||''}</em><div style="height:${x.n/max*100}%"></div><span>${x.l}</span></button>`).join('')}</div>`:'<div class="empty">데이터가 없습니다.</div>';
+  $('dist').querySelectorAll('button').forEach(b=>b.onclick=()=>{const x=bc[b.dataset.i];toggle('bucket',[x.a,x.b])});
+
+  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button data-v="${v}" class="${state.status===v?'on':''}">${l}</button>`).join('')
+    +(state.bucket?`<button class="on" id="clrB">진행률 ${state.bucket[0]===state.bucket[1]?state.bucket[0]:state.bucket[0]+'–'+state.bucket[1]}% ✕</button>`:'');
+  $('chips').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{state.status=b.dataset.v;render()});
+  if($('clrB'))$('clrB').onclick=()=>{state.bucket=null;render()};
+
+  const rows=tasks.filter(matches).sort((a,b)=>prog(b)-prog(a)||String(b.id).localeCompare(String(a.id)));
+  $('cnt').textContent=rows.length+'건';
+  $('rows').innerHTML=rows.length?rows.map(t=>{
+    const s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}`;
+    return `<tr><td><a class="tlink" href="${href}">${esc(t.title)}</a></td><td>${esc(t.assignee)||'-'}</td>
+      <td><span class="tag" style="background:${COLOR[s]}">${s}</span></td>
+      <td><div class="pbar"><div><i style="width:${p}%;background:${COLOR[s]}"></i></div><span>${p}%</span></div></td>
+      <td>${dueTag(t)}</td>
+      <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
+      <td class="act"><a class="btnlink" href="${href}">세부</a></td></tr>`}).join('')
+    :`<tr><td colspan="7" class="empty">${n?'조건에 맞는 과제가 없습니다.':'등록된 과제가 없습니다.'}</td></tr>`;
+}
+$('q').addEventListener('input',e=>{state.q=e.target.value;render()});
+
+(async()=>{
+  try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
+  const server=TaskStorage.mode==='server';
+  $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
+  $('warn').hidden=server;
+  try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}
+  render();
+})();
+</script>
+</body>
+</html>

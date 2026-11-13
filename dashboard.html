@@ -45,7 +45,7 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
   <header>대시보드</header>
   <div class="content" id="app"></div>
@@ -87,7 +87,7 @@ document.getElementById('app').innerHTML=`
   <div class="card stat"><span>마감 임박(3일)</span><b style="color:${soon?'#fa8c16':'inherit'}">${soon}</b></div>
 </div>
 <div class="card">
-  <h2>전체 진행률 <span class="sub">(종료 과제 비율)</span></h2>
+  <h2>전체 진행률 <span class="sub">(종료 과제 비율)</span><a href="overall.html" style="margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none">전체 과제 진행 현황 보기 →</a></h2>
   <div class="rate">
     <div class="bar">${Object.entries(STATUS).reverse().map(([k,[,,c]])=>`<i style="width:${pct(cnt(k))}%;background:${c}"></i>`).join('')}</div>
     <strong>${pct(cnt('done'))}%</strong>
