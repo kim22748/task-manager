@@ -40,6 +40,11 @@
   button.p{background:var(--primary);border-color:var(--primary);color:#fff}
   button.g{background:var(--done);border-color:var(--done);color:#fff}
   button.sm{padding:3px 10px;font-size:13px}
+  .seg{display:inline-flex}
+  .seg button{border-radius:0;margin-left:-1px}
+  .seg button:first-child{border-radius:6px 0 0 6px;margin-left:0}
+  .seg button:last-child{border-radius:0 6px 6px 0}
+  .seg button.on{background:var(--primary);border-color:var(--primary);color:#fff;position:relative;z-index:1}
   input[type=range]{width:200px;vertical-align:middle}
   input[type=checkbox]{width:16px;height:16px}
   .chip{display:inline-block;padding:0 10px;border-radius:12px;font-size:12px;line-height:22px;white-space:nowrap}
@@ -104,10 +109,16 @@
 
     <div class="card">
       <h2>비교 설정</h2>
-      <p class="desc">비교 대상은 'AI 과제 목록'의 모든 AI 과제입니다. '목적' 체크는 AI·키워드 방식 모두에 적용됩니다(목적을 끄면 AI에도 목적을 보내지 않습니다). '명칭' 체크는 키워드 방식에서만 쓰입니다(AI에는 명칭을 항상 보냅니다). 키워드 방식의 유사도 기준은 10%로 고정되어 있어 따로 조정할 필요가 없습니다. 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
+      <p class="desc">비교 대상은 'AI 과제 목록'의 모든 AI 과제입니다. '목적' 체크는 AI·키워드 방식 모두에 적용됩니다(목적을 끄면 AI에도 목적을 보내지 않습니다). '명칭' 체크는 키워드 방식에서만 쓰입니다(AI에는 명칭을 항상 보냅니다). '유사도 기준'(상·중·하)은 키워드 방식에서만 쓰입니다. '하'는 조금만 비슷해도 묶어 그룹이 많아지고, '상'은 아주 비슷할 때만 묶어 그룹이 적어집니다. 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
       <div class="opts">
         <div class="opt"><b>비교 항목</b>
           <div style="display:flex;gap:16px"><label><input type="checkbox" id="fTitle" checked>명칭</label><label><input type="checkbox" id="fMemo" checked>목적</label></div></div>
+        <div class="opt"><b>유사도 기준</b>
+          <div class="seg" id="lvSeg">
+            <button type="button" data-lv="low" title="조금만 비슷해도 묶음 (그룹이 많아짐)">하 · 느슨 5%</button>
+            <button type="button" data-lv="mid" title="보통">중 · 보통 10%</button>
+            <button type="button" data-lv="high" title="아주 비슷할 때만 묶음 (그룹이 적어짐)">상 · 엄격 15%</button>
+          </div></div>
         <div class="opt"><button class="p" id="recalc">다시 계산</button></div>
         <div class="sub" id="calcAt"></div>
       </div>
@@ -143,8 +154,10 @@ const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==nul
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
 
 const AKEY='similar-ai-v2';
-const THR=10;   // 키워드 방식의 유사도 기준(%): 사용자가 바꾸지 않는 고정값 (가상 AI 과제 100건·50건 측정에서 가장 무난했던 값)
-let tasks=[],S=Object.assign({title:true,memo:true,method:'ai'},load(SKEY,{}));
+// 키워드 방식의 유사도 기준(%): 하=느슨(조금만 비슷해도 묶음) / 중 / 상=엄격. 가상 AI 과제 100건 측정에서 5%가 가장 잘 찾았고 15%는 가장 정확했다.
+const LEVELS={low:5,mid:10,high:15};
+let tasks=[],S=Object.assign({title:true,memo:true,method:'ai',level:'low'},load(SKEY,{}));
+if(!LEVELS[S.level])S.level='low';
 let confirmed=load(CKEY,[]);
 let open=new Set(),editing=null,calcAt=null,okTimer;
 let aiRes=load(AKEY,null),aiAck=false,aiBusy=false,llm=null;
@@ -210,7 +223,7 @@ function compute(){
     });
   }else{
     let cl=docs.map((_,i)=>i).filter(i=>!taken.has(i)).map(i=>[i]);
-    const thr=THR/100;
+    const thr=LEVELS[S.level]/100;
     for(;;){
       let best=-1,bi=-1,bj=-1;
       for(let a=0;a<cl.length;a++)for(let b=a+1;b<cl.length;b++){
@@ -297,7 +310,7 @@ function render(){
   let empty='';
   if(!docs.length)empty='<div class="empty">비교할 AI 과제가 없습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 AI 과제를 먼저 등록하세요.</div>';
   else if(docs.length<2)empty='<div class="empty">AI 과제가 2건 이상이어야 서로 비교할 수 있습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 더 등록하세요.</div>';
-  else if(!groups.length)empty=R.haveAI?'<div class="empty">AI가 비슷한 과제를 찾지 못했습니다.</div>':'<div class="empty">기준 이상으로 비슷한 과제가 없습니다.</div>';
+  else if(!groups.length)empty=R.haveAI?'<div class="empty">AI가 비슷한 과제를 찾지 못했습니다.</div>':'<div class="empty">기준 이상으로 비슷한 과제가 없습니다.'+(S.level!=='low'?" '유사도 기준'을 '하'로 바꿔 보세요.":'')+'</div>';
   let html=groups.length?groups.map(groupCard).join(''):'';
   if(pend)html+=llm===null?'<div class="empty">AI 연결 상태를 확인하는 중입니다…</div>':'<div class="empty">아직 AI가 묶은 결과가 없습니다. 위의 <b>AI로 유사과제 묶기</b>를 누르면 LLM이 AI 과제의 명칭과 목적을 읽고 비슷한 과제를 묶습니다.</div>';
   else if(!groups.length)html=empty;
@@ -343,6 +356,7 @@ function renderAI(){
   $('aiRun').disabled=aiBusy||!ok;$('aiRunLabel').textContent=aiBusy?'AI가 묶는 중… (최대 1~2분)':'AI로 유사과제 묶기';
   $('aiKw').hidden=S.method!=='ai';$('aiShow').hidden=S.method!=='keyword';
   ['fTitle','recalc'].forEach(id=>$(id).disabled=!!(R&&R.haveAI));   // 목적 체크는 AI에도 쓰이므로 막지 않음
+  document.querySelectorAll('#lvSeg button').forEach(b=>{b.classList.toggle('on',b.dataset.lv===S.level);b.disabled=!!(R&&R.haveAI)});   // 상·중·하는 키워드 방식 전용
   $('aiProv').textContent=llm&&llm.configured?' ('+llm.label+')':'';
   const admin=typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin';
   $('aiCfgNote').innerHTML=!server?'':admin?'AI 서비스 연결(Anthropic / OpenAI 호환 주소·API 키)은 <a href="settings.html">사이트 설정</a>에서 합니다.':'AI 서비스 연결은 사이트관리자가 사이트 설정에서 합니다.';
@@ -375,6 +389,7 @@ function bindSettings(){
     if(!S.title&&!S.memo){S.title=true;$('fTitle').checked=true}
     store(SKEY,S);recompute()};
   ['fTitle','fMemo'].forEach(id=>$(id).addEventListener('change',upd));
+  document.querySelectorAll('#lvSeg button').forEach(b=>b.addEventListener('click',()=>{S.level=b.dataset.lv;store(SKEY,S);recompute()}));
   $('recalc').onclick=()=>{recompute();showOk('다시 계산했습니다.')};
 }
 document.addEventListener('click',e=>{
