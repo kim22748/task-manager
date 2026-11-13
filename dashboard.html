@@ -63,6 +63,17 @@
   a.tlink:hover{text-decoration:underline}
   .due-over{background:var(--danger)}.due-soon{background:var(--wait)}
   .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
+  /* 처음 열 때 한 번 재생되는 애니메이션 (카드 등장·도넛 그리기·막대 자라기). 숫자 카운트업은 아래 스크립트 */
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}}
+  @keyframes arcdraw{from{stroke-dasharray:0 var(--C)}}
+  @keyframes grow{from{transform:scaleY(0)}}
+  @keyframes fadein{from{opacity:0}}
+  a.kpi,.row .card{animation:rise .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--n,0)*60ms)}
+  .arc{animation:arcdraw .7s cubic-bezier(.3,.7,.3,1) both}
+  .col div{transform-origin:bottom;animation:grow .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(380ms + var(--i,0)*70ms)}
+  .col em{animation:fadein .4s ease both;animation-delay:calc(800ms + var(--i,0)*70ms)}
+  /* 시스템에서 '동작 줄이기'를 켠 사용자에게는 움직임을 끈다 */
+  @media (prefers-reduced-motion:reduce){a.kpi,.row .card,.arc,.col div,.col em{animation:none!important}}
   @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.row3,.row3b{grid-template-columns:1fr}}
   @media(max-width:640px){aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.content{padding:12px}}
 </style>
@@ -95,6 +106,24 @@ const goStatus=s=>`overall.html?status=${encodeURIComponent(s)}`;
 const detail=t=>`task-detail.html?id=${encodeURIComponent(t.id)}&from=dashboard`;
 const fmtAt=s=>{const d=new Date(s);return isNaN(d)?'':`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
 
+// 화면이 그려진 직후 한 번: 카드 등장 순서를 정하고, 숫자를 0에서 실제 값까지 올린다(카운트업)
+function animate(){
+  document.querySelectorAll('a.kpi,.row .card').forEach((el,i)=>el.style.setProperty('--n',i));
+  const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('[data-count]').forEach((el,i)=>{
+    const to=+el.dataset.count,suf=el.dataset.suffix||'';
+    if(reduce||!isFinite(to)){el.textContent=to+suf;return}
+    const dur=900,t0=performance.now()+150+i*60;
+    el.textContent='0'+suf;
+    // 타이머로 진행: 탭이 가려져 있어도 끝 값(실제 값)에는 반드시 도달한다
+    const timer=setInterval(()=>{
+      const p=Math.min(1,Math.max(0,(performance.now()-t0)/dur)),e=1-Math.pow(1-p,3); // 처음엔 빠르게, 끝에서 부드럽게
+      el.textContent=Math.round(to*e)+suf;
+      if(p>=1)clearInterval(timer);
+    },30);
+  });
+}
+
 function render(tasks){
   const total=tasks.length,today=new Date(new Date().setHours(0,0,0,0));
   const cnt=s=>tasks.filter(t=>statusOf(t)===s).length;
@@ -109,7 +138,7 @@ function render(tasks){
 
   // 도넛(상태별)
   const R=36,C=2*Math.PI*R;let off=0;
-  const arcs=total?STATES.map(([s,col])=>{const len=cnt(s)/total*C;const el=len?`<circle r="${R}" cx="50" cy="50" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 50 50)"/>`:'';off+=len;return el}).join(''):'<circle r="36" cx="50" cy="50" fill="none" stroke="#f0f0f0" stroke-width="16"/>';
+  let ai=0;const arcs=total?STATES.map(([s,col])=>{const len=cnt(s)/total*C;const el=len?`<circle class="arc" style="--C:${C};animation-delay:${350+(ai++)*160}ms" r="${R}" cx="50" cy="50" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 50 50)"/>`:'';off+=len;return el}).join(''):'<circle r="36" cx="50" cy="50" fill="none" stroke="#f0f0f0" stroke-width="16"/>';
   // 진행률 분포
   const bc=BUCKETS.map(([l,a,b])=>({l,n:tasks.filter(t=>prog(t)>=a&&prog(t)<=b).length}));
   const bmax=Math.max(1,...bc.map(x=>x.n));
@@ -118,7 +147,7 @@ function render(tasks){
   const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()}).length);
   const dmax=Math.max(1,...dayCnt);
 
-  const kpi=(label,val,color,sub,href,extra='')=>`<a class="kpi" href="${href}" style="--c:${color}"><span>${label}</span><b>${val}</b><small>${sub}</small>${extra}</a>`;
+  const kpi=(label,val,color,sub,href,extra='',suffix='')=>`<a class="kpi" href="${href}" style="--c:${color}"><span>${label}</span><b data-count="${val}" data-suffix="${suffix}">${val}${suffix}</b><small>${sub}</small>${extra}</a>`;
   const dueTag=x=>x.d<0?`<span class="tag due-over">D+${-x.d} 지연</span>`:`<span class="tag due-soon">${x.d===0?'오늘':'D-'+x.d}</span>`;
 
   document.getElementById('app').innerHTML=`
@@ -128,21 +157,21 @@ function render(tasks){
     ${kpi('게시 대기',cnt('게시 대기'),'var(--wait)','진행률 100%',goStatus('게시 대기'))}
     ${kpi('게시 완료',cnt('게시 완료'),'var(--pub)',pct(cnt('게시 완료'))+'%',goStatus('게시 완료'))}
     ${kpi('마감 지연',late.length,late.length?'var(--danger)':'#d9d9d9','임박(3일) '+soon.length+'건','overall.html')}
-    ${kpi('평균 진행률',avg+'%','var(--primary)','전체 과제 단순평균','overall.html',`<div class="mini"><i style="width:${avg}%"></i></div>`)}
+    ${kpi('평균 진행률',avg,'var(--primary)','전체 과제 단순평균','overall.html',`<div class="mini"><i style="width:${avg}%"></i></div>`,'%')}
   </div>
 
   <div class="row row3">
     <div class="card"><h2>상태별 현황<a href="overall.html">세부 진행 현황 →</a></h2>
       <div class="donutwrap">
-        <svg width="104" height="104" viewBox="0 0 100 100" style="flex-shrink:0">${arcs}<text x="50" y="56" text-anchor="middle" font-size="20" font-weight="600">${total}</text></svg>
+        <svg width="104" height="104" viewBox="0 0 100 100" style="flex-shrink:0">${arcs}<text x="50" y="56" text-anchor="middle" font-size="20" font-weight="600" data-count="${total}">${total}</text></svg>
         <div class="legend">${STATES.map(([s,c])=>`<a href="${goStatus(s)}"><i style="background:${c}"></i>${s}<b>${cnt(s)}건</b></a>`).join('')}</div>
       </div>
     </div>
     <div class="card"><h2>진행률 분포<em>과제 수</em></h2>
-      <div class="chart">${bc.map(x=>`<div class="col"><em>${x.n||''}</em><div style="height:${x.n/bmax*100}%"></div><span>${x.l}</span></div>`).join('')}</div>
+      <div class="chart">${bc.map((x,i)=>`<div class="col" style="--i:${i}"><em>${x.n||''}</em><div style="height:${x.n/bmax*100}%"></div><span>${x.l}</span></div>`).join('')}</div>
     </div>
     <div class="card"><h2>최근 7일 등록<em>건</em></h2>
-      <div class="chart">${days.map((d,i)=>`<div class="col"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/dmax*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
+      <div class="chart">${days.map((d,i)=>`<div class="col" style="--i:${i}"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/dmax*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
     </div>
   </div>
 
@@ -159,6 +188,7 @@ function render(tasks){
       ${feed.length?`<ul>${feed.map(({t,h})=>`<li><span><span class="t">${esc(t.title)}</span><span class="sub">${esc(h.text)}</span></span><span class="sub" style="flex-shrink:0">${fmtAt(h.at)}</span></li>`).join('')}</ul>`:'<div class="empty">아직 기록된 변경 이력이 없습니다.</div>'}
     </div>
   </div>`;
+  animate();
   document.getElementById('asof').textContent=`${today.getMonth()+1}월 ${today.getDate()}일 기준 · 카드를 누르면 세부 진행 현황으로 이동합니다`;
 }
 // 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
