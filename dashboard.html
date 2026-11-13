@@ -72,8 +72,22 @@
   .arc{animation:arcdraw .7s cubic-bezier(.3,.7,.3,1) both}
   .col div{transform-origin:bottom;animation:grow .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(380ms + var(--i,0)*70ms)}
   .col em{animation:fadein .4s ease both;animation-delay:calc(800ms + var(--i,0)*70ms)}
+  /* 5. 평균 진행률 막대가 왼쪽에서 채워짐 */
+  @keyframes fillbar{from{transform:scaleX(0)}}
+  .kpi .mini i{transform-origin:left;animation:fillbar 1s cubic-bezier(.2,.8,.2,1) both;animation-delay:.9s}
+  /* 6. 도넛 범례(또는 조각)에 마우스를 올리면 해당 상태만 강조 */
+  .donut .arc{transition:stroke-width .2s ease,opacity .2s ease}
+  .donut.dim .arc{opacity:.28}
+  .donut.dim .arc.hl{opacity:1;stroke-width:21}
+  .legend a{transition:color .15s,transform .15s}
+  .legend a.hl{color:var(--primary);font-weight:600;transform:translateX(3px)}
+  /* 7. 마감 지연이 있으면 카드 테두리가 은은하게 3번 깜빡임 (계속 깜빡이지 않음) */
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,77,79,0)}50%{box-shadow:0 0 0 7px rgba(255,77,79,.22)}}
+  a.kpi.alert{animation-name:rise,pulse;animation-duration:.5s,1.6s;animation-timing-function:cubic-bezier(.2,.8,.2,1),ease-in-out;
+    animation-delay:calc(var(--n,0)*60ms),1.4s;animation-iteration-count:1,3;animation-fill-mode:both,none}
   /* 시스템에서 '동작 줄이기'를 켠 사용자에게는 움직임을 끈다 */
-  @media (prefers-reduced-motion:reduce){a.kpi,.row .card,.arc,.col div,.col em{animation:none!important}}
+  @media (prefers-reduced-motion:reduce){a.kpi,a.kpi.alert,.row .card,.arc,.col div,.col em,.kpi .mini i{animation:none!important}
+    .donut .arc,.legend a{transition:none!important}}
   @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.row3,.row3b{grid-template-columns:1fr}}
   @media(max-width:640px){aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.content{padding:12px}}
 </style>
@@ -124,6 +138,25 @@ function animate(){
   });
 }
 
+// 도넛 범례나 조각에 마우스를 올리면 그 상태만 선명하게, 나머지는 흐리게 (조각이 없는 0건 상태는 무시)
+function initDonutHover(){
+  const wrap=document.querySelector('.donutwrap');
+  if(!wrap)return;
+  const svg=wrap.querySelector('svg');
+  const clear=()=>{svg.classList.remove('dim');wrap.querySelectorAll('.hl').forEach(e=>e.classList.remove('hl'))};
+  wrap.addEventListener('mouseover',e=>{
+    const t=e.target.closest('[data-s]');
+    if(!t)return;
+    clear();
+    const s=t.dataset.s,arc=svg.querySelector(`.arc[data-s="${CSS.escape(s)}"]`);
+    if(!arc)return;
+    svg.classList.add('dim');arc.classList.add('hl');
+    const row=wrap.querySelector(`.legend a[data-s="${CSS.escape(s)}"]`);
+    if(row)row.classList.add('hl');
+  });
+  wrap.addEventListener('mouseout',e=>{if(e.target.closest('[data-s]'))clear()});
+}
+
 function render(tasks){
   const total=tasks.length,today=new Date(new Date().setHours(0,0,0,0));
   const cnt=s=>tasks.filter(t=>statusOf(t)===s).length;
@@ -138,7 +171,7 @@ function render(tasks){
 
   // 도넛(상태별)
   const R=36,C=2*Math.PI*R;let off=0;
-  let ai=0;const arcs=total?STATES.map(([s,col])=>{const len=cnt(s)/total*C;const el=len?`<circle class="arc" style="--C:${C};animation-delay:${350+(ai++)*160}ms" r="${R}" cx="50" cy="50" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 50 50)"/>`:'';off+=len;return el}).join(''):'<circle r="36" cx="50" cy="50" fill="none" stroke="#f0f0f0" stroke-width="16"/>';
+  let ai=0;const arcs=total?STATES.map(([s,col])=>{const len=cnt(s)/total*C;const el=len?`<circle class="arc" data-s="${s}" style="--C:${C};animation-delay:${350+(ai++)*160}ms" r="${R}" cx="50" cy="50" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 50 50)"/>`:'';off+=len;return el}).join(''):'<circle r="36" cx="50" cy="50" fill="none" stroke="#f0f0f0" stroke-width="16"/>';
   // 진행률 분포
   const bc=BUCKETS.map(([l,a,b])=>({l,n:tasks.filter(t=>prog(t)>=a&&prog(t)<=b).length}));
   const bmax=Math.max(1,...bc.map(x=>x.n));
@@ -147,7 +180,7 @@ function render(tasks){
   const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()}).length);
   const dmax=Math.max(1,...dayCnt);
 
-  const kpi=(label,val,color,sub,href,extra='',suffix='')=>`<a class="kpi" href="${href}" style="--c:${color}"><span>${label}</span><b data-count="${val}" data-suffix="${suffix}">${val}${suffix}</b><small>${sub}</small>${extra}</a>`;
+  const kpi=(label,val,color,sub,href,extra='',suffix='',cls='')=>`<a class="kpi ${cls}" href="${href}" style="--c:${color}"><span>${label}</span><b data-count="${val}" data-suffix="${suffix}">${val}${suffix}</b><small>${sub}</small>${extra}</a>`;
   const dueTag=x=>x.d<0?`<span class="tag due-over">D+${-x.d} 지연</span>`:`<span class="tag due-soon">${x.d===0?'오늘':'D-'+x.d}</span>`;
 
   document.getElementById('app').innerHTML=`
@@ -156,15 +189,15 @@ function render(tasks){
     ${kpi('진행 중',cnt('진행 중'),'var(--doing)',pct(cnt('진행 중'))+'%',goStatus('진행 중'))}
     ${kpi('게시 대기',cnt('게시 대기'),'var(--wait)','진행률 100%',goStatus('게시 대기'))}
     ${kpi('게시 완료',cnt('게시 완료'),'var(--pub)',pct(cnt('게시 완료'))+'%',goStatus('게시 완료'))}
-    ${kpi('마감 지연',late.length,late.length?'var(--danger)':'#d9d9d9','임박(3일) '+soon.length+'건','overall.html')}
+    ${kpi('마감 지연',late.length,late.length?'var(--danger)':'#d9d9d9','임박(3일) '+soon.length+'건','overall.html','','',late.length?'alert':'')}
     ${kpi('평균 진행률',avg,'var(--primary)','전체 과제 단순평균','overall.html',`<div class="mini"><i style="width:${avg}%"></i></div>`,'%')}
   </div>
 
   <div class="row row3">
     <div class="card"><h2>상태별 현황<a href="overall.html">세부 진행 현황 →</a></h2>
       <div class="donutwrap">
-        <svg width="104" height="104" viewBox="0 0 100 100" style="flex-shrink:0">${arcs}<text x="50" y="56" text-anchor="middle" font-size="20" font-weight="600" data-count="${total}">${total}</text></svg>
-        <div class="legend">${STATES.map(([s,c])=>`<a href="${goStatus(s)}"><i style="background:${c}"></i>${s}<b>${cnt(s)}건</b></a>`).join('')}</div>
+        <svg class="donut" width="104" height="104" viewBox="0 0 100 100" style="flex-shrink:0">${arcs}<text x="50" y="56" text-anchor="middle" font-size="20" font-weight="600" data-count="${total}">${total}</text></svg>
+        <div class="legend">${STATES.map(([s,c])=>`<a href="${goStatus(s)}" data-s="${s}"><i style="background:${c}"></i>${s}<b>${cnt(s)}건</b></a>`).join('')}</div>
       </div>
     </div>
     <div class="card"><h2>진행률 분포<em>과제 수</em></h2>
@@ -189,6 +222,7 @@ function render(tasks){
     </div>
   </div>`;
   animate();
+  initDonutHover();
   document.getElementById('asof').textContent=`${today.getMonth()+1}월 ${today.getDate()}일 기준 · 카드를 누르면 세부 진행 현황으로 이동합니다`;
 }
 // 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
