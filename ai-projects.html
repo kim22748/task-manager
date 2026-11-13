@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaskFlow · AI 과제 등록</title>
+<title>TaskFlow · AI 과제 목록</title>
 <style>
-  /* index.html 과 같은 Ant Design Pro 스타일 */
+  /* Ant Design Pro 스타일 참고: https://github.com/ant-design/ant-design-pro */
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
@@ -66,9 +66,9 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child on" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a class="on" href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
-  <header>AI 과제 등록<small id="mode"></small></header>
+  <header>AI 과제 목록<small id="mode"></small></header>
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>

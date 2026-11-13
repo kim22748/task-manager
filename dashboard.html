@@ -45,7 +45,7 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="index.html">과제 목록</a><a class="child" href="ai-projects.html">└ AI 과제 등록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
   <header>대시보드</header>
   <div class="content" id="app"></div>
@@ -110,7 +110,7 @@ document.getElementById('app').innerHTML=`
 </div>
 <div class="card"><h2>최근 등록 과제</h2>
   ${recent.length?`<ul>${recent.map(t=>`<li><span>${esc(t.title)}<br><span class="sub">${esc(t.date||'')}</span></span><span class="tag" style="background:${(STATUS[t.s]||STATUS.todo)[1]}">${(STATUS[t.s]||STATUS.todo)[0]}</span></li>`).join('')}</ul>`
-  :'<div class="empty">등록된 과제가 없습니다. <a href="index.html">과제 목록</a>에서 추가해 보세요.</div>'}
+  :'<div class="empty">등록된 과제가 없습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 추가해 보세요.</div>'}
 </div>`;
 }
 // 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
