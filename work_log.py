@@ -16,7 +16,8 @@ from pathlib import Path
 
 LOG_FILE = Path(__file__).resolve().parent / "data" / "work_log.jsonl"
 ACTIONS = {"ai_delete": "AI 과제 삭제", "ai_bulk_delete": "AI 과제 선택 삭제", "ai_import": "AI 과제 엑셀 올리기",
-           "category_add": "분류 추가", "category_rename": "분류 이름 변경", "category_delete": "분류 삭제"}
+           "category_add": "분류 추가", "category_rename": "분류 이름 변경", "category_delete": "분류 삭제",
+           "task_cleanup": "과제 진행 정리"}
 MAX_ITEMS = 1000      # 한 기록에 남기는 과제 수 상한 (엑셀 올리기 최대 행 수와 같음)
 _lock = threading.Lock()
 

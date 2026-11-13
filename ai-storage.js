@@ -23,6 +23,40 @@ const AIStorage = (() => {
     if (items.some(x => x.id != skipId && dupKey(x) === dupKey(f))) throw new Error(`이미 같은 명칭·과제책임자의 AI 과제가 있습니다. (${f.title} / ${f.ownerName})`);
   };
 
+  // 서버 없는 화면: 과제 진행(storage.js 의 'tasks-v1')을 AI 과제와 1:1 로 맞춘다 — 서버의 sync_tasks_with_projects 와 같은 규칙
+  const TASK_KEY = 'tasks-v1';
+  const STAGE_TO_TASK = { '기획중': ['todo', 0], '승인요청': ['todo', 0], '개발중': ['doing', 30], '승인검토중': ['doing', 90], '활용중': ['done', 100], '활용종료': ['done', 100] };
+  function mirrorTasks(projects) {
+    let tasks;
+    try { tasks = JSON.parse(localStorage.getItem(TASK_KEY)) || []; } catch (e) { return; }
+    const key = (a, b) => String(a || '').trim() + '\u0000' + String(b || '').trim();
+    const pids = new Set(projects.map(p => p.id)), byPid = new Map(), loose = new Map();
+    tasks.forEach(t => {
+      if (pids.has(t.projectId) && !byPid.has(t.projectId)) byPid.set(t.projectId, t);
+      else { const k = key(t.title, t.assignee); if (!loose.has(k)) loose.set(k, []); loose.get(k).push(t); }
+    });
+    const now = new Date().toISOString(), keep = [];
+    let nextId = Math.max(Date.now(), ...tasks.map(t => +t.id || 0)) + 1;
+    projects.forEach(p => {
+      let t = byPid.get(p.id);
+      if (!t) { const c = loose.get(key(p.title, p.ownerName)); if (c && c.length) { t = c.shift(); t.projectId = p.id; } }
+      if (!t) {
+        const [s, progress] = STAGE_TO_TASK[p.stage] || ['todo', 0];
+        t = { id: nextId++, projectId: p.id, title: p.title, s, date: String(p.createdAt || now).slice(0, 10), assignee: p.ownerName || '',
+              due: '', priority: 'mid', memo: '', progress, history: [{ at: now, text: 'AI 과제와 함께 생성' }] };
+      } else if (t.title !== p.title || t.assignee !== p.ownerName) {
+        const parts = [];
+        if (t.title !== p.title) parts.push(`과제명: ${t.title} → ${p.title}`);
+        if (t.assignee !== p.ownerName) parts.push(`담당자: ${t.assignee || '없음'} → ${p.ownerName || '없음'}`);
+        t.title = p.title; t.assignee = p.ownerName || '';
+        t.history = [...(t.history || []), { at: now, text: parts.join(' / ') + ' (AI 과제 수정에 따라)' }].slice(-100);
+      }
+      keep.push(t);
+    });
+    keep.sort((a, b) => b.id - a.id);
+    try { localStorage.setItem(TASK_KEY, JSON.stringify(keep)); } catch (e) {}
+  }
+
   async function request(method, url, body) {
     const res = await fetch(url, {
       method,
@@ -79,7 +113,7 @@ const AIStorage = (() => {
       const items = readLocal();
       checkDup(items, fields);
       const item = { id: Date.now(), ...fields, createdAt: nowIso(), updatedAt: nowIso() };
-      items.unshift(item); writeLocal(items);
+      items.unshift(item); writeLocal(items); mirrorTasks(items);
       return item;
     },
 
@@ -91,13 +125,14 @@ const AIStorage = (() => {
       if (!it) throw new Error('AI 과제를 찾을 수 없습니다.');
       checkDup(items, fields, id);
       Object.assign(it, fields, { updatedAt: nowIso() });
-      writeLocal(items);
+      writeLocal(items); mirrorTasks(items);
       return it;
     },
 
     async remove(id) {
       if (mode === 'server') return request('DELETE', `${API}/${id}`);
-      writeLocal(readLocal().filter(x => x.id != id));
+      const rest = readLocal().filter(x => x.id != id);
+      writeLocal(rest); mirrorTasks(rest);
       return null;
     },
   };

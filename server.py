@@ -41,6 +41,9 @@ API:
     POST   /api/categories                (사이트관리자) 분류 추가 {"name"}
     PUT    /api/categories                (사이트관리자) 분류 이름 변경 {"from","to"} — 그 분류의 AI 과제도 모두 새 이름으로 바뀜
     DELETE /api/categories?name=..        (사이트관리자) 분류 삭제 — 그 분류의 AI 과제가 한 건이라도 있으면 거부(409)
+
+    과제 진행(/api/tasks)은 AI 과제(/api/ai-projects)와 1:1 로 맞춥니다 (sync_tasks_with_projects).
+    AI 과제를 등록·올리면 진행 기록이 생기고, 지우면 함께 지워지며, 명칭·과제책임자 변경은 진행 기록에도 반영됩니다.
                                    AI 과제는 명칭+과제책임자가 같으면 중복으로 보고 등록·수정·올리기를 막습니다 (409)
 
     /api/llm/*, /api/similar/group   유사과제 탐색 AI(LLM) 창구 — similar_llm.py 맨 위 설명 참고
@@ -632,6 +635,83 @@ class CategoryStore:
 cat_store = CategoryStore(CAT_FILE, AI_CATEGORIES, ai_store.list())
 
 
+# ---- AI 과제 ↔ 과제 진행 맞추기 ----
+# AI 과제 1건 = 과제 진행 1건. 대시보드·세부 진행 현황·내 과제 진행률(과제 진행)과
+# AI 과제 목록·유사과제 탐색·분류 관리(AI 과제)의 건수가 항상 같도록 서버가 맞춘다.
+STAGE_TO_TASK = {"기획중": ("todo", 0), "승인요청": ("todo", 0), "개발중": ("doing", 30),
+                 "승인검토중": ("doing", 90), "활용중": ("done", 100), "활용종료": ("done", 100)}
+SYSTEM_USER = {"empNo": "system", "name": "시스템", "role": ""}
+
+
+def _key(title, person):
+    return str(title or "").strip(), str(person or "").strip()
+
+
+def sync_tasks_with_projects():
+    """과제 진행을 AI 과제에 맞춘다. 바뀐 건수 {"created", "removed", "updated"} 를 돌려준다.
+
+    - AI 과제에 연결된 진행 기록이 없으면 만든다 (상태·진행률은 AI 과제 단계에 맞춤).
+      projectId 가 없는 예전 기록은 같은 명칭 + 담당자(=과제책임자)이면 그 AI 과제에 연결한다.
+    - 연결된 AI 과제가 없어진 진행 기록은 지운다 (첨부 파일 포함).
+    - AI 과제의 명칭·과제책임자가 바뀌면 진행 기록의 과제명·담당자도 따라 바꾼다.
+    """
+    with ai_store.lock, store.lock:          # 잠그는 순서: AI 과제 → 과제 진행 (다른 곳은 하나씩만 잠금)
+        projects = ai_store._read()
+        tasks = store._read()
+        pids = {pr["id"] for pr in projects}
+        by_pid, loose = {}, {}
+        for t in tasks:
+            pid = t.get("projectId")
+            if pid in pids and pid not in by_pid:
+                by_pid[pid] = t
+            else:
+                loose.setdefault(_key(t.get("title"), t.get("assignee")), []).append(t)
+        keep, created, updated, linked = [], 0, 0, 0
+        for pr in projects:
+            t = by_pid.get(pr["id"])
+            if t is None:                          # 예전 기록을 명칭+담당자로 연결
+                cands = loose.get(_key(pr.get("title"), pr.get("ownerName")))
+                if cands:
+                    t = cands.pop(0)
+                    t["projectId"] = pr["id"]
+                    linked += 1
+            if t is None:                          # 새로 만들기
+                s, prog = STAGE_TO_TASK.get(pr.get("stage"), ("todo", 0))
+                t = {"id": store._new_id(tasks + keep), "projectId": pr["id"], "title": pr["title"], "s": s,
+                     "date": str(pr.get("createdAt") or date.today().isoformat())[:10],
+                     "assignee": pr.get("ownerName", ""), "due": "", "priority": "mid", "memo": "",
+                     "progress": prog, "history": [stamp("AI 과제와 함께 생성")]}
+                created += 1
+            else:
+                change = {}
+                if t.get("title") != pr.get("title"):
+                    change["title"] = pr["title"]
+                if t.get("assignee") != pr.get("ownerName"):
+                    change["assignee"] = pr.get("ownerName", "")
+                if change:
+                    text = describe_changes(t, change)
+                    t.update(change)
+                    t["history"] = ((t.get("history") or []) + [stamp(text + " (AI 과제 수정에 따라)")])[-MAX_HISTORY:]
+                    updated += 1
+            keep.append(t)
+        kept_ids = {id(t) for t in keep}
+        removed = [t for t in tasks if id(t) not in kept_ids]
+        # 지워진 AI 과제에 딸린 기록(정상 삭제)은 'AI 과제 삭제' 기록에 이미 들어가므로, 연결이 없거나 겹친 기록만 따로 남긴다
+        orphans = [t for t in removed if t.get("projectId") is None or t.get("projectId") in pids]
+        if created or updated or linked or removed:
+            keep.sort(key=lambda t: t["id"], reverse=True)    # 최신 등록이 위로
+            store._write(keep)
+        for t in removed:
+            shutil.rmtree(FILES_DIR / str(t["id"]), ignore_errors=True)
+    if orphans:
+        work_log.record(SYSTEM_USER, "task_cleanup", [{"id": t["id"], "title": t.get("title", ""), "ownerName": t.get("assignee", "")} for t in orphans],
+                        detail=f"AI 과제와 연결되지 않거나 겹친 과제 진행 기록 {len(orphans)}건 정리")
+    return {"created": created, "removed": len(removed), "updated": updated}
+
+
+_first_sync = sync_tasks_with_projects()
+
+
 def reset_demo():
     """과제·AI 과제·사용자를 더미데이터로 되돌린다 (첨부 파일은 지움)."""
     tasks, ai = demo_items()
@@ -640,6 +720,7 @@ def reset_demo():
     users_store.reset_demo()
     shutil.rmtree(FILES_DIR, ignore_errors=True)
     cat_store._write(list(AI_CATEGORIES))
+    sync_tasks_with_projects()
 
 
 class Handler(AuthMixin, SimpleHTTPRequestHandler):
@@ -863,6 +944,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._json(status, {"dry": True, "count": len(ok_rows), "rows": ok_rows[:200], "errors": errors,
                                        **({} if dry else {"error": f"틀린 행이 {len(errors)}개 있어 아무것도 저장하지 않았습니다."})})
         created = ai_store.create_many([{k: v for k, v in row.items() if k != "row"} for row in ok_rows])
+        sync_tasks_with_projects()
         name = (parse_qs(urlsplit(self.path).query).get("name") or [""])[0]
         work_log.record(self._user(), "ai_import", created, file_name=name)
         self._json(HTTPStatus.CREATED, {"created": len(created)})
@@ -880,6 +962,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             except (TypeError, ValueError):
                 raise ValidationError("AI 과제 ID가 올바르지 않습니다.")
         gone = ai_store.delete_many(clean)
+        sync_tasks_with_projects()
         if gone:
             work_log.record(self._user(), "ai_bulk_delete", gone)
         self._json(HTTPStatus.OK, {"deleted": len(gone)})
@@ -969,7 +1052,11 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         if route == "/api/tasks":
             return self._handle_write(create)
         if route == "/api/ai-projects":
-            return self._handle_write(lambda: self._json(HTTPStatus.CREATED, ai_store.create(clean_ai_project(self._body()))))
+            def create_ai():
+                item = ai_store.create(clean_ai_project(self._body()))
+                sync_tasks_with_projects()
+                self._json(HTTPStatus.CREATED, item)
+            return self._handle_write(create_ai)
         if route == "/api/tasks/import":
             return self._handle_write(import_many)
         if route == "/api/ai-projects/import":
@@ -990,6 +1077,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
 
         def update():
             item = ai_store.update(self._task_id(), clean_ai_project(self._body()))
+            if item is not None:
+                sync_tasks_with_projects()
             if item is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"error": "AI 과제를 찾을 수 없습니다."})
             self._json(HTTPStatus.OK, item)
@@ -1044,6 +1133,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         def delete():
             gone = target.delete(self._task_id())
             if gone:
+                sync_tasks_with_projects()   # AI 과제를 지우면 진행 기록도, 진행 기록만 지우면 AI 과제 기준으로 다시 만든다
                 if target is ai_store:
                     work_log.record(self._user(), "ai_delete", [gone])
                 self._json(HTTPStatus.NO_CONTENT)
