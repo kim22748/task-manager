@@ -165,7 +165,7 @@ function tokenize(text,raw){
       else{const j1=JOSA1.find(j=>w.endsWith(j)&&w.length-j.length>=2&&(raw.has(w.slice(0,-j.length))||(raw.stems[w.slice(0,-j.length)]||0)>=2));if(j1)w=w.slice(0,-j1.length)}
     }
     if(w.length<2||/^\d+$/.test(w)||STOP.has(w))return;
-    out.push(w);
+    out.push(/[가-힣]/.test(w)&&w.length>2?w.slice(0,2):w);   // 어간 근사: 한글 단어는 앞 두 글자만 쓴다 (가상 100건·50건으로 비교해 단어 그대로 쓸 때보다 낫거나 같았음)
   });
   return out;
 }
@@ -180,7 +180,7 @@ function compute(){
   const docs=scope.map(t=>({t,id:String(t.id),tok:tokenize(docText(t),raw)}));
   const N=docs.length,df={};
   docs.forEach(d=>{d.set=new Set(d.tok);d.set.forEach(w=>df[w]=(df[w]||0)+1)});
-  const idf=w=>Math.log((N+1)/((df[w]||0)+1))+1;
+  const idf=w=>Math.pow(Math.log((N+1)/((df[w]||0)+1))+1,2);   // 흔한 단어보다 드문 단어를 더 크게 반영 (제곱)
   docs.forEach(d=>{const tf={};d.tok.forEach(w=>tf[w]=(tf[w]||0)+1);d.vec={};let n=0;
     for(const w in tf){d.vec[w]=tf[w]*idf(w);n+=d.vec[w]**2}d.norm=Math.sqrt(n)});
   const sim=(a,b)=>{if(!a.norm||!b.norm)return 0;let s=0;for(const w in a.vec)if(b.vec[w])s+=a.vec[w]*b.vec[w];return s/(a.norm*b.norm)};
