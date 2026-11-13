@@ -108,8 +108,8 @@
       <div class="opts">
         <div class="opt"><b>비교 항목</b>
           <div style="display:flex;gap:16px"><label><input type="checkbox" id="fTitle" checked>명칭</label><label><input type="checkbox" id="fMemo" checked>목적</label></div></div>
-        <div class="opt"><b>유사도 기준 <span id="thrOut" style="color:var(--primary)">30%</span></b>
-          <input type="range" id="thr" min="10" max="90" step="5" value="30"></div>
+        <div class="opt"><b>유사도 기준 <span id="thrOut" style="color:var(--primary)">10%</span></b>
+          <input type="range" id="thr" min="5" max="90" step="5" value="10"></div>
         <div class="opt"><button class="p" id="recalc">다시 계산</button></div>
         <div class="sub" id="calcAt"></div>
       </div>
@@ -140,12 +140,12 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // 비교 대상은 'AI 과제 목록'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
 const norm=p=>({id:p.id,title:p.title||'',memo:p.purpose||'',category:p.category||'',stage:p.stage||'',owner:p.ownerName||'',dept:p.ownerDept||''});
-const SKEY='similar-settings-v3',CKEY='similar-confirmed-v2';
+const SKEY='similar-settings-v4',CKEY='similar-confirmed-v2';
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
 
 const AKEY='similar-ai-v2';
-let tasks=[],S=Object.assign({title:true,memo:true,thr:30,method:'ai'},load(SKEY,{}));
+let tasks=[],S=Object.assign({title:true,memo:true,thr:10,method:'ai'},load(SKEY,{}));
 let confirmed=load(CKEY,[]);
 let open=new Set(),editing=null,calcAt=null,okTimer;
 let aiRes=load(AKEY,null),aiAck=false,aiBusy=false,llm=null;
