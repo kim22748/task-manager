@@ -3,7 +3,7 @@
 외부 라이브러리 없이 Python 표준 라이브러리만 사용합니다.
 
 실행:
-    python3 server.py            # http://localhost:8000
+    python3 server.py            # http://localhost:8885
     python3 server.py --port 9000
 
 API:
@@ -619,7 +619,7 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description="과제 관리 서버")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8885)
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"과제 관리 서버: http://{args.host}:{args.port}  (저장 파일: {DATA_FILE})")
