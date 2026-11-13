@@ -76,7 +76,7 @@ const Auth = (() => {
 
   const STYLE = `
     .auth-who{margin-left:auto;display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px;color:rgba(0,0,0,.65);white-space:nowrap}
-    header small~.auth-who{margin-left:16px}
+    header #mode~.auth-who{margin-left:16px}   /* 상태 표시(#mode)가 이미 오른쪽 끝에 있으면 그 옆에. 그 밖에는(예: 대시보드 기준 시각) 오른쪽 끝 */
     .auth-who .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff}
     .auth-who button,.auth-who a.btn{font:inherit;font-size:13px;height:auto;padding:2px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;color:inherit;cursor:pointer;text-decoration:none}
     .auth-who button:hover,.auth-who a.btn:hover{border-color:#1677ff;color:#1677ff}

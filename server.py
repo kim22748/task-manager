@@ -36,7 +36,11 @@ API:
     POST   /api/ai-projects/import[?dry=1] (사이트관리자) 엑셀로 한 번에 등록 (요청 본문 = .xlsx 파일, 5MB·1000행 이하)
                                    dry=1 이면 검사 결과만 돌려주고 저장하지 않음. 한 행이라도 틀리면 아무것도 저장하지 않음
     POST   /api/ai-projects/bulk-delete   (사이트관리자) 선택한 AI 과제 한 번에 삭제 {"ids": [...]}
-    GET    /api/work-log                  (사이트관리자) AI 과제 삭제·엑셀 올리기 작업 기록 (최근 500건)
+    GET    /api/work-log                  (사이트관리자) AI 과제 삭제·엑셀 올리기·분류 변경 작업 기록 (최근 500건)
+    GET    /api/categories                (로그인 사용자) AI 과제 분류 목록과 분류별 과제 수 {"items": [{"name","count"}], "total"}
+    POST   /api/categories                (사이트관리자) 분류 추가 {"name"}
+    PUT    /api/categories                (사이트관리자) 분류 이름 변경 {"from","to"} — 그 분류의 AI 과제도 모두 새 이름으로 바뀜
+    DELETE /api/categories?name=..        (사이트관리자) 분류 삭제 — 그 분류의 AI 과제가 한 건이라도 있으면 거부(409)
                                    AI 과제는 명칭+과제책임자가 같으면 중복으로 보고 등록·수정·올리기를 막습니다 (409)
 
     /api/llm/*, /api/similar/group   유사과제 탐색 AI(LLM) 창구 — similar_llm.py 맨 위 설명 참고
@@ -70,7 +74,9 @@ FILE_ROUTE = re.compile(r"^/api/tasks/(\d+)/files(?:/([0-9a-f]{32}))?$")
 # PRD 필수 첨부 3종: 확장자로 종류를 정한다 (내용은 보지 않음)
 FILE_KINDS = {".hwpx": "과제기획서", ".html": "과제실행 파일", ".htm": "과제실행 파일", ".csv": "과제활용 데이터"}
 AI_DATA_FILE = BASE_DIR / "data" / "ai_projects.json"
-AI_CATEGORIES = ["개발", "법률", "노사", "IT"]
+AI_CATEGORIES = ["개발", "법률", "노사", "IT"]   # 처음 실행할 때의 기본 분류. 이후에는 사이트 설정 → 분류 관리(data/categories.json)
+CAT_FILE = BASE_DIR / "data" / "categories.json"
+MAX_CATEGORY = 20
 AI_STAGES = ["기획중", "개발중", "승인요청", "승인검토중", "활용중", "활용종료"]
 AI_ACCESS = ["전사", "소속부서", "사용자별 지정"]
 # 엑셀 열: (항목, 머리글, 같은 뜻으로 받아 주는 머리글들, 열 너비)
@@ -374,6 +380,21 @@ class AIProjectStore:
             self._write(new + items)
             return new
 
+    def rename_category(self, old, new):
+        """분류 old 인 AI 과제를 모두 new 로 바꾸고, 바뀐 과제 목록을 돌려준다."""
+        with self.lock:
+            items = self._read()
+            now = datetime.now().astimezone().isoformat(timespec="seconds")
+            changed = []
+            for it in items:
+                if it.get("category") == old:
+                    it["category"] = new
+                    it["updatedAt"] = now
+                    changed.append(it)
+            if changed:
+                self._write(items)
+            return changed
+
     def delete_many(self, ids):
         """지운 과제 목록을 돌려준다."""
         with self.lock:
@@ -502,7 +523,7 @@ def clean_ai_project(body):
     return {
         "title": text("title", "명칭", MAX_TITLE),
         "purpose": text("purpose", "목적", 2000),
-        "category": choice("category", "분류", AI_CATEGORIES),
+        "category": choice("category", "분류", cat_store.list()),
         "stage": choice("stage", "단계", AI_STAGES),
         "ownerName": text("ownerName", "과제책임자 이름", 50),
         "ownerDept": text("ownerDept", "과제책임자 소속부서", 100),
@@ -515,6 +536,102 @@ store = TaskStore(DATA_FILE, seed=_demo_tasks)
 ai_store = AIProjectStore(AI_DATA_FILE, seed=_demo_ai)
 
 
+class CategoryStore:
+    """AI 과제 분류 목록 (data/categories.json). 사이트 설정 → 분류 관리에서 추가·이름 변경·삭제한다."""
+
+    BAD = re.compile(r'[,"\'<>\\\x00-\x1f]')   # 쉼표·따옴표는 엑셀 드롭다운 목록을 깨뜨리므로 막는다
+
+    def __init__(self, path, default, items):
+        self.path = path
+        self.lock = threading.Lock()
+        if not path.exists():
+            # 처음: 기본 분류 + 이미 저장된 AI 과제에 쓰인 분류(순서 유지)
+            names = list(default)
+            for it in items:
+                if it.get("category") and it["category"] not in names:
+                    names.append(it["category"])
+            self._write(names)
+
+    _write = TaskStore._write
+
+    def _read(self):
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            return [str(x) for x in data] if isinstance(data, list) else list(AI_CATEGORIES)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return list(AI_CATEGORIES)
+
+    def list(self):
+        with self.lock:
+            return self._read()
+
+    def clean(self, name):
+        name = re.sub(r"\s+", " ", name if isinstance(name, str) else "").strip()
+        if not name:
+            raise ValidationError("분류 이름을 입력하세요.")
+        if len(name) > MAX_CATEGORY:
+            raise ValidationError(f"분류 이름은 {MAX_CATEGORY}자 이하로 입력하세요.")
+        if self.BAD.search(name):
+            raise ValidationError("분류 이름에는 쉼표(,)·따옴표·<> 를 쓸 수 없습니다.")
+        return name
+
+    @staticmethod
+    def _has(names, name, skip=None):
+        return any(n.casefold() == name.casefold() and n != skip for n in names)
+
+    def add(self, name):
+        name = self.clean(name)
+        with self.lock:
+            names = self._read()
+            if self._has(names, name):
+                raise ValidationError(f"이미 있는 분류입니다: {name}", HTTPStatus.CONFLICT)
+            names.append(name)
+            self._write(names)
+            return name
+
+    def rename(self, old, new):
+        """분류 이름을 바꾸고, 그 분류의 AI 과제도 모두 바꾼다. (바뀐 과제 목록, 새 이름)"""
+        new = self.clean(new)
+        with self.lock:
+            names = self._read()
+            if old not in names:
+                raise ValidationError("바꿀 분류를 찾을 수 없습니다.", HTTPStatus.NOT_FOUND)
+            if new == old:
+                raise ValidationError("새 이름이 지금 이름과 같습니다.")
+            if self._has(names, new, skip=old):
+                raise ValidationError(f"이미 있는 분류입니다: {new}", HTTPStatus.CONFLICT)
+            changed = ai_store.rename_category(old, new)     # 과제 먼저 바꾸고 목록을 저장
+            names[names.index(old)] = new
+            self._write(names)
+            return changed, new
+
+    def delete(self, name):
+        with self.lock:
+            names = self._read()
+            if name not in names:
+                raise ValidationError("삭제할 분류를 찾을 수 없습니다.", HTTPStatus.NOT_FOUND)
+            used = sum(1 for it in ai_store.list() if it.get("category") == name)
+            if used:
+                raise ValidationError(f"'{name}' 분류의 AI 과제가 {used}건 있어 삭제할 수 없습니다. 과제의 분류를 먼저 바꾸세요.", HTTPStatus.CONFLICT)
+            if len(names) <= 1:
+                raise ValidationError("분류는 하나 이상 있어야 합니다.")
+            names.remove(name)
+            self._write(names)
+
+    def summary(self):
+        names = self.list()
+        items = ai_store.list()
+        counts = {n: 0 for n in names}
+        for it in items:
+            c = it.get("category")
+            counts[c] = counts.get(c, 0) + 1
+        return {"items": [{"name": n, "count": counts[n]} for n in names], "total": len(items),
+                "unknown": [{"name": n, "count": c} for n, c in counts.items() if n not in names]}
+
+
+cat_store = CategoryStore(CAT_FILE, AI_CATEGORIES, ai_store.list())
+
+
 def reset_demo():
     """과제·AI 과제·사용자를 더미데이터로 되돌린다 (첨부 파일은 지움)."""
     tasks, ai = demo_items()
@@ -522,6 +639,7 @@ def reset_demo():
     ai_store.replace_all(ai)
     users_store.reset_demo()
     shutil.rmtree(FILES_DIR, ignore_errors=True)
+    cat_store._write(list(AI_CATEGORIES))
 
 
 class Handler(AuthMixin, SimpleHTTPRequestHandler):
@@ -668,7 +786,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         heads = [c[1] for c in AI_COLUMNS] + list(extra_headers)
         widths = [c[3] for c in AI_COLUMNS] + [20] * len(extra_headers)
         idx = {k: i for i, (k, *_r) in enumerate(AI_COLUMNS)}
-        choices = {idx["category"]: AI_CATEGORIES, idx["stage"]: AI_STAGES, idx["access"]: AI_ACCESS}
+        choices = {idx["category"]: cat_store.list(), idx["stage"]: AI_STAGES, idx["access"]: AI_ACCESS}
         return xlsx_util.write_xlsx(heads, rows, sheet="AI 과제", widths=widths, choices=choices)
 
     def _ai_export(self):
@@ -680,7 +798,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
 
     def _ai_template(self):
         self._require(admin=True)
-        sample = [["(예시) 회의록 요약 도우미", "회의 녹취를 요약해 결정 사항을 정리한다. 이 줄은 지우고 쓰세요.", "개발", "기획중", "홍길동", "데이터운영팀", "소속부서"]]
+        sample = [["(예시) 회의록 요약 도우미", "회의 녹취를 요약해 결정 사항을 정리한다. 이 줄은 지우고 쓰세요.", cat_store.list()[0], "기획중", "홍길동", "데이터운영팀", "소속부서"]]
         self._send_xlsx(self._ai_xlsx(sample), "AI과제_올리기_양식.xlsx")
 
     def _ai_import(self):
@@ -766,6 +884,28 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             work_log.record(self._user(), "ai_bulk_delete", gone)
         self._json(HTTPStatus.OK, {"deleted": len(gone)})
 
+    # ---- AI 과제 분류 관리 ----
+    def _categories(self, method):
+        if method == "GET":
+            self._require()
+            return self._json(HTTPStatus.OK, cat_store.summary())
+        me = self._require_admin_write()
+        if method == "POST":
+            name = cat_store.add((self._body() or {}).get("name"))
+            work_log.record(me, "category_add", [], detail=f"분류 추가: {name}")
+            return self._json(HTTPStatus.CREATED, cat_store.summary())
+        if method == "PUT":
+            body = self._body() or {}
+            old = body.get("from")
+            changed, new = cat_store.rename(old, body.get("to"))
+            work_log.record(me, "category_rename", changed, detail=f"분류 이름 변경: {old} → {new} (AI 과제 {len(changed)}건 함께 변경)")
+            return self._json(HTTPStatus.OK, {**cat_store.summary(), "renamed": len(changed)})
+        if method == "DELETE":
+            name = (parse_qs(urlsplit(self.path).query).get("name") or [""])[0]
+            cat_store.delete(name)
+            work_log.record(me, "category_delete", [], detail=f"분류 삭제: {name}")
+            return self._json(HTTPStatus.OK, cat_store.summary())
+
     def _work_log(self):
         self._require(admin=True)
         self._json(HTTPStatus.OK, {"actions": work_log.ACTIONS, "items": work_log.read()})
@@ -789,6 +929,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._handle(self._ai_template)
         if route == "/api/work-log":
             return self._handle(self._work_log)
+        if route == "/api/categories":
+            return self._handle(lambda: self._categories("GET"))
         if (route.startswith("/api/") or route.startswith("/data") or route.endswith((".py", ".pyc"))
                 or "/." in route or "__pycache__" in route):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -834,11 +976,15 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._handle(self._ai_import)
         if route == "/api/ai-projects/bulk-delete":
             return self._handle(self._ai_bulk_delete)
+        if route == "/api/categories":
+            return self._handle(lambda: self._categories("POST"))
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_PUT(self):
         if similar_llm.handle(self, "PUT", self._route()):
             return
+        if self._route() == "/api/categories":
+            return self._handle(lambda: self._categories("PUT"))
         if not self._route().startswith("/api/ai-projects/"):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -884,6 +1030,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         route = self._route()
         if similar_llm.handle(self, "DELETE", route):
             return
+        if route == "/api/categories":
+            return self._handle(lambda: self._categories("DELETE"))
         m = FILE_ROUTE.match(route)
         if m:
             if not m.group(2):

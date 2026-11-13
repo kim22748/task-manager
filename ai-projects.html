@@ -29,6 +29,7 @@
   button.p{background:var(--primary);border-color:var(--primary);color:#fff}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   .toolbar .grow{flex:1}
+  .toolbar .cnt{color:var(--sub);font-size:13px;white-space:nowrap}
   .toolbar input[type=search]{min-width:200px;max-width:260px}
   table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:top}
@@ -80,20 +81,20 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a class="on" href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a class="on" href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
   <header>AI 과제 목록<small id="mode"></small></header>
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="ok" hidden></div>
-    <div class="stats" id="stats"></div>
     <div class="card">
       <div class="toolbar">
         <select id="fCategory" title="분류"></select>
         <select id="fStage" title="단계"></select>
         <input id="q" type="search" placeholder="명칭·목적·책임자·부서 검색">
         <span class="grow"></span>
+        <span class="cnt" id="count"></span>
         <button class="admin-only danger" id="btnBulkDel" type="button" disabled title="체크한 AI 과제를 한 번에 삭제">선택 삭제</button>
         <button class="admin-only" id="btnExport" type="button" title="지금 목록 전체를 엑셀(.xlsx)로 내려받기">엑셀로 저장</button>
         <button class="admin-only" id="btnImport" type="button" title="엑셀(.xlsx)로 여러 건을 한 번에 등록">엑셀 올리기</button>
@@ -154,7 +155,14 @@
 <script src="ai-storage.js"></script>
 <script src="storage.js"></script>
 <script>
-const CATEGORIES=['개발','법률','노사','IT'];
+let CATEGORIES=['개발','법률','노사','IT'];   // 서버로 열면 사이트 설정 → 분류 관리의 목록으로 바뀜
+async function loadCategories(){
+  if(AIStorage.mode==='server'){
+    try{const r=await fetch('api/categories',{cache:'no-store'});if(r.ok)CATEGORIES=(await r.json()).items.map(x=>x.name)}catch(e){}
+  }else items.forEach(t=>{if(t.category&&!CATEGORIES.includes(t.category))CATEGORIES.push(t.category)});   // 서버 없을 때: 기본 분류 + 데이터에 있는 분류
+  const cur=$('fCategory').value;
+  $('fCategory').innerHTML='<option value="">분류 전체</option>'+opts(CATEGORIES,cur);
+}
 const STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
 const ACCESS=['전사','소속부서','사용자별 지정'];
 const STAGE_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
@@ -176,9 +184,8 @@ function visible(){
     .sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 function render(){
-  $('stats').innerHTML=`<div class="card stat"><span>전체</span><b>${items.length}</b></div>`+
-    STAGES.map(s=>`<div class="card stat"><span>${s}</span><b>${items.filter(t=>t.stage===s).length}</b></div>`).join('');
   const list=visible();
+  $('count').textContent=list.length===items.length?`전체 ${items.length}건`:`${list.length}건 / 전체 ${items.length}건`;
   const ids=new Set(items.map(t=>String(t.id)));selected.forEach(id=>{if(!ids.has(id))selected.delete(id)});
   $('rows').innerHTML=list.length?list.map(t=>`<tr${selected.has(String(t.id))?' class="sel"':''}>
     <td class="chk admin-only"><input type="checkbox" data-chk="${t.id}"${selected.has(String(t.id))?' checked':''} aria-label="선택"></td>
@@ -210,7 +217,8 @@ function openModal(id){
   $('btnSave').textContent=t?'수정 저장':'등록';
   $('title').value=t?t.title:'';
   $('purpose').value=t?t.purpose:'';
-  $('category').innerHTML=(t?'':'<option value="">선택</option>')+opts(CATEGORIES,t&&t.category);
+  const cats=t&&t.category&&!CATEGORIES.includes(t.category)?[...CATEGORIES,t.category]:CATEGORIES;
+  $('category').innerHTML=(t?'':'<option value="">선택</option>')+opts(cats,t&&t.category);
   $('stage').innerHTML=(t?'':'')+opts(STAGES,t?t.stage:STAGES[0]);
   // 새로 등록할 때는 로그인한 사람을 과제책임자로 미리 채운다 → '내 과제 진행률'의 '내 AI 과제'에 바로 나타남
   const me=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
@@ -348,12 +356,12 @@ $('impOk').onclick=async()=>{
 $('fCategory').onchange=$('fStage').onchange=render;
 
 (async()=>{
-  $('fCategory').innerHTML='<option value="">분류 전체</option>'+opts(CATEGORIES);
   $('fStage').innerHTML='<option value="">단계 전체</option>'+opts(STAGES);
   items=await AIStorage.init();
   const server=AIStorage.mode==='server';
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
+  await loadCategories();
   render();
 })();
 </script>

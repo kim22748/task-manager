@@ -31,7 +31,8 @@
 - 사이트 설정(`settings.html`, 사이트관리자만): 유사과제 탐색에 쓸 AI 서비스를 연결합니다. **Anthropic** 또는 **OpenAI 호환**(OpenAI·vLLM·Ollama 등) 주소, 모델, API 키를 넣고 '연결 테스트'로 확인합니다.
   - 키는 `data/llm_config.json`에만 저장되고 화면에는 끝 4자리만 보입니다. 서비스 종류나 주소를 바꾸면 키를 다시 넣어야 합니다(저장된 키가 다른 주소로 가지 않게).
   - 서버 환경 변수 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`가 있으면 그 키가 우선합니다.
-  - **작업 기록** 탭(`settings.html#log`): AI 과제 삭제(1건·선택 삭제)와 엑셀 올리기를 일시·처리자·건수·과제명(올리기는 파일명도)으로 보여 줍니다. 기록은 `data/work_log.jsonl`.
+  - **분류 관리** 탭(`settings.html#category`): AI 과제 분류(기본 개발·법률·노사·IT)를 추가·이름 변경·삭제합니다. 전체 AI 과제 수와 분류별 과제 수를 보여 주고, 과제가 한 건이라도 있는 분류는 삭제할 수 없습니다. 이름을 바꾸면 그 분류의 AI 과제도 모두 새 이름으로 바뀝니다. 목록은 `data/categories.json`(처음 실행 시 기본 4개).
+  - **작업 기록** 탭(`settings.html#log`): AI 과제 삭제(1건·선택 삭제)·엑셀 올리기·분류 변경을 일시·처리자·건수·과제명(올리기는 파일명도)으로 보여 줍니다. 기록은 `data/work_log.jsonl`.
 - 더미데이터(`demo-data.json`): 가상 사용자 10명, AI 과제 10건, 과제 10건. 과제 담당자·AI 과제 책임자는 더미 사용자 이름과 같습니다. 날짜는 열 때마다 오늘 기준으로 맞춰집니다.
 
 ## 실행 — 실제 동작 확인 (8885 서버)
@@ -79,7 +80,8 @@ python3 server.py --reset-demo # 데이터를 더미데이터로 되돌리고 �
 | `data/ai_projects.json` | 저장된 AI 과제 데이터 |
 | `data/users.json` `data/audit.log` | 사용자(비밀번호는 해시) / 사용자 관리 처리 이력 |
 | `data/llm_config.json` | 사이트 설정의 AI 서비스 연결 정보(API 키 포함, git에 올라가지 않음) |
-| `data/work_log.jsonl` | AI 과제 삭제·엑셀 올리기 작업 기록 |
+| `data/work_log.jsonl` | AI 과제 삭제·엑셀 올리기·분류 변경 작업 기록 |
+| `data/categories.json` | AI 과제 분류 목록 (사이트 설정 → 분류 관리) |
 | `data/files/<과제id>/` | 첨부 파일 원본 (목록은 과제의 `files` 항목) |
 
 ## 다음 단계(예정)

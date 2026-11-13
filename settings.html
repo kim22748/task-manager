@@ -15,13 +15,18 @@
   .logtbl .items{margin:0;padding-left:18px;font-size:13px}
   .logtbl details summary{cursor:pointer;color:var(--primary);font-size:13px}
   .sub{color:var(--sub);font-size:12px}
+  .catsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:16px}
+  .catsum div{background:#fafafa;border-radius:8px;padding:12px 16px}.catsum span{color:var(--sub);font-size:13px}.catsum b{display:block;font-size:22px;margin-top:2px}
+  .cattbl td.act{white-space:nowrap}.cattbl td.act button{margin-left:4px;padding:2px 10px;font-size:13px}
+  .cattbl input{padding:4px 8px;width:200px}
+  .catadd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px}.catadd input{width:220px}
 </style></head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
 <header>사이트 설정</header>
 <div class="content" style="max-width:960px">
-  <nav class="tabs" id="tabs"><a href="#ai" data-tab="ai">AI 서비스 연결</a><a href="#log" data-tab="log">작업 기록</a></nav>
+  <nav class="tabs" id="tabs"><a href="#ai" data-tab="ai">AI 서비스 연결</a><a href="#category" data-tab="category">분류 관리</a><a href="#log" data-tab="log">작업 기록</a></nav>
   <div class="notice warn" id="pv" hidden><b>디자인 미리보기</b> — 서버가 없어 저장·연결 테스트를 할 수 없습니다. <code>server.py</code>로 실행한 주소에서 사이트관리자로 로그인해 설정하세요.</div>
   <div class="notice err" id="err" hidden></div><div class="notice ok" id="ok" hidden></div>
   <section id="tab-ai">
@@ -45,12 +50,23 @@
       다른 PC에서 이 화면에 접속해 키를 넣으면 HTTPS가 아닌 경우 키가 암호화되지 않고 전송되므로, 가능하면 서버 PC에서 입력하세요.</div>
   </div>
   </section>
+  <section id="tab-category" hidden>
+  <div class="card" style="max-width:720px">
+    <h3 style="margin-top:0">분류 관리 <small style="font-weight:400;color:var(--sub)">AI 과제의 '분류' 목록을 추가·이름 변경·삭제합니다</small></h3>
+    <div class="catsum" id="catSum"></div>
+    <div class="tablewrap"><table class="cattbl" style="min-width:0"><thead><tr><th>분류</th><th style="width:100px">과제 수</th><th style="width:200px"></th></tr></thead><tbody id="catRows"></tbody></table></div>
+    <form class="catadd" id="catForm" novalidate><input id="catNew" maxlength="20" placeholder="새 분류 이름 (20자 이하)"><button class="p" type="submit">분류 추가</button></form>
+    <div class="hint" style="margin-top:10px">· 이름을 바꾸면 그 분류로 등록된 AI 과제의 분류도 모두 새 이름으로 바뀝니다.<br>
+      · 그 분류의 AI 과제가 한 건이라도 있으면 삭제할 수 없습니다. 과제의 분류를 먼저 바꾸세요.<br>
+      · 쉼표(,)·따옴표·&lt;&gt; 는 쓸 수 없습니다(엑셀 드롭다운 목록에 쓰이므로). 바꾼 내용은 '작업 기록'에 남습니다.</div>
+  </div>
+  </section>
   <section id="tab-log" hidden>
   <div class="card">
-    <h3 style="margin-top:0">작업 기록 <small style="font-weight:400;color:var(--sub)">AI 과제 삭제(1건·선택 삭제)와 엑셀 올리기를 누가 언제 했는지 남깁니다 (최근 500건)</small></h3>
+    <h3 style="margin-top:0">작업 기록 <small style="font-weight:400;color:var(--sub)">AI 과제 삭제(1건·선택 삭제)·엑셀 올리기·분류 변경을 누가 언제 했는지 남깁니다 (최근 500건)</small></h3>
     <div class="toolbar">
       <select id="lAction"><option value="">전체 작업</option></select>
-      <input id="lQ" type="search" placeholder="처리자·과제명·파일명 검색" style="min-width:220px">
+      <input id="lQ" type="search" placeholder="처리자·과제명·파일명·내용 검색" style="min-width:220px">
       <span class="grow"></span><span class="sub" id="lCount"></span>
       <button type="button" id="lReload">새로고침</button>
     </div>
@@ -59,6 +75,7 @@
   </div>
   </section>
 </div></div>
+<script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script>
 let cfg=null;
@@ -102,35 +119,78 @@ btnTest.onclick=()=>act(()=>Auth.api('POST','api/llm/test'),r=>`연결 성공 ($
 btnDel.onclick=()=>{ if(confirm('AI 연결 설정과 저장된 API 키를 삭제할까요?')) act(()=>Auth.api('DELETE','api/llm/config'),'설정을 삭제했습니다.'); };
 // ---------- 탭 ----------
 let logData=null;
+const TABS=['ai','category','log'];
 function showTab(){
-  const t=location.hash==='#log'?'log':'ai';
+  const h=location.hash.slice(1),t=TABS.includes(h)?h:'ai';
   document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on',a.dataset.tab===t));
-  document.getElementById('tab-ai').hidden=t!=='ai';document.getElementById('tab-log').hidden=t!=='log';
+  TABS.forEach(x=>document.getElementById('tab-'+x).hidden=x!==t);
   err.hidden=ok.hidden=true;
   if(t==='log'&&!logData)loadLog();
+  if(t==='category')loadCats();
 }
+
+// ---------- 분류 관리 ----------
+let cats=null,catEdit=null;
+async function loadCats(){
+  if(Auth.preview){   // 서버 없음: 더미 AI 과제로 개수만 보여 줌
+    let items=[];try{items=(await DemoData.load()).aiProjects}catch(e){}
+    const names=['개발','법률','노사','IT'];items.forEach(t=>{if(!names.includes(t.category))names.push(t.category)});
+    cats={items:names.map(n=>({name:n,count:items.filter(t=>t.category===n).length})),total:items.length,unknown:[]};renderCats();return;
+  }
+  try{cats=await Auth.api('GET','api/categories');renderCats()}catch(ex){msg(err,'분류를 불러오지 못했습니다: '+ex.message)}
+}
+function renderCats(){
+  const c=cats,e=Auth.esc;
+  catSum.innerHTML=`<div><span>전체 AI 과제</span><b>${c.total}</b></div>`+c.items.map(x=>`<div><span>${e(x.name)}</span><b>${x.count}</b></div>`).join('')
+    +(c.unknown||[]).map(x=>`<div title="목록에 없는 분류로 저장된 과제"><span>${e(x.name)} (목록에 없음)</span><b>${x.count}</b></div>`).join('');
+  catRows.innerHTML=c.items.map((x,i)=>catEdit===i
+    ?`<tr><td><input id="catRen" maxlength="20" value="${e(x.name)}"></td><td>${x.count}</td><td class="act"><button class="p" data-csave="${i}">저장</button><button data-ccancel="1">취소</button></td></tr>`
+    :`<tr><td>${e(x.name)}</td><td>${x.count}</td><td class="act"><button data-cren="${i}">이름 변경</button><button class="danger" data-cdel="${i}"${x.count?` disabled title="이 분류의 AI 과제가 ${x.count}건 있어 삭제할 수 없습니다"`:''}>삭제</button></td></tr>`).join('');
+  if(catEdit!==null){const r=document.getElementById('catRen');r.focus();r.select()}
+}
+async function catAct(fn,okText){
+  if(Auth.preview){msg(err,'디자인 미리보기에서는 분류를 바꿀 수 없습니다. server.py로 실행한 주소에서 사이트관리자로 로그인해 주세요.');return}
+  try{const r=await fn();cats=r;catEdit=null;renderCats();msg(ok,typeof okText==='function'?okText(r):okText);logData=null}
+  catch(ex){msg(err,ex.message)}
+}
+catForm.onsubmit=e=>{e.preventDefault();const name=catNew.value.trim();if(!name){msg(err,'분류 이름을 입력하세요.');return}
+  catAct(()=>Auth.api('POST','api/categories',{name}),`'${name}' 분류를 추가했습니다.`).then(()=>{if(!err.hidden)return;catNew.value=''})};
+catRows.onclick=e=>{
+  const d=e.target.dataset;if(!cats)return;
+  if(d.cren!==undefined){catEdit=+d.cren;renderCats()}
+  if(d.ccancel){catEdit=null;renderCats()}
+  if(d.csave!==undefined){const from=cats.items[+d.csave].name,to=document.getElementById('catRen').value.trim();
+    if(!to){msg(err,'분류 이름을 입력하세요.');return}
+    if(to===from){catEdit=null;renderCats();return}
+    const n=cats.items[+d.csave].count;
+    if(n&&!confirm(`'${from}' → '${to}'\n이 분류의 AI 과제 ${n}건도 모두 '${to}'(으)로 바뀝니다. 바꿀까요?`))return;
+    catAct(()=>Auth.api('PUT','api/categories',{from,to}),r=>`'${from}' 분류 이름을 '${to}'(으)로 바꿨습니다. (AI 과제 ${r.renamed}건 함께 변경)`)}
+  if(d.cdel!==undefined){const name=cats.items[+d.cdel].name;
+    if(confirm(`'${name}' 분류를 삭제할까요?`))catAct(()=>Auth.api('DELETE','api/categories?name='+encodeURIComponent(name)),`'${name}' 분류를 삭제했습니다.`)}
+};
+document.addEventListener('keydown',e=>{if(catEdit===null)return;if(e.key==='Enter'&&e.target.id==='catRen'){e.preventDefault();document.querySelector('[data-csave]').click()}if(e.key==='Escape'){catEdit=null;renderCats()}});
 window.addEventListener('hashchange',showTab);
 
 // ---------- 작업 기록 ----------
 const fmtAt=s=>String(s||'').replace('T',' ').slice(0,19);
 async function loadLog(){
-  if(Auth.preview){logData={actions:{ai_delete:'AI 과제 삭제',ai_bulk_delete:'AI 과제 선택 삭제',ai_import:'AI 과제 엑셀 올리기'},items:[]};renderLog();return}
+  if(Auth.preview){logData={actions:{ai_delete:'AI 과제 삭제',ai_bulk_delete:'AI 과제 선택 삭제',ai_import:'AI 과제 엑셀 올리기',category_add:'분류 추가',category_rename:'분류 이름 변경',category_delete:'분류 삭제'},items:[]};renderLog();return}
   try{logData=await Auth.api('GET','api/work-log');renderLog()}catch(ex){msg(err,'작업 기록을 불러오지 못했습니다: '+ex.message)}
 }
 function renderLog(){
   const A=logData.actions,sel=lAction.value;
   if(lAction.options.length===1)lAction.innerHTML+=Object.entries(A).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   const q=lQ.value.trim().toLowerCase();
-  const list=logData.items.filter(r=>(!sel||r.action===sel)&&(!q||[r.actorName,r.actor,r.file,...(r.items||[]).map(i=>i.title)].some(v=>String(v||'').toLowerCase().includes(q))));
+  const list=logData.items.filter(r=>(!sel||r.action===sel)&&(!q||[r.actorName,r.actor,r.file,r.detail,...(r.items||[]).map(i=>i.title)].some(v=>String(v||'').toLowerCase().includes(q))));
   lCount.textContent=`${list.length}건`;
-  const color={ai_delete:'#ff4d4f',ai_bulk_delete:'#ff4d4f',ai_import:'#1677ff'};
+  const color={ai_delete:'#ff4d4f',ai_bulk_delete:'#ff4d4f',ai_import:'#1677ff',category_add:'#13c2c2',category_rename:'#722ed1',category_delete:'#fa8c16'};
   const li=i=>`<li>${Auth.esc(i.title)} <span class="sub">${Auth.esc(i.ownerName)}${i.ownerDept?' · '+Auth.esc(i.ownerDept):''}</span></li>`;
   lRows.innerHTML=list.map(r=>{
     const its=r.items||[],head=its.slice(0,3),rest=its.slice(3);
     return `<tr><td>${Auth.esc(fmtAt(r.at))}</td>
       <td>${Auth.esc(r.actorName)} <span class="sub">${Auth.esc(r.actor)}</span>${r.actorRole&&Auth.ROLE[r.actorRole]?'<br>'+Auth.tag(Auth.ROLE[r.actorRole]):''}</td>
       <td>${Auth.tag([A[r.action]||r.action,color[r.action]||'#8c8c8c'])}</td><td>${r.count}</td>
-      <td>${r.file?`<div class="sub">파일: ${Auth.esc(r.file)}</div>`:''}<ul class="items">${head.map(li).join('')}</ul>
+      <td>${r.detail?`<div>${Auth.esc(r.detail)}</div>`:''}${r.file?`<div class="sub">파일: ${Auth.esc(r.file)}</div>`:''}<ul class="items">${head.map(li).join('')}</ul>
         ${rest.length?`<details><summary>나머지 ${rest.length}건 보기</summary><ul class="items">${rest.map(li).join('')}</ul></details>`:''}</td></tr>`;
   }).join('')||`<tr><td colspan="5" class="empty">${Auth.preview?'디자인 미리보기에서는 작업 기록이 없습니다.':'아직 기록된 작업이 없습니다.'}</td></tr>`;
 }
