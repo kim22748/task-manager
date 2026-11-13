@@ -26,6 +26,10 @@
   .title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .title h2{font-size:20px;margin:0}
   .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .tag.mine{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
+  .tag.other{background:#f5f5f5;color:#595959;border:1px solid #d9d9d9}
+  a.btnlink{display:inline-block;padding:2px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px;font-weight:400}
+  a.btnlink:hover{background:#e6f4ff}
   .tag.ok{background:var(--done)}.tag.wait{background:var(--warn)}.tag.st{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
   .tag.no{background:#fff2f0;color:#cf1322;border:1px solid #ffccc7}
   dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px 24px;margin:16px 0 0}
@@ -71,9 +75,9 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
 <div class="main">
-  <header><a href="progress.html">← 내 과제 진행률</a>과제 상세<small id="mode"></small></header>
+  <header><a href="overall.html">← 전체 진행 현황</a>과제 상세<small id="mode"></small></header>
   <div class="content" id="app">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 올린 파일도 이 브라우저에서만 보입니다. 팀이 함께 보려면 <code>python3 server.py</code>로 실행한 주소(<code>http://localhost:8885</code>)에서 올려 주세요.</div>
     <div class="notice err" id="err" hidden></div>
@@ -105,8 +109,33 @@ function statusTag(t){
   return `<span class="tag st">${STAGE[t.s]||esc(t.s)}</span>`;
 }
 
+// 누가 본 화면인가: 내 과제인지 / 다른 담당자의 과제인지 (로그인했을 때만 구분. 서버 없는 미리보기에서는 모두 수정 가능)
+const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
+const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
+const canEdit=t=>!myName()||(typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin')||isMine(t);
+
+// 어느 화면에서 왔는지(from)에 따라 돌아가기 링크와 사이드바 강조를 맞춘다
+const FROM={dashboard:['dashboard.html','대시보드'],overall:['overall.html','전체 진행 현황'],progress:['progress.html','내 과제 진행률']};
+const from=FROM[new URLSearchParams(location.search).get('from')]?new URLSearchParams(location.search).get('from'):'overall';
+function applyFrom(){
+  const [href,label]=FROM[from];
+  const back=document.querySelector('header > a');
+  if(back){back.href=href;back.textContent='← '+label}
+  const navHrefs=Object.values(FROM).map(v=>v[0]);
+  document.querySelectorAll('aside a').forEach(a=>{
+    const h=a.getAttribute('href');
+    if(navHrefs.includes(h))a.classList.toggle('on',h===href);
+  });
+}
+
+function ownerTag(t){
+  if(!myName())return '';
+  if(isMine(t))return `<span class="tag mine">내 과제</span><a class="btnlink" href="progress.html?task=${encodeURIComponent(t.id)}">내 과제 진행률에서 보기 →</a>`;
+  return `<span class="tag other">${esc(t.assignee||'담당자 없음')} 님의 과제${canEdit(t)?'':' · 조회 전용'}</span>`;
+}
+
 function render(){
-  const t=task,p=Math.min(100,Math.max(0,+t.progress||0));
+  const t=task,p=Math.min(100,Math.max(0,+t.progress||0)),edit=canEdit(t);
   const req=FileStorage.checkRequired(files),okCnt=req.filter(r=>r.ok).length;
   const sorted=[...files].sort((a,b)=>String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   const hist=[...(t.history||[])].reverse();
@@ -114,7 +143,7 @@ function render(){
   $('body').innerHTML=`
   <div style="display:grid;gap:16px">
     <div class="card">
-      <div class="title"><h2>${esc(t.title)}</h2>${statusTag(t)}</div>
+      <div class="title"><h2>${esc(t.title)}</h2>${statusTag(t)}${ownerTag(t)}</div>
       <dl>
         <div><dt>담당자</dt><dd>${esc(t.assignee)||'-'}</dd></div>
         <div><dt>단계</dt><dd>${STAGE[t.s]||esc(t.s)||'-'}</dd></div>
@@ -131,14 +160,14 @@ function render(){
     <div class="grid2">
       <div class="card">
         <h2>첨부 파일 <em>${files.length}개</em></h2>
-        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음). 파일 1개당 20MB까지 올릴 수 있습니다.</p>
+        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음).${edit?' 파일 1개당 20MB까지 올릴 수 있습니다.':' 다른 담당자의 과제라 내려받기만 할 수 있습니다.'}</p>
         <div class="req">${req.map(r=>`<div class="${r.ok?'ok':'no'}"><span>${esc(r.label)}</span>${r.ok?'<span class="tag ok">있음</span>':'<span class="tag no">없음</span>'}</div>`).join('')}</div>
         <div class="sub" style="margin:-8px 0 16px">필수 첨부 ${okCnt}/3${okCnt===3?' — 모두 갖춰졌습니다.':' — 빠진 파일이 있습니다.'}</div>
-        <div class="drop" id="drop">파일을 여기로 끌어다 놓거나 <b id="pick">파일 선택</b></div>
+        ${edit?'<div class="drop" id="drop">파일을 여기로 끌어다 놓거나 <b id="pick">파일 선택</b></div>':''}
         ${sorted.length?`<div class="tablewrap"><table>
           <thead><tr><th>파일</th><th>종류</th><th style="text-align:right">크기</th><th>올린 시각</th><th></th></tr></thead>
           <tbody>${sorted.map(f=>`<tr><td>${esc(f.name)}</td><td>${f.kind==='기타'?'<span class="sub">기타</span>':esc(f.kind)}</td><td class="num">${size(f.size)}</td><td class="sub">${when(f.uploadedAt)}</td>
-            <td class="act"><button data-dl="${esc(f.id)}">내려받기</button> <button class="del" data-rm="${esc(f.id)}">삭제</button></td></tr>`).join('')}</tbody></table></div>`
+            <td class="act"><button data-dl="${esc(f.id)}">내려받기</button>${edit?` <button class="del" data-rm="${esc(f.id)}">삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
           :'<div class="empty">올라간 파일이 없습니다.</div>'}
       </div>
       <div class="card">
@@ -149,10 +178,12 @@ function render(){
     </div>
   </div>`;
   const drop=$('drop');
-  $('pick').onclick=()=>$('picker').click();
-  drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
-  drop.ondragleave=()=>drop.classList.remove('over');
-  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');upload([...e.dataTransfer.files])};
+  if(drop){
+    $('pick').onclick=()=>$('picker').click();
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+    drop.ondragleave=()=>drop.classList.remove('over');
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');upload([...e.dataTransfer.files])};
+  }
 }
 
 async function reload(){
@@ -162,7 +193,7 @@ async function reload(){
 }
 
 async function upload(list){
-  if(!list.length||busy)return;
+  if(!list.length||busy||!canEdit(task))return;
   busy=true;showError('');
   const done=[],failed=[];
   for(const f of list){try{await FileStorage.upload(task.id,f);done.push(f.name)}catch(e){failed.push(e.message)}}
@@ -178,7 +209,7 @@ document.addEventListener('click',async e=>{
   const meta=id=>files.find(f=>f.id===id);
   if(d.dl){try{await FileStorage.download(task.id,meta(d.dl))}catch(err){showError(err.message)}}
   if(d.rm){
-    const f=meta(d.rm);if(!f||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
+    const f=meta(d.rm);if(!f||!canEdit(task)||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
     try{await FileStorage.remove(task.id,f);await reload();render();showOk('파일을 삭제했습니다.')}catch(err){showError('삭제하지 못했습니다: '+err.message)}
   }
 });
@@ -189,7 +220,8 @@ document.addEventListener('click',async e=>{
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   try{await reload()}catch(e){showError('불러오지 못했습니다: '+e.message)}
-  if(!task){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="progress.html">내 과제 진행률로 돌아가기</a></div>`;return}
+  applyFrom();
+  if(!task){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="${FROM[from][0]}">${FROM[from][1]}(으)로 돌아가기</a></div>`;return}
   render();
 })();
 </script>

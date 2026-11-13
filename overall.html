@@ -59,6 +59,7 @@
   .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
   .due-over{background:var(--danger)}.due-soon{background:var(--wait)}.due-ok{background:#8c8c8c}
   .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
+  .tag.mine{background:#e6f4ff;color:#0958d9;border:1px solid #91caff;line-height:20px}
   a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
   a.tlink:hover{text-decoration:underline}
   a.btnlink{display:inline-block;padding:4px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px}
@@ -84,7 +85,7 @@
     </div>
     <div class="card">
       <h2>과제별 진행 현황 <em id="cnt"></em></h2>
-      <p class="desc">과제명이나 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)로 이동합니다. 진행률을 고치려면 <a class="tlink" href="progress.html">내 과제 진행률</a>에서 하세요.</p>
+      <p class="desc">다른 담당자의 과제는 과제명이나 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동해 진행률을 관리합니다.</p>
       <div class="toolbar">
         <input type="search" id="q" placeholder="과제명·담당자 검색">
         <div class="chips" id="chips"></div>
@@ -104,6 +105,9 @@
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
+// 로그인한 사람의 과제인가 (담당자 이름이 같을 때). 서버 없는 미리보기에서는 모두 '다른 사람 과제'로 보고 상세 페이지로 보낸다.
+const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
+const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
 // 과제 한 건의 진행 상태: 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
 function statusOf(t){
   if(t.registered)return '게시 완료';
@@ -167,13 +171,15 @@ function render(){
   const rows=tasks.filter(matches).sort((a,b)=>prog(b)-prog(a)||String(b.id).localeCompare(String(a.id)));
   $('cnt').textContent=rows.length+'건';
   $('rows').innerHTML=rows.length?rows.map(t=>{
-    const s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}`;
-    return `<tr><td><a class="tlink" href="${href}">${esc(t.title)}</a></td><td>${esc(t.assignee)||'-'}</td>
+    // 내 과제는 '내 과제 진행률'(진행률 관리)로, 다른 담당자의 과제는 조회용 과제 상세 페이지로 이동
+    const mineTask=isMine(t),s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,
+      href=mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`;
+    return `<tr><td><a class="tlink" href="${href}">${esc(t.title)}</a>${mineTask?' <span class="tag mine">내 과제</span>':''}</td><td>${esc(t.assignee)||'-'}</td>
       <td><span class="tag" style="background:${COLOR[s]}">${s}</span></td>
       <td><div class="pbar"><div><i style="width:${p}%;background:${COLOR[s]}"></i></div><span>${p}%</span></div></td>
       <td>${dueTag(t)}</td>
       <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
-      <td class="act"><a class="btnlink" href="${href}">세부</a></td></tr>`}).join('')
+      <td class="act"><a class="btnlink" href="${href}" title="${mineTask?'내 과제 진행률로 이동':'과제 세부 보기'}">${mineTask?'내 진행률':'세부'}</a></td></tr>`}).join('')
     :`<tr><td colspan="7" class="empty">${n?'조건에 맞는 과제가 없습니다.':'등록된 과제가 없습니다.'}</td></tr>`;
 }
 $('q').addEventListener('input',e=>{state.q=e.target.value;render()});

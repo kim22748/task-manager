@@ -71,6 +71,7 @@
   a.tlink:hover{text-decoration:underline}
   a.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:14px;margin-left:4px}
   .att-ok{background:var(--done)}.att-no{background:#fa8c16}
+  tr.flash td{background:#fffbe6}
   .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 24px}
   .who label{font-weight:600;font-size:14px}
   .who select{font:inherit;font-size:14px;padding:4px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;min-width:200px}
@@ -171,10 +172,22 @@ const WHO_KEY='progress-who';
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const assignees=()=>[...new Set(tasks.map(t=>(t.assignee||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
 const mine=t=>!who||(t.assignee||'').trim()===who;
+const focusId=new URLSearchParams(location.search).get('task'); // '전체 진행 현황'에서 넘어온 과제
 function pickWho(){
   const me=myName();let saved='';
   try{saved=localStorage.getItem(WHO_KEY)||''}catch(e){}
   who=me||(assignees().includes(saved)?saved:'');
+  // 넘어온 과제가 지금 보는 사람의 것이 아니면, 그 과제의 담당자로 바꿔서 보여 준다
+  const ft=focusId&&tasks.find(t=>String(t.id)===focusId);
+  if(ft&&!mine(ft))who=(ft.assignee||'').trim();
+}
+function focusRow(){
+  if(!focusId)return;
+  const tr=document.querySelector(`tr[data-row="${CSS.escape(focusId)}"]`);
+  if(!tr)return;
+  tr.classList.add('flash');
+  tr.scrollIntoView({block:'center'});
+  setTimeout(()=>tr.classList.remove('flash'),4000);
 }
 function renderWho(){
   const me=myName(),names=assignees().filter(n=>n!==me);
@@ -210,7 +223,7 @@ function render(){
     `<div class="card stat"><span>서비스 게시 완료</span><b style="color:var(--done)">${C.length}</b></div>`;
   $('cntA').textContent=A.length+'건';$('cntB').textContent=B.length+'건';$('cntC').textContent=C.length+'건';
 
-  $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>`<tr>
+  $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>`<tr data-row="${t.id}">
     <td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
     <td>${esc(t.assignee)||'-'}</td>
     <td>${dueTag(t)}</td>
@@ -219,7 +232,7 @@ function render(){
     :`<tr><td colspan="5" class="empty">${who?`${esc(who)} 님의 진행 중인 과제가 없습니다.`:'진행 중인 과제가 없습니다. 과제 목록에서 단계를 \'진행\'으로 바꾸면 여기에 나타납니다.'}</td></tr>`;
   $('reviewNote').textContent=review?`검토 단계 과제 ${review}건은 과제 목록에서 '진행'으로 바꾸면 이 목록에 나타납니다.`:'';
 
-  $('rowsB').innerHTML=B.length?B.map(t=>`<tr>
+  $('rowsB').innerHTML=B.length?B.map(t=>`<tr data-row="${t.id}">
     <td><input type="checkbox" data-chk="${t.id}" ${selected.has(String(t.id))?'checked':''}></td>
     <td>${esc(t.title)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
     <td>${esc(t.assignee)||'-'}</td>
@@ -233,8 +246,8 @@ function render(){
   $('selInfo').textContent=selected.size?`${selected.size}건 선택됨`:'';
 
   $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>{
-    const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}`;
-    return `<tr>
+    const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}&from=progress`;
+    return `<tr data-row="${t.id}">
     <td><a class="tlink" href="${href}">${esc(t.title)}</a></td><td>${esc(t.assignee)||'-'}</td>
     <td>${esc(t.registeredAt)||'-'}</td>
     <td>${esc(t.approver)||'-'}</td>
@@ -296,6 +309,7 @@ $('regForm').addEventListener('submit',e=>{
   await loadFiles();
   pickWho();
   render();
+  focusRow();
 })();
 </script>
 </body>

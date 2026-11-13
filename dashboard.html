@@ -90,7 +90,7 @@ const recent=tasks.slice(0,5);
 // 서비스 게시 완료 과제: 게시일이 최근인 순. 과제명·'상세'를 누르면 과제 상세(올라간 파일·상세 현황·이력)로 이동
 const published=tasks.filter(t=>t.registered).sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
 const pubRows=published.slice(0,5).map(t=>{
-  const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}`;
+  const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}&from=dashboard`;
   return `<li><span><a class="tlink" href="${href}">${esc(t.title)}</a><br><span class="sub">${esc(t.assignee||'담당자 없음')} · 게시일 ${esc(t.registeredAt||'-')} · 승인자 ${esc(t.approver||'-')}</span></span>
     <span class="pubact"><span class="tag" style="background:${req===3?'#52c41a':'#fa8c16'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3 · ${fs.length}개</span><a class="btnlink" href="${href}">상세</a></span></li>`}).join('');
 document.getElementById('app').innerHTML=`
