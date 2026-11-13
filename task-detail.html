@@ -26,6 +26,17 @@
   .title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .title h2{font-size:20px;margin:0}
   .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+  .tag.ai{background:#f9f0ff;color:#531dab;border:1px solid #d3adf7}
+  .progedit{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+  .progedit input[type=range]{width:220px;padding:0;border:0}
+  .progedit output{min-width:44px;font-weight:600}
+  button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.p:hover{color:#fff;opacity:.85}
+  .aistage{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .seg{display:flex;gap:2px;width:180px}
+  .seg i{flex:1;height:6px;border-radius:3px;background:#f0f0f0}
+  .seg i.on{background:var(--c)}
+  .card h2 a.goai{margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none}
   .tag.mine{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
   .tag.other{background:#f5f5f5;color:#595959;border:1px solid #d9d9d9}
   a.btnlink{display:inline-block;padding:2px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px;font-weight:400}
@@ -89,6 +100,7 @@
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script src="storage.js"></script>
+<script src="ai-storage.js"></script>
 <script src="file-storage.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -96,7 +108,12 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const STAGE={todo:'검토',doing:'진행',done:'종료'};
 const PRI={high:'높음',mid:'보통',low:'낮음'};
 const taskId=new URLSearchParams(location.search).get('id');
-let task=null,files=[],busy=false;
+const aiId=new URLSearchParams(location.search).get('ai');   // '내 AI 과제'에서 넘어오면 AI 과제 id
+let task=null,ai=null,aiItems=[],files=[],busy=false;
+const sameKey=s=>String(s||'').trim();
+// AI 과제 목록의 단계 (뒤로 갈수록 진행이 많이 된 것)
+const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
 
 const size=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
 const when=s=>s?String(s).replace('T',' ').slice(0,16):'-';
@@ -112,7 +129,13 @@ function statusTag(t){
 // 누가 본 화면인가: 내 과제인지 / 다른 담당자의 과제인지 (로그인했을 때만 구분. 서버 없는 미리보기에서는 모두 수정 가능)
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
-const canEdit=t=>!myName()||(typeof Auth!=='undefined'&&Auth.user&&Auth.user.role==='admin')||isMine(t);
+// 수정 권한: 서버 없는 미리보기는 모두 가능, 과제참여자는 쓰기 불가(서버도 막음), 사이트관리자는 모두, 과제책임자는 내 과제만
+const canEdit=t=>{
+  if(!myName())return true;
+  const role=Auth.user&&Auth.user.role;
+  if(role==='member')return false;
+  return role==='admin'||isMine(t);
+};
 
 // 어느 화면에서 왔는지(from)에 따라 돌아가기 링크와 사이드바 강조를 맞춘다
 const FROM={dashboard:['dashboard.html','대시보드'],overall:['overall.html','세부 진행 현황'],progress:['progress.html','내 과제 진행률']};
@@ -134,8 +157,47 @@ function ownerTag(t){
   return `<span class="tag other">${esc(t.assignee||'담당자 없음')} 님의 과제${canEdit(t)?'':' · 조회 전용'}</span>`;
 }
 
+// AI 과제 정보 카드: AI 과제 목록에 등록된 내용 (목적·분류·단계·책임자·소속부서·접근권한)
+function aiCard(a){
+  const idx=Math.max(0,AI_STAGES.indexOf(a.stage)),col=AI_COLOR[a.stage]||'#8c8c8c';
+  const day=s=>esc(String(s||'').slice(0,10))||'-';
+  return `<div class="card">
+    <h2>AI 과제 정보 <em>AI 과제 목록에 등록된 내용</em><a class="goai" href="ai-projects.html">AI 과제 목록 →</a></h2>
+    <div class="aistage"><span class="tag" style="background:${col}">${esc(a.stage)}</span><span class="sub">${idx+1}/${AI_STAGES.length} 단계</span>
+      <div class="seg" style="--c:${col}" title="${AI_STAGES.map((s,i)=>(i===idx?'● ':'')+s).join(' → ')}">${AI_STAGES.map((s,i)=>`<i class="${i<=idx?'on':''}"></i>`).join('')}</div></div>
+    <dl>
+      <div style="grid-column:1/-1"><dt>목적</dt><dd>${esc(a.purpose)||'-'}</dd></div>
+      <div><dt>분류</dt><dd>${esc(a.category)||'-'}</dd></div>
+      <div><dt>과제책임자</dt><dd>${esc(a.ownerName)||'-'}</dd></div>
+      <div><dt>소속부서</dt><dd>${esc(a.ownerDept)||'-'}</dd></div>
+      <div><dt>접근권한</dt><dd>${esc(a.access)||'-'}</dd></div>
+      <div><dt>등록일</dt><dd>${day(a.createdAt)}</dd></div>
+      <div><dt>최종 수정</dt><dd>${day(a.updatedAt||a.createdAt)}</dd></div>
+    </dl>
+  </div>`;
+}
+// 연결된 진행률 과제가 없는 AI 과제: AI 과제 정보만 보여 준다
+function renderAIOnly(){
+  const a=ai,col=AI_COLOR[a.stage]||'#8c8c8c';
+  const mineAI=!!myName()&&sameKey(a.ownerName)===myName();
+  document.title=`TaskFlow · ${a.title}`;
+  $('body').innerHTML=`
+  <div style="display:grid;gap:16px">
+    <div class="card">
+      <div class="title"><h2>${esc(a.title)}</h2><span class="tag" style="background:${col}">${esc(a.stage)}</span><span class="tag ai">AI 과제</span>
+        ${myName()?(mineAI?'<span class="tag mine">내 AI 과제</span>':`<span class="tag other">${esc(a.ownerName)} 님의 AI 과제</span>`):''}</div>
+    </div>
+    ${aiCard(a)}
+    <div class="card empty" style="text-align:left">이 AI 과제와 연결된 <b>진행률 과제</b>가 없습니다(같은 명칭·같은 담당자 기준). 첨부 파일과 변경 이력은 진행률 과제에 쌓이므로 여기에는 표시되지 않습니다.
+      <a class="tlink" href="progress.html">내 과제 진행률</a>에서 확인하세요.</div>
+  </div>`;
+}
+
 function render(){
+  if(!task){renderAIOnly();return}
   const t=task,p=Math.min(100,Math.max(0,+t.progress||0)),edit=canEdit(t);
+  // 진행률 변경은 이 상세 페이지에서만 한다: '진행' 단계이고 아직 100%가 아니며 서비스 게시 전인 과제를 수정 권한이 있는 사람이
+  const progEditable=edit&&t.s==='doing'&&!t.registered&&p<100;
   const req=FileStorage.checkRequired(files),okCnt=req.filter(r=>r.ok).length;
   const sorted=[...files].sort((a,b)=>String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   const hist=[...(t.history||[])].reverse();
@@ -156,6 +218,12 @@ function render(){
         <div style="grid-column:1/-1"><dt>게시 사유</dt><dd>${esc(t.regReason)||'-'}</dd></div>
         ${t.memo?`<div style="grid-column:1/-1"><dt>메모</dt><dd>${esc(t.memo)}</dd></div>`:''}
       </dl>
+      ${progEditable?`<div class="progedit">
+        <b>진행률 변경</b>
+        <input type="range" min="0" max="100" step="5" value="${p}" id="pgRange" aria-label="진행률"><output id="pgOut">${p}%</output>
+        <button type="button" class="p" id="pgSave">저장</button><button type="button" id="pgFull">100% 완료</button>
+        <span class="sub">저장하면 변경 이력에 기록됩니다. 100%가 되면 '서비스 게시 대기'로 옮겨집니다.</span>
+      </div>`:(edit?`<div class="progedit"><span class="sub">진행률은 '진행' 단계이고 100% 미만인 과제만 여기서 바꿀 수 있습니다.</span></div>`:'')}
     </div>
     <div class="grid2">
       <div class="card">
@@ -186,9 +254,17 @@ function render(){
   }
 }
 
+// 과제(진행률)와 AI 과제는 '같은 명칭 + 같은 담당자(책임자) 이름'으로 연결된다
 async function reload(){
   const tasks=await TaskStorage.list();
-  task=tasks.find(t=>String(t.id)===String(taskId))||null;
+  try{aiItems=await AIStorage.list()}catch(e){aiItems=[]}
+  if(aiId){          // AI 과제에서 들어옴: 연결된 진행률 과제가 있으면 그것을 상세로 보여 준다
+    ai=aiItems.find(p=>String(p.id)===String(aiId))||null;
+    task=ai?tasks.find(t=>sameKey(t.title)===sameKey(ai.title)&&sameKey(t.assignee)===sameKey(ai.ownerName))||null:null;
+  }else{             // 진행률 과제에서 들어옴: 연결된 AI 과제가 있으면 정보를 함께 보여 준다
+    task=tasks.find(t=>String(t.id)===String(taskId))||null;
+    ai=task?aiItems.find(p=>sameKey(p.title)===sameKey(task.title)&&sameKey(p.ownerName)===sameKey(task.assignee))||null:null;
+  }
   files=task?await FileStorage.list(task.id):[];
 }
 
@@ -203,10 +279,26 @@ async function upload(list){
   if(done.length)showOk(`${done.length}개 파일을 올렸습니다.`);
 }
 
+// 진행률 저장 (슬라이더 값 또는 100% 완료). 서버도 역할에 따라 쓰기를 한 번 더 검사한다.
+async function saveProgress(v){
+  if(!task||!canEdit(task)||busy)return;
+  busy=true;showError('');
+  try{
+    await TaskStorage.update(task.id,{progress:v});
+    await reload();
+    busy=false;render();
+    showOk(v===100?'100%를 달성했습니다. 서비스 게시 대기로 이동했습니다.':'진행률을 저장했습니다.');
+  }catch(err){busy=false;showError('저장하지 못했습니다: '+err.message)}
+}
+document.addEventListener('input',e=>{
+  if(e.target.id==='pgRange')$('pgOut').textContent=e.target.value+'%';
+});
 $('picker').onchange=e=>{upload([...e.target.files]);e.target.value=''};
 document.addEventListener('click',async e=>{
   const d=e.target.dataset;
   const meta=id=>files.find(f=>f.id===id);
+  if(e.target.id==='pgSave')saveProgress(+$('pgRange').value);
+  if(e.target.id==='pgFull')saveProgress(100);
   if(d.dl){try{await FileStorage.download(task.id,meta(d.dl))}catch(err){showError(err.message)}}
   if(d.rm){
     const f=meta(d.rm);if(!f||!canEdit(task)||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
@@ -216,12 +308,13 @@ document.addEventListener('click',async e=>{
 
 (async()=>{
   try{await TaskStorage.init()}catch(e){}
+  try{await AIStorage.init()}catch(e){}
   const server=TaskStorage.mode==='server';
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   try{await reload()}catch(e){showError('불러오지 못했습니다: '+e.message)}
   applyFrom();
-  if(!task){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="${FROM[from][0]}">${FROM[from][1]}(으)로 돌아가기</a></div>`;return}
+  if(!task&&!ai){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="${FROM[from][0]}">${FROM[from][1]}(으)로 돌아가기</a></div>`;return}
   render();
 })();
 </script>

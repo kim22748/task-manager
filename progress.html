@@ -73,6 +73,12 @@
   a.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:14px;margin-left:4px}
   .att-ok{background:var(--done)}.att-no{background:#fa8c16}
   tr.flash td{background:#fffbe6}
+  .pbar{display:flex;align-items:center;gap:8px;min-width:170px}
+  .pbar div{flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
+  .pbar i{display:block;height:100%;background:var(--primary)}
+  .pbar b{min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+  tr.clickrow{cursor:pointer}
+  tr.clickrow:hover td{background:#fafafa}
   .seg{display:flex;gap:2px;margin-top:4px;width:120px}
   .seg i{flex:1;height:5px;border-radius:2px;background:#f0f0f0}
   .seg i.on{background:var(--c)}
@@ -100,7 +106,7 @@
 
     <div class="card">
       <div class="flow">
-        <div class="step"><b>① 진행률 관리</b><span>과제 목록에서 '진행' 단계인 과제의 진행률(%)을 갱신합니다.</span></div>
+        <div class="step"><b>① 진행률 관리</b><span>'진행' 단계인 과제의 진행률(%)을 과제 상세에서 갱신합니다.</span></div>
         <div class="arrow">→</div>
         <div class="step"><b>② 100% 달성</b><span>진행률이 100%가 되면 '서비스 게시 대기'로 옮겨집니다.</span></div>
         <div class="arrow">→</div>
@@ -114,14 +120,14 @@
       <h2>내 AI 과제 <em id="cntAI"></em><a class="goai" href="ai-projects.html">AI 과제 목록에서 관리 →</a></h2>
       <p class="desc">AI 과제 목록에 <b>과제책임자</b>로 등록한 과제입니다. 단계는 AI 과제 목록에서 바꿉니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>명칭</th><th>분류</th><th>진행 단계</th><th>소속부서</th><th>접근권한</th><th>최종 수정</th></tr></thead>
+        <thead><tr><th>명칭</th><th>분류</th><th>진행 단계</th><th>소속부서</th><th>접근권한</th><th>최종 수정</th><th></th></tr></thead>
         <tbody id="rowsAI"></tbody>
       </table></div>
     </div>
 
     <div class="card">
       <h2>① 진행 중 과제 <em id="cntA"></em></h2>
-      <p class="desc">슬라이더로 진행률을 조정하고 '저장'을 누르세요. 변경 내용은 과제 목록의 이력에 기록됩니다.</p>
+      <p class="desc">진행률은 여기서 <b>표시만</b> 됩니다. 바꾸려면 과제명이나 '상세'를 눌러 <b>과제 상세</b>에서 변경하세요. 변경 내용은 과제의 변경 이력에 기록됩니다.</p>
       <div class="tablewrap"><table>
         <thead><tr><th>과제</th><th>담당자</th><th>마감일</th><th>진행률</th><th></th></tr></thead>
         <tbody id="rowsA"></tbody>
@@ -194,6 +200,7 @@ const assignees=()=>[...new Set([...tasks.map(t=>(t.assignee||'').trim()),...aiI
 const mine=t=>!who||(t.assignee||'').trim()===who;
 // AI 과제 목록에도 같은 명칭·같은 책임자로 등록된 과제인지 (진행률 과제와 AI 과제의 연결 기준)
 const sameKey=s=>String(s||'').trim();
+const detailHref=t=>`task-detail.html?id=${encodeURIComponent(t.id)}&from=progress`;
 const aiLinked=t=>aiItems.some(p=>sameKey(p.title)===sameKey(t.title)&&sameKey(p.ownerName)===sameKey(t.assignee));
 const aiBadge=t=>aiLinked(t)?'<a class="tag ai" href="ai-projects.html" title="AI 과제 목록에도 등록된 과제입니다">AI 과제</a>':'';
 const mineAI=p=>!who||(p.ownerName||'').trim()===who;
@@ -252,21 +259,28 @@ function render(){
   $('cntAI').textContent=mp.length+'건';
   $('rowsAI').innerHTML=mp.length?mp.map(p=>{
     const idx=Math.max(0,AI_STAGES.indexOf(p.stage)),col=AI_COLOR[p.stage]||'#8c8c8c';
-    return `<tr data-ai="${esc(p.id)}">
-      <td><b>${esc(p.title)}</b>${p.purpose?`<div class="sub aipurpose">${esc(p.purpose)}</div>`:''}</td>
+    // 과제 상세로 이동: 연결된 진행률 과제(같은 명칭·책임자)가 있으면 그 과제 상세(+AI 과제 정보), 없으면 AI 과제 정보만 있는 상세
+    const lt=tasks.find(t=>sameKey(t.title)===sameKey(p.title)&&sameKey(t.assignee)===sameKey(p.ownerName));
+    const href=lt?`task-detail.html?id=${encodeURIComponent(lt.id)}&from=progress`:`task-detail.html?ai=${encodeURIComponent(p.id)}&from=progress`;
+    return `<tr data-ai="${esc(p.id)}" data-href="${href}" class="clickrow" title="누르면 과제 상세로 이동합니다">
+      <td><a class="tlink" href="${href}">${esc(p.title)}</a>${p.purpose?`<div class="sub aipurpose">${esc(p.purpose)}</div>`:''}</td>
       <td>${esc(p.category)||'-'}</td>
       <td><span class="tag" style="background:${col}">${esc(p.stage)}</span> <span class="sub">${idx+1}/${AI_STAGES.length}</span>
         <div class="seg" style="--c:${col}" title="${AI_STAGES.map((s,i)=>(i===idx?'● ':'')+s).join(' → ')}">${AI_STAGES.map((s,i)=>`<i class="${i<=idx?'on':''}"></i>`).join('')}</div></td>
       <td>${esc(p.ownerDept)||'-'}</td><td>${esc(p.access)||'-'}</td>
-      <td class="sub">${esc(String(p.updatedAt||p.createdAt||'').slice(0,10))||'-'}</td></tr>`}).join('')
-    :`<tr><td colspan="6" class="empty">${who?`${esc(who)} 님이 과제책임자로 등록한 AI 과제가 없습니다.`:'등록된 AI 과제가 없습니다.'} <a class="tlink" href="ai-projects.html">AI 과제 목록</a>에서 등록하세요.</td></tr>`;
+      <td class="sub">${esc(String(p.updatedAt||p.createdAt||'').slice(0,10))||'-'}</td>
+      <td class="act"><a class="btnlink" href="${href}">상세</a></td></tr>`}).join('')
+    :`<tr><td colspan="7" class="empty">${who?`${esc(who)} 님이 과제책임자로 등록한 AI 과제가 없습니다.`:'등록된 AI 과제가 없습니다.'} <a class="tlink" href="ai-projects.html">AI 과제 목록</a>에서 등록하세요.</td></tr>`;
 
-  $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>`<tr data-row="${t.id}">
-    <td>${esc(t.title)}${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+  $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
+    // 진행률은 여기서 바꾸지 않고 표시만 한다. 변경은 과제 상세에서.
+    const dh=detailHref(t);
+    return `<tr data-row="${t.id}" data-href="${dh}" class="clickrow" title="누르면 과제 상세로 이동합니다 (진행률은 과제 상세에서 변경)">
+    <td><a class="tlink" href="${dh}">${esc(t.title)}</a>${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
     <td>${esc(t.assignee)||'-'}</td>
     <td>${dueTag(t)}</td>
-    <td><div class="pcell"><input type="range" min="0" max="100" step="5" value="${prog(t)}" data-range="${t.id}"><output data-out="${t.id}">${prog(t)}%</output></div></td>
-    <td class="act"><button class="p" data-save="${t.id}">저장</button><button data-full="${t.id}">100% 완료</button></td></tr>`).join('')
+    <td><div class="pbar"><div><i style="width:${prog(t)}%"></i></div><b>${prog(t)}%</b></div></td>
+    <td class="act"><a class="btnlink" href="${dh}">상세</a></td></tr>`}).join('')
     :`<tr><td colspan="5" class="empty">${who?`${esc(who)} 님의 진행 중인 과제가 없습니다.`:'진행 중인 과제가 없습니다. 과제 목록에서 단계를 \'진행\'으로 바꾸면 여기에 나타납니다.'}</td></tr>`;
   $('reviewNote').textContent=review?`검토 단계 과제 ${review}건은 과제 목록에서 '진행'으로 바꾸면 이 목록에 나타납니다.`:'';
 
@@ -295,9 +309,10 @@ function render(){
     :'<tr><td colspan="7" class="empty">서비스 게시된 과제가 없습니다.</td></tr>';
 }
 
-document.addEventListener('input',e=>{
-  const id=e.target.dataset.range;
-  if(id)document.querySelector(`[data-out="${id}"]`).textContent=e.target.value+'%';
+// '내 AI 과제' 줄 어디를 눌러도 과제 상세로 이동 (링크·버튼을 직접 누른 경우는 그 동작을 따름)
+document.addEventListener('click',e=>{
+  const tr=e.target.closest('tr[data-href]');
+  if(tr&&!e.target.closest('a,button,input,select'))location.href=tr.dataset.href;
 });
 document.addEventListener('change',e=>{
   const d=e.target.dataset;
@@ -311,11 +326,6 @@ document.addEventListener('change',e=>{
 });
 document.addEventListener('click',e=>{
   const d=e.target.dataset,task=id=>tasks.find(t=>String(t.id)===String(id));
-  if(d.save){
-    const v=+document.querySelector(`[data-range="${d.save}"]`).value;
-    persist(()=>TaskStorage.update(d.save,{progress:v}),v===100?'100%를 달성했습니다. 서비스 게시 대기로 이동했습니다.':'진행률을 저장했습니다.');
-  }
-  if(d.full)persist(()=>TaskStorage.update(d.full,{progress:100}),'100%를 달성했습니다. 서비스 게시 대기로 이동했습니다.');
   if(d.reg)openReg([d.reg]);
   if(d.unreg){const t=task(d.unreg);if(t&&confirm(`'${t.title}' 과제의 서비스 게시를 해제할까요?`))persist(()=>TaskStorage.update(d.unreg,{registered:false}),'서비스 게시를 해제했습니다.')}
   if(e.target.id==='bulkReg'&&selected.size)openReg([...selected]);
