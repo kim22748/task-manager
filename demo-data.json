@@ -1,0 +1,39 @@
+{
+  "_설명": "시연용 가상 더미데이터. 실제 인물·과제가 아닙니다. 날짜는 '오늘로부터 며칠 전(daysAgo)/며칠 후(dueInDays)'로 적고, 불러올 때 실제 날짜로 바꿉니다. 서버는 data/ 파일이 없을 때(또는 --reset-demo) 이 내용으로 채우고, GitHub Pages 같은 서버 없는 화면은 브라우저 저장소가 비어 있을 때 이 내용을 씁니다. 사용자 비밀번호는 여기에 두지 않습니다(서버가 시연용 공통 비밀번호로 만듦).",
+  "users": [
+    {"empNo": "100001", "name": "김하늘", "dept": "데이터운영팀", "role": "admin", "requestedRole": "owner", "status": "active", "daysAgo": 60},
+    {"empNo": "100002", "name": "이도윤", "dept": "주택공급처", "role": "owner", "requestedRole": "owner", "status": "active", "daysAgo": 55},
+    {"empNo": "100003", "name": "박서준", "dept": "토지보상처", "role": "member", "requestedRole": "member", "status": "active", "daysAgo": 50},
+    {"empNo": "100004", "name": "최지우", "dept": "법무처", "role": "owner", "requestedRole": "owner", "status": "active", "daysAgo": 48},
+    {"empNo": "100005", "name": "정예린", "dept": "노사협력처", "role": "owner", "requestedRole": "owner", "status": "active", "daysAgo": 47},
+    {"empNo": "100006", "name": "한지민", "dept": "스마트도시처", "role": "owner", "requestedRole": "owner", "status": "active", "daysAgo": 40},
+    {"empNo": "100007", "name": "오세훈", "dept": "데이터운영팀", "role": "member", "requestedRole": "member", "status": "active", "daysAgo": 33},
+    {"empNo": "100008", "name": "윤가람", "dept": "주택공급처", "role": "member", "requestedRole": "member", "status": "active", "daysAgo": 20},
+    {"empNo": "100009", "name": "강민호", "dept": "IT기획팀", "role": "member", "requestedRole": "owner", "status": "pending", "daysAgo": 2},
+    {"empNo": "100010", "name": "서유나", "dept": "법무처", "role": "member", "requestedRole": "member", "status": "inactive", "daysAgo": 30}
+  ],
+  "aiProjects": [
+    {"title": "공시지가 검증 자동화", "purpose": "표준지 공시지가 산정 자료의 이상값을 규칙과 AI로 먼저 걸러 검토 시간을 줄인다.", "category": "개발", "stage": "활용중", "ownerName": "이도윤", "ownerDept": "주택공급처", "access": "전사", "daysAgo": 45},
+    {"title": "임대주택 하자 민원 분류", "purpose": "접수된 하자 민원을 공종별로 자동 분류해 담당 부서 배정을 빠르게 한다.", "category": "IT", "stage": "개발중", "ownerName": "한지민", "ownerDept": "스마트도시처", "access": "소속부서", "daysAgo": 38},
+    {"title": "보상 협의 회의록 요약", "purpose": "토지 보상 협의 회의 녹취를 요약하고 쟁점·합의 사항을 표로 정리한다.", "category": "개발", "stage": "승인검토중", "ownerName": "이도윤", "ownerDept": "주택공급처", "access": "소속부서", "daysAgo": 30},
+    {"title": "계약서 독소조항 검토 도우미", "purpose": "용역·공사 계약서에서 불리한 조항 후보를 찾아 표준계약서와 비교해 보여 준다.", "category": "법률", "stage": "활용중", "ownerName": "최지우", "ownerDept": "법무처", "access": "사용자별 지정", "daysAgo": 26},
+    {"title": "단체협약 조항 검색", "purpose": "단체협약·노사합의서 조항을 자연어로 검색하고 근거 조문을 함께 보여 준다.", "category": "노사", "stage": "기획중", "ownerName": "정예린", "ownerDept": "노사협력처", "access": "소속부서", "daysAgo": 21},
+    {"title": "법률 자문 이력 검색", "purpose": "과거 법률 자문 회신을 사안별로 찾아 비슷한 자문 요청에 참고한다.", "category": "법률", "stage": "승인요청", "ownerName": "최지우", "ownerDept": "법무처", "access": "소속부서", "daysAgo": 14},
+    {"title": "입찰 공고 요약 알림", "purpose": "새 입찰 공고의 핵심 조건을 요약해 관련 부서에 알린다.", "category": "IT", "stage": "활용종료", "ownerName": "김하늘", "ownerDept": "데이터운영팀", "access": "전사", "daysAgo": 9},
+    {"title": "청약 문의 답변 초안", "purpose": "자주 들어오는 청약 문의에 공고문 근거를 붙인 답변 초안을 만든다.", "category": "개발", "stage": "개발중", "ownerName": "이도윤", "ownerDept": "주택공급처", "access": "전사", "daysAgo": 6},
+    {"title": "노사협의회 회의록 정리", "purpose": "노사협의회 회의록에서 안건·결정·후속 조치를 뽑아 정리한다.", "category": "노사", "stage": "활용중", "ownerName": "정예린", "ownerDept": "노사협력처", "access": "소속부서", "daysAgo": 3},
+    {"title": "공사 일보 현황판", "purpose": "현장별 공사 일보를 모아 공정률과 지연 위험을 한 화면에 보여 준다.", "category": "IT", "stage": "기획중", "ownerName": "한지민", "ownerDept": "스마트도시처", "access": "소속부서", "daysAgo": 1}
+  ],
+  "tasks": [
+    {"title": "공시지가 검증 자동화", "s": "done", "assignee": "이도윤", "priority": "high", "progress": 100, "daysAgo": 45, "dueInDays": -10, "memo": "검증 규칙 32종 적용", "registered": true, "approver": "김하늘", "regReason": "주택공급처 전체 검토 업무에 적용 완료", "registeredDaysAgo": 8},
+    {"title": "임대주택 하자 민원 분류", "s": "doing", "assignee": "한지민", "priority": "high", "progress": 60, "daysAgo": 38, "dueInDays": 12, "memo": "분류 정확도 검증 중"},
+    {"title": "보상 협의 회의록 요약", "s": "doing", "assignee": "이도윤", "priority": "mid", "progress": 85, "daysAgo": 30, "dueInDays": 2, "memo": "요약 형식 확정 대기"},
+    {"title": "계약서 독소조항 검토 도우미", "s": "done", "assignee": "최지우", "priority": "high", "progress": 100, "daysAgo": 26, "dueInDays": -5, "memo": "", "registered": true, "approver": "김하늘", "regReason": "법무처 계약 검토 절차에 반영", "registeredDaysAgo": 4},
+    {"title": "단체협약 조항 검색", "s": "todo", "assignee": "정예린", "priority": "mid", "progress": 0, "daysAgo": 21, "dueInDays": 30, "memo": "데이터 범위 협의 필요"},
+    {"title": "법률 자문 이력 검색", "s": "todo", "assignee": "최지우", "priority": "low", "progress": 0, "daysAgo": 14, "dueInDays": 40, "memo": ""},
+    {"title": "입찰 공고 요약 알림", "s": "done", "assignee": "김하늘", "priority": "mid", "progress": 100, "daysAgo": 9, "dueInDays": -1, "memo": "시범 운영 후 종료", "registered": true, "approver": "김하늘", "regReason": "시범 운영 결과 공유용 게시", "registeredDaysAgo": 1},
+    {"title": "청약 문의 답변 초안", "s": "doing", "assignee": "이도윤", "priority": "high", "progress": 35, "daysAgo": 6, "dueInDays": -2, "memo": "답변 근거 연결 작업"},
+    {"title": "노사협의회 회의록 정리", "s": "doing", "assignee": "정예린", "priority": "mid", "progress": 100, "daysAgo": 3, "dueInDays": 5, "memo": "서비스 게시 승인 대기"},
+    {"title": "공사 일보 현황판", "s": "todo", "assignee": "한지민", "priority": "low", "progress": 0, "daysAgo": 1, "dueInDays": 25, "memo": ""}
+  ]
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 사용자 관리</title><link rel="stylesheet" href="common.css"></head>
+<body>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 전체 진행 현황</a><a class="child" href="progress.html">└ 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a></aside>
+<div class="main">
+<header>사용자 관리</header>
+<div class="content">
+  <div class="notice warn" id="pv" hidden><b>디자인 미리보기</b> — 더미 사용자(demo-data.json)를 보여 줍니다. 승인·역할 변경 같은 처리는 <code>server.py</code>로 실행한 주소에서 사이트관리자로 로그인해야 할 수 있습니다.</div>
+  <div class="notice err" id="err" hidden></div><div class="notice ok" id="ok" hidden></div>
+  <div class="stats" id="stats"></div>
+  <div class="card">
+    <div class="toolbar">
+      <select id="fStatus"></select><select id="fRole"></select>
+      <input id="q" type="search" placeholder="성명·사번·소속·이메일 검색" style="min-width:220px">
+      <span class="grow"></span><span id="count" style="color:var(--sub);font-size:14px"></span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>성명</th><th>사번</th><th>소속</th><th>이메일</th><th>역할</th><th>상태</th><th>가입일</th><th>최근 로그인</th><th></th></tr></thead>
+      <tbody id="rows"></tbody></table></div>
+    <div class="pager"><button id="prev" type="button">이전</button><span id="pageInfo"></span><button id="next" type="button">다음</button></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3 style="margin-top:0">처리 이력 <small style="font-weight:400;color:var(--sub)">최근 50건</small></h3>
+    <div class="tablewrap"><table><thead><tr><th>일시</th><th>처리자(사번)</th><th>작업</th><th>대상(사번)</th><th>비고</th></tr></thead><tbody id="auditRows"></tbody></table></div></div>
+</div></div>
+<script src="demo-data.js"></script>
+<script src="auth.js"></script>
+<script>
+const PAGE=10; let users=[], page=1; const esc=Auth.esc;
+const day=s=>s?s.slice(0,10):'-';
+function msg(el,text){ err.hidden=ok.hidden=true; el.textContent=text; el.hidden=false; }
+function roleSelect(sel){ return `<select class="roleSel">${Object.entries(Auth.ROLE).map(([k,[l]])=>`<option value="${k}"${k===sel?' selected':''}>${l}</option>`).join('')}</select>`; }
+
+function filtered(){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  return users.filter(u=>(!fStatus.value||u.status===fStatus.value)&&(!fRole.value||u.role===fRole.value)&&
+    (!q||[u.name,u.empNo,u.dept,u.email].some(v=>(v||'').toLowerCase().includes(q))));
+}
+function render(){
+  const cnt=s=>users.filter(u=>u.status===s).length;
+  stats.innerHTML=[['전체',users.length],['승인 대기',cnt('pending')],['사용 중',cnt('active')],['비활성',cnt('inactive')],['반려',cnt('rejected')]]
+    .map(([l,n])=>`<div class="card stat"><span>${l}</span><b>${n}</b></div>`).join('');
+  const list=filtered(), pages=Math.max(1,Math.ceil(list.length/PAGE)); page=Math.min(page,pages);
+  count.textContent=`${list.length}명`; pageInfo.textContent=`${page} / ${pages}`; prev.disabled=page<=1; next.disabled=page>=pages;
+  rows.innerHTML=list.slice((page-1)*PAGE,page*PAGE).map(u=>{
+    let act='';
+    if(u.status==='pending') act=`${roleSelect(u.requestedRole||'member')}<button class="p" data-a="approve" data-id="${u.id}">승인</button><button class="danger" data-a="reject" data-id="${u.id}">반려</button>`;
+    else if(u.status==='active') act=`${roleSelect(u.role)}<button data-a="setRole" data-id="${u.id}">역할 변경</button><button data-a="resetPassword" data-id="${u.id}">비밀번호 초기화</button><button class="danger" data-a="deactivate" data-id="${u.id}"${u.id===Auth.user.id?' disabled':''}>비활성화</button>`;
+    else if(u.status==='inactive') act=`<button data-a="activate" data-id="${u.id}">활성화</button>`;
+    return `<tr><td>${esc(u.name)}</td><td>${esc(u.empNo)}</td><td>${esc(u.dept)}</td><td>${esc(u.email)}</td><td>${u.status==='pending'?`<span style="color:var(--sub);font-size:12px">신청</span> ${Auth.tag(Auth.ROLE[u.requestedRole||'member'])}`:Auth.tag(Auth.ROLE[u.role])}</td><td>${Auth.tag(Auth.STATUS[u.status])}</td><td>${day(u.createdAt)}</td><td>${day(u.lastLoginAt)}</td><td class="act">${act}</td></tr>`;
+  }).join('')||'<tr><td class="empty" colspan="9">조건에 맞는 사용자가 없습니다.</td></tr>';
+}
+const ACTION={signup:'가입 신청',approve:'승인',reject:'반려',setRole:'역할 변경',deactivate:'비활성화',activate:'활성화',resetPassword:'비밀번호 초기화',password_change:'비밀번호 변경',login_locked:'로그인 잠김'};
+async function loadAudit(){
+  const a=Auth.preview?[]:await Auth.api('GET','api/audit');
+  auditRows.innerHTML=a.slice(0,50).map(r=>`<tr><td>${esc(r.at.replace('T',' ').slice(0,19))}</td><td>${esc(r.actor)}</td><td>${esc(ACTION[r.action]||r.action)}</td><td>${esc(r.target)}</td><td>${esc(r.detail)}</td></tr>`).join('')||'<tr><td class="empty" colspan="5">처리 이력이 없습니다.</td></tr>';
+}
+async function load(){
+  users=Auth.preview?(await DemoData.load()).users:await Auth.api('GET','api/users');
+  render(); loadAudit();
+}
+
+rows.onclick=async e=>{
+  const b=e.target.closest('button[data-a]'); if(!b) return;
+  if(Auth.preview){ msg(err,'디자인 미리보기에서는 처리할 수 없습니다. server.py(8885)로 실행한 주소에서 사이트관리자로 로그인해 주세요.'); return; }
+  const a=b.dataset.a, u=users.find(x=>x.id==b.dataset.id), role=b.closest('td').querySelector('.roleSel')?.value;
+  const labels={approve:'승인',reject:'가입을 반려',setRole:'역할을 변경',deactivate:'비활성화',activate:'활성화',resetPassword:'비밀번호를 초기화'};
+  if(['reject','deactivate','resetPassword'].includes(a)&&!confirm(`${u.name}(${u.empNo}) 계정을 ${labels[a]}하시겠습니까?`)) return;
+  try{
+    const r=await Auth.api('PATCH',`api/users/${u.id}`,{action:a,role});
+    msg(ok, a==='resetPassword'?`${u.name} 임시 비밀번호: ${r.tempPassword} (이 화면을 닫으면 다시 볼 수 없습니다. 본인에게 전달 후 변경하도록 안내하세요.)`:`${u.name}: ${labels[a]}했습니다.`);
+    await load();
+  }catch(ex){ msg(err,ex.message); }
+};
+[fStatus,fRole].forEach(s=>s.onchange=()=>{page=1;render();}); q.oninput=()=>{page=1;render();};
+prev.onclick=()=>{page--;render();}; next.onclick=()=>{page++;render();};
+(async()=>{
+  await Auth.guard({admin:true});
+  if(Auth.preview) pv.hidden=false;
+  fStatus.innerHTML='<option value="">전체 상태</option>'+Object.entries(Auth.STATUS).map(([k,[l]])=>`<option value="${k}">${l}</option>`).join('');
+  fRole.innerHTML='<option value="">전체 역할</option>'+Object.entries(Auth.ROLE).map(([k,[l]])=>`<option value="${k}">${l}</option>`).join('');
+  fStatus.value=new URLSearchParams(location.search).get('status')||'';
+  try{ await load(); }catch(ex){ msg(err,ex.message); }
+})();
+</script></body></html>

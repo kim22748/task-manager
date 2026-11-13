@@ -19,17 +19,32 @@
   - 필수 첨부 3종(기획서 hwpx·실행 html·데이터 csv)은 확장자로만 확인합니다.
   - 서버로 실행하면 `data/files/`에 저장됩니다. GitHub Pages처럼 서버 없이 열면 그 브라우저(IndexedDB)에만 저장됩니다.
 - AI 과제 목록(`ai-projects.html`, 좌측 메뉴 'AI 과제 목록'): 명칭·목적·분류·단계·과제책임자·소속부서·접근권한범위 등록 게시판. 신규작성/수정은 같은 Modal 창을 사용하고, 수정은 기존 자료를 덮어씀
+- 로그인·사용자 관리(A01, `msshinlh/`에서 옮겨 옴): 로그인(`login.html`), 회원가입(`signup.html`, 사이트관리자 승인 후 사용), 내 정보·비밀번호 변경(`mypage.html`), 사이트관리자 전용 사용자 관리(`admin-users.html`: 가입 승인·역할 지정·비활성화·비밀번호 초기화·처리 이력)
+  - 서버로 실행하면 모든 화면과 과제 API가 로그인을 요구합니다. 로그인하면 사이드바에 '계정' 메뉴, 머리글에 이름·역할·로그아웃이 붙습니다.
+  - 역할별 권한(서버에서 검사): 조회는 모든 역할, 과제·AI 과제 등록·수정·삭제·첨부는 사이트관리자·과제책임자, 서비스 게시·해제와 사용자 관리는 사이트관리자만
+- 더미데이터(`demo-data.json`): 가상 사용자 10명, AI 과제 10건, 과제 10건. 과제 담당자·AI 과제 책임자는 더미 사용자 이름과 같습니다. 날짜는 열 때마다 오늘 기준으로 맞춰집니다.
 
-## 실행
+## 실행 — 실제 동작 확인 (8885 서버)
 ```bash
 cd task-manager
-python3 server.py
+python3 server.py              # Python 3.7 이상 (python3 가 3.6 이면 python3.12 등으로 실행)
+python3 server.py --reset-demo # 데이터를 더미데이터로 되돌리고 시작
 ```
-브라우저에서 http://localhost:8885 으로 접속합니다. (Python 3 표준 라이브러리만 사용, 설치 필요 없음)
+브라우저에서 http://localhost:8885 으로 접속해 로그인합니다. (Python 표준 라이브러리만 사용, 설치 필요 없음)
 
-- 화면 오른쪽 위에 `● 서버 파일에 저장 중`이 보이면 파일에 저장되는 상태입니다.
-- HTML 파일을 더블클릭해서 열면 브라우저 임시 저장으로 동작하고, 화면에 안내 문구가 나옵니다.
-- 예전에 브라우저에만 저장돼 있던 과제는 서버로 처음 접속할 때 자동으로 옮겨집니다.
+| 시연 계정 | 역할 | 비밀번호(공통) |
+|---|---|---|
+| 100001 김하늘 | 사이트관리자 | `Lh!2026pw` |
+| 100002 이도윤 | 과제책임자 | `Lh!2026pw` |
+| 100003 박서준 | 과제참여자 | `Lh!2026pw` |
+
+- 처음 실행하면 `data/`에 더미데이터(과제·AI 과제·사용자)가 만들어집니다. `data/`는 git에 올라가지 않습니다.
+- 시연 계정·공통 비밀번호는 발표·운영 전에 지워야 합니다 (`auth_users.py`의 `DEFAULT_SEED_PASSWORD`, `login.html` 안내 문구).
+
+## GitHub Pages — 디자인 확인 (https://kim22748.github.io/task-manager/)
+- 서버가 없으므로 로그인 없이 **디자인 미리보기** 모드로 열립니다(머리글에 주황색 '디자인 미리보기' 표시, 사이트관리자 화면 기준).
+- 브라우저 저장소가 비어 있으면 더미데이터로 채워 보여 줍니다. 여기서 바꾼 내용은 그 브라우저에만 남습니다.
+- 로그인·가입·사용자 처리는 미리보기에서 막혀 있고, 8885 서버에서 확인합니다.
 
 ## 파일 구성
 | 파일 | 역할 |
@@ -43,14 +58,19 @@ python3 server.py
 | `storage.js` | 저장 모듈 (서버 API ↔ localStorage 자동 전환) |
 | `file-storage.js` | 첨부 파일 모듈 (`/api/tasks/<id>/files` ↔ IndexedDB 자동 전환) |
 | `ai-storage.js` | AI 과제 저장 모듈 (`/api/ai-projects` ↔ localStorage) |
-| `server.py` | 저장 서버 + REST API (`/api/tasks`) |
+| `server.py` | 저장 서버 + REST API (`/api/tasks`, `/api/ai-projects`) + 로그인 검사 |
+| `auth_users.py` | A01 로그인·회원가입·사용자 관리 API, 사용자 저장소 |
+| `auth.js` | 화면 공용 로그인 확인·계정 메뉴·미리보기 모드 |
+| `login.html` `signup.html` `mypage.html` `admin-users.html` | 로그인 / 회원가입 / 내 정보 / 사용자 관리 (`common.css` 스타일) |
+| `demo-data.json` `demo-data.js` | 더미데이터 / 오늘 날짜 기준으로 바꾸는 모듈 (서버는 `server.py`의 `demo_items()`가 같은 규칙) |
 | `data/tasks.json` | 저장된 과제 데이터 |
 | `data/ai_projects.json` | 저장된 AI 과제 데이터 |
+| `data/users.json` `data/audit.log` | 사용자(비밀번호는 해시) / 사용자 관리 처리 이력 |
 | `data/files/<과제id>/` | 첨부 파일 원본 (목록은 과제의 `files` 항목) |
 
 ## 다음 단계(예정)
 - 부서 필드와 부서·담당자별 현황
 - 산출물(업로드) 내역, 종료 과제 사후관리(활용 여부)
-- DB(SQLite 등) 연동, 사용자 인증
+- DB(SQLite 등) 연동, HTTPS·사내 SSO 등 운영용 인증 보강
+- 과제에 사람을 이름 대신 사번(empNo)으로 저장해 '본인 과제'만 수정하도록 제한
 - Ant Design Pro 기반 재구성
-- Dummy Data 만들기

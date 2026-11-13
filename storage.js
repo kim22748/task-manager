@@ -3,6 +3,8 @@
  *
  * - 서버(server.py)로 열었으면: /api/tasks 로 저장 → data/tasks.json 파일에 영구 보관
  * - 파일을 더블클릭해 열었거나 서버가 꺼져 있으면: 브라우저 localStorage 임시 저장 (mode === 'local')
+ *   이때 브라우저 저장소가 비어 있으면 demo-data.json 더미데이터(demo-data.js)로 채웁니다. (GitHub Pages 디자인 확인용)
+ * - auth.js 를 함께 불러오면 init() 이 로그인 확인(Auth.guard)을 먼저 기다립니다.
  *
  * 모든 메서드는 Promise 를 돌려줍니다.
  */
@@ -50,8 +52,21 @@ const TaskStorage = (() => {
     });
     if (res.status === 204) return null;
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
+    if (!res.ok) { const e = new Error(data.error || `저장 실패 (${res.status})`); e.status = res.status; throw e; }
     return data;
+  }
+
+  // 서버 없이 처음 열었으면(브라우저 저장소에 과제 키가 없으면) 더미데이터로 채운다
+  async function readLocalOrDemo() {
+    let raw = null;
+    try { raw = localStorage.getItem(LOCAL_KEY); } catch (e) { return []; }
+    if (raw !== null || typeof DemoData === 'undefined') return readLocal();
+    try {
+      const { tasks } = await DemoData.load();
+      writeLocal(tasks);
+      try { localStorage.setItem(MIGRATED_KEY, 'demo'); } catch (e) {}   // 더미데이터는 나중에 서버로 옮기지 않음
+      return tasks;
+    } catch (e) { return []; }
   }
 
   // 예전에 localStorage 에만 저장돼 있던 과제를 서버로 한 번 옮긴다
@@ -67,15 +82,17 @@ const TaskStorage = (() => {
 
     /** 저장소 연결 후 과제 목록을 불러온다 */
     async init() {
-      if (location.protocol === 'file:') { mode = 'local'; return readLocal(); }
+      if (typeof Auth !== 'undefined') await Auth.guard();   // 로그인 확인 (서버 없으면 미리보기 모드)
+      if (location.protocol === 'file:') { mode = 'local'; return readLocalOrDemo(); }
       try {
         await request('GET', API);
         mode = 'server';
         await migrateLocal();
         return await request('GET', API);
       } catch (e) {
+        if (e.status === 401) { location.replace('login.html'); return new Promise(() => {}); }   // 로그인이 풀림
         mode = 'local';
-        return readLocal();
+        return readLocalOrDemo();
       }
     },
 

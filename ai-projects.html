@@ -79,7 +79,7 @@
         <select id="fStage" title="단계"></select>
         <input id="q" type="search" placeholder="명칭·목적·책임자·부서 검색">
         <span class="grow"></span>
-        <button class="p" id="btnNew" type="button">신규작성</button>
+        <button class="p w-only" id="btnNew" type="button">신규작성</button>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th>명칭 / 목적</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>접근권한범위</th><th>수정일</th><th></th></tr></thead>
@@ -114,6 +114,8 @@
   </div>
 </div>
 
+<script src="demo-data.js"></script>
+<script src="auth.js"></script>
 <script src="ai-storage.js"></script>
 <script>
 const CATEGORIES=['개발','법률','노사','IT'];
@@ -144,7 +146,7 @@ function render(){
     <td><span class="tag" style="background:${STAGE_COLOR[t.stage]||'#8c8c8c'}">${esc(t.stage)}</span></td>
     <td>${esc(t.ownerName)}</td><td>${esc(t.ownerDept)}</td><td>${esc(t.access)}</td>
     <td>${fmtDate(t.updatedAt)}</td>
-    <td class="act"><button data-edit="${t.id}">수정</button><button data-del="${t.id}">삭제</button></td></tr>`).join('')
+    <td class="act"><button class="w-only" data-edit="${t.id}">수정</button><button class="w-only" data-del="${t.id}">삭제</button></td></tr>`).join('')
     :`<tr><td colspan="8" class="empty">${items.length?'조건에 맞는 AI 과제가 없습니다.':'등록된 AI 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
 }
 async function reload(){try{items=await AIStorage.list()}catch(e){showError('목록을 불러오지 못했습니다: '+e.message)}render()}

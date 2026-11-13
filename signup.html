@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 회원가입</title><link rel="stylesheet" href="common.css"></head>
+<body class="auth">
+<div class="authbox">
+  <h1>회원가입</h1><p class="sub">가입 후 사이트관리자가 승인하면 로그인할 수 있습니다.</p>
+  <div class="notice warn" id="pv" hidden>지금은 <b>디자인 미리보기</b>입니다(서버 없음). 가입 신청은 <code>server.py</code>로 실행한 주소에서 할 수 있습니다.</div>
+  <div class="notice err" id="err" hidden></div>
+  <div class="notice ok" id="ok" hidden></div>
+  <form id="form" novalidate>
+    <div class="field"><label for="fName"><i>*</i>성명</label><input id="fName" maxlength="50"></div>
+    <div class="field"><label for="empNo"><i>*</i>사번</label><input id="empNo" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="username"><div class="hint">6자리 숫자</div></div>
+    <div class="field"><label for="dept"><i>*</i>소속</label><input id="dept" maxlength="100"></div>
+    <div class="field"><label><i>*</i>역할</label>
+      <div style="display:flex;gap:20px"><label style="margin:0"><input type="radio" name="role" value="owner" style="width:auto"> 과제책임자</label>
+      <label style="margin:0"><input type="radio" name="role" value="member" style="width:auto" checked> 과제참여자</label></div>
+      <div class="hint">신청한 역할은 사이트관리자가 승인할 때 확정됩니다.</div></div>
+    <div class="field"><label for="email"><i>*</i>이메일</label><input id="email" type="email" maxlength="100" placeholder="id@lh.or.kr"><div class="hint">@lh.or.kr 주소만 사용할 수 있습니다.</div></div>
+    <div class="field"><label for="pw"><i>*</i>비밀번호</label><input id="pw" type="password" autocomplete="new-password"><div class="hint">8자 이상, 영문·숫자·특수문자 포함</div></div>
+    <div class="field"><label for="pw2"><i>*</i>비밀번호 확인</label><input id="pw2" type="password" autocomplete="new-password"></div>
+    <button class="p" type="submit" id="btn">가입 신청</button>
+  </form>
+  <div class="links"><a href="login.html">로그인으로 돌아가기</a></div>
+</div>
+<script src="auth.js" data-guard="off"></script>
+<script>
+let isPreview=false;
+Auth.probe().then(r=>{ if(r.preview){ isPreview=true; pv.hidden=false; } });
+form.onsubmit=async e=>{
+  e.preventDefault(); err.hidden=true; ok.hidden=true;
+  empNo.value=empNo.value.trim(); email.value=email.value.trim();
+  if(!/^\d{6}$/.test(empNo.value)){ err.textContent='사번은 6자리 숫자로 입력하세요.'; err.hidden=false; return; }
+  if(!/^[A-Za-z0-9._%+-]+@lh\.or\.kr$/i.test(email.value)){ err.textContent='이메일은 @lh.or.kr 주소만 사용할 수 있습니다.'; err.hidden=false; return; }
+  if(pw.value!==pw2.value){ err.textContent='비밀번호 확인이 일치하지 않습니다.'; err.hidden=false; return; }
+  if(isPreview){ err.textContent='디자인 미리보기에서는 가입 신청을 보낼 수 없습니다.'; err.hidden=false; return; }
+  btn.disabled=true;
+  try{
+    const r=await Auth.api('POST','api/auth/signup',{name:fName.value,empNo:empNo.value,dept:dept.value,email:email.value,password:pw.value,requestedRole:document.querySelector('input[name=role]:checked').value});
+    ok.textContent=r.message; ok.hidden=false; form.hidden=true;
+  }catch(ex){ err.textContent=ex.message; err.hidden=false; btn.disabled=false; }
+};
+</script></body></html>

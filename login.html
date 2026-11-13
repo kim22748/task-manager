@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 로그인</title><link rel="stylesheet" href="common.css"></head>
+<body class="auth">
+<div class="authbox">
+  <h1>TaskFlow</h1><p class="sub">LH 현안해결형 AI교육과제 관리 홈페이지</p>
+  <div class="notice warn" id="pv" hidden>지금은 <b>디자인 미리보기</b>입니다(서버 없음). 로그인은 <code>server.py</code>로 실행한 주소(예: http://localhost:8885)에서 할 수 있습니다. <a href="dashboard.html">로그인 없이 화면 둘러보기</a></div>
+  <div class="notice err" id="err" hidden></div>
+  <form id="form" novalidate>
+    <div class="field"><label for="empNo">사번</label><input id="empNo" maxlength="6" inputmode="numeric" placeholder="6자리 숫자" autocomplete="username" autofocus></div>
+    <div class="field"><label for="pw">비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+    <button class="p" type="submit" id="btn">로그인</button>
+  </form>
+  <div class="links">계정이 없으신가요? <a href="signup.html">회원가입</a></div>
+  <!-- 시연용 안내: 발표·운영 전에 삭제 -->
+  <div class="hint" style="margin-top:16px;text-align:center">시연용: 100001 사이트관리자 · 100002 과제책임자 · 100003 과제참여자 / 비밀번호 Lh!2026pw</div>
+</div>
+<script src="auth.js" data-guard="off"></script>
+<script>
+let isPreview=false;
+Auth.probe().then(r=>{
+  if(r.user) location.replace(Auth.nextPage());   // 이미 로그인됨
+  else if(r.preview){ isPreview=true; pv.hidden=false; }
+});
+form.onsubmit=async e=>{
+  e.preventDefault(); err.hidden=true;
+  if(isPreview){ err.textContent='디자인 미리보기에서는 로그인할 수 없습니다.'; err.hidden=false; return; }
+  btn.disabled=true;
+  try{ await Auth.api('POST','api/auth/login',{empNo:empNo.value,password:pw.value}); location.href=Auth.nextPage(); }
+  catch(ex){ err.textContent=ex.message; err.hidden=false; btn.disabled=false; }
+};
+</script></body></html>

@@ -1,0 +1,43 @@
+/* A01 화면(로그인·회원가입·내 정보·사용자 관리) 공용 스타일 — 다른 화면과 같은 Ant Design Pro 스타일 */
+:root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+aside a.on{background:var(--primary);color:#fff}
+aside a.child{padding:10px 24px 10px 40px;color:rgba(255,255,255,.92);background:rgba(255,255,255,.08)}
+aside a.child.on{background:var(--primary);color:#fff}
+aside .grp{padding:14px 24px 4px;font-size:12px;color:rgba(255,255,255,.35)}
+.main{flex:1;min-width:0}
+header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+header .who{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub);display:flex;align-items:center;gap:8px}
+.content{padding:24px}
+.card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;margin-bottom:16px}
+.stat b{display:block;font-size:28px;margin-top:4px}.stat span{color:var(--sub);font-size:14px}
+input,select,button{font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+button{cursor:pointer}button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+button.danger{color:#ff4d4f;border-color:#ff4d4f}button:disabled{opacity:.5;cursor:not-allowed}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.toolbar .grow{flex:1}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);font-size:14px}
+th{background:#fafafa;font-weight:600;white-space:nowrap}
+.tablewrap{overflow-x:auto}.tablewrap table{min-width:900px}
+td.act{white-space:nowrap}td.act button,td.act select{margin-left:4px;padding:2px 10px;font-size:13px}
+.tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
+.empty{text-align:center;color:var(--sub);padding:32px}
+.notice{border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:14px}
+.notice.err{background:#fff2f0;border:1px solid #ffccc7}.notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
+.notice.warn{background:#fffbe6;border:1px solid #ffe58f}.notice[hidden]{display:none}
+.field{margin-bottom:14px}.field label{display:block;font-size:14px;margin-bottom:4px}
+.field label i{color:#ff4d4f;font-style:normal;margin-right:2px}.field input{width:100%}
+.hint{color:var(--sub);font-size:12px;margin-top:2px}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:14px}
+/* 로그인·회원가입 (사이드바 없는 단독 화면) */
+body.auth{display:block;background:linear-gradient(#001529,#003a8c);}
+.authbox{max-width:400px;margin:8vh auto;background:#fff;border-radius:8px;padding:32px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.authbox h1{margin:0 0 4px;font-size:22px}.authbox p.sub{margin:0 0 20px;color:var(--sub);font-size:14px}
+.authbox button.p{width:100%;padding:8px}.authbox .links{margin-top:14px;text-align:center;font-size:14px}
+.authbox a{color:var(--primary);text-decoration:none}
+@media(max-width:640px){aside{display:none}}

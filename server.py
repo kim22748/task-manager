@@ -2,9 +2,16 @@
 
 외부 라이브러리 없이 Python 표준 라이브러리만 사용합니다.
 
-실행:
-    python3 server.py            # http://localhost:8885
+실행 (Python 3.7 이상):
+    python3 server.py              # http://localhost:8885
     python3 server.py --port 9000
+    python3 server.py --reset-demo # data/ 의 과제·AI 과제·사용자를 demo-data.json 더미데이터로 되돌림
+
+로그인 (A01, auth_users.py):
+    아래 과제 API 는 모두 로그인이 필요합니다. 조회는 모든 역할, 등록·수정·삭제·첨부는
+    사이트관리자(admin)·과제책임자(owner)만, 서비스 게시(registered) 변경은 사이트관리자만 할 수 있습니다.
+    로그인·사용자 관리 API 는 auth_users.py 맨 위 설명을 보세요.
+    data/ 파일이 없으면 demo-data.json 의 더미데이터(과제 10건, AI 과제 10건, 사용자 10명)로 채웁니다.
 
 API:
     GET    /api/tasks          과제 목록
@@ -35,11 +42,13 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
+
+from auth_users import DEFAULT_SEED_PASSWORD, DEMO_FILE, AuthMixin, ValidationError, users_store
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "data" / "tasks.json"
@@ -94,15 +103,67 @@ def stamp(text):
     return {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "text": text}
 
 
+def demo_items():
+    """demo-data.json 의 과제·AI 과제를 오늘 날짜 기준으로 바꿔 돌려준다.
+
+    브라우저 쪽 demo-data.js 의 build() 와 같은 규칙이다 (한쪽을 고치면 다른 쪽도 고칠 것).
+    """
+    demo = json.loads(DEMO_FILE.read_text(encoding="utf-8"))
+    now = datetime.now().astimezone()
+
+    def day(n):
+        return now - timedelta(days=n)
+
+    def at(n, hour):
+        return day(n).replace(hour=hour, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
+
+    tasks = []
+    for i, d in enumerate(demo["tasks"]):
+        n, s, prog = d["daysAgo"], d["s"], d.get("progress", 0)
+        hist = [{"at": at(n, 10), "text": "과제 등록"}]
+        if s != "todo":
+            hist.append({"at": at(int(n * 0.8), 11), "text": "단계: 검토 → 진행"})
+        if prog:
+            hist.append({"at": at(int(n * 0.5), 14), "text": f"진행률: 0% → {prog}%"})
+        if s == "done":
+            hist.append({"at": at(int(n * 0.3), 16), "text": "단계: 진행 → 종료"})
+        task = {
+            "id": int(day(n).replace(hour=10, minute=0, second=0, microsecond=0).timestamp() * 1000) + i,
+            "title": d["title"], "s": s, "date": day(n).date().isoformat(),
+            "assignee": d.get("assignee", ""), "due": day(-d["dueInDays"]).date().isoformat() if "dueInDays" in d else "",
+            "priority": d.get("priority", "mid"), "memo": d.get("memo", ""), "progress": prog,
+        }
+        if d.get("registered"):
+            r = d.get("registeredDaysAgo", 0)
+            hist.append({"at": at(r, 17), "text": f"서비스 게시: 해제 → 게시 / 승인자: 없음 → {d['approver']} / 게시 사유: 없음 → {d['regReason']}"})
+            task.update(registered=True, approver=d["approver"], regReason=d["regReason"], registeredAt=day(r).date().isoformat())
+        task["history"] = hist
+        tasks.append(task)
+    tasks.sort(key=lambda t: t["id"], reverse=True)   # 최신 등록이 위로
+
+    ai = []
+    for i, d in enumerate(demo["aiProjects"]):
+        created = at(d["daysAgo"], 10)
+        fields = {k: d[k] for k in ("title", "purpose", "category", "stage", "ownerName", "ownerDept", "access")}
+        ai.append({"id": int(day(d["daysAgo"]).replace(hour=10, minute=0, second=0, microsecond=0).timestamp() * 1000) + i,
+                   **fields, "createdAt": created, "updatedAt": created})
+    ai.sort(key=lambda t: t["id"], reverse=True)
+    return tasks, ai
+
+
 class TaskStore:
     """JSON 파일 기반 과제 저장소. 쓰기는 임시 파일 → rename 으로 원자적으로 처리합니다."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, seed=None):
         self.path = path
         self.lock = threading.Lock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
-            self._write([])
+            self._write(seed or [])   # 처음 실행이면 더미데이터로 채움
+
+    def replace_all(self, items):
+        with self.lock:
+            self._write(items)
 
     def _read(self):
         try:
@@ -232,13 +293,8 @@ class TaskStore:
 class AIProjectStore:
     """AI 과제(등록 게시판) 저장소. TaskStore 와 같은 방식(임시 파일 → rename)으로 저장합니다."""
 
-    def __init__(self, path: Path):
-        self.path = path
-        self.lock = threading.Lock()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.path.exists():
-            self._write([])
-
+    __init__ = TaskStore.__init__
+    replace_all = TaskStore.replace_all
     _read = TaskStore._read
     _write = TaskStore._write
     _new_id = TaskStore._new_id
@@ -275,10 +331,6 @@ class AIProjectStore:
                 return False
             self._write(kept)
             return True
-
-
-class ValidationError(Exception):
-    pass
 
 
 def clean_title(value):
@@ -395,22 +447,34 @@ def clean_ai_project(body):
     }
 
 
-store = TaskStore(DATA_FILE)
-ai_store = AIProjectStore(AI_DATA_FILE)
+_demo_tasks, _demo_ai = demo_items()
+store = TaskStore(DATA_FILE, seed=_demo_tasks)
+ai_store = AIProjectStore(AI_DATA_FILE, seed=_demo_ai)
 
 
-class Handler(SimpleHTTPRequestHandler):
+def reset_demo():
+    """과제·AI 과제·사용자를 더미데이터로 되돌린다 (첨부 파일은 지움)."""
+    tasks, ai = demo_items()
+    store.replace_all(tasks)
+    ai_store.replace_all(ai)
+    users_store.reset_demo()
+    shutil.rmtree(FILES_DIR, ignore_errors=True)
+
+
+class Handler(AuthMixin, SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(BASE_DIR), **kwargs)
 
     # ---- 공통 ----
-    def _json(self, status, payload=None):
+    def _json(self, status, payload=None, cookie=None):
         body = b"" if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         if payload is not None:
             self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(body)
 
@@ -436,7 +500,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             fn()
         except ValidationError as e:
-            self._json(HTTPStatus.BAD_REQUEST, {"error": str(e)})
+            self._json(e.status, {"error": str(e)})
         except Exception as e:  # 서버 오류도 JSON 으로 돌려줌
             self.log_error("error: %r", e)
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "저장 중 서버 오류가 발생했습니다."})
@@ -507,18 +571,36 @@ class Handler(SimpleHTTPRequestHandler):
         (FILES_DIR / str(task_id) / file_id).unlink(missing_ok=True)
         self._json(HTTPStatus.NO_CONTENT)
 
-    # ---- 정적 파일: data/ 폴더는 직접 노출하지 않음 ----
+    # ---- 로그인·권한 검사를 거쳐 실행 ----
+    def _handle_read(self, fn):
+        """조회: 로그인한 사용자면 누구나."""
+        def run():
+            self._require()
+            fn()
+        self._handle(run)
+
+    def _handle_write(self, fn):
+        """등록·수정·삭제: 사이트관리자·과제책임자만 (Origin 검사 포함)."""
+        def run():
+            self._require_writer()
+            fn()
+        self._handle(run)
+
+    # ---- 정적 파일: data/ 폴더·서버 코드·숨김 파일은 직접 노출하지 않음 ----
     def do_GET(self):
         route = self._route()
+        if self.auth_get(route):
+            return
         m = FILE_ROUTE.match(route)
         if m:
             tid, fid = int(m.group(1)), m.group(2)
-            return self._handle(lambda: self._file_download(tid, fid) if fid else self._file_list(tid))
+            return self._handle_read(lambda: self._file_download(tid, fid) if fid else self._file_list(tid))
         if route == "/api/tasks":
-            return self._handle(lambda: self._json(HTTPStatus.OK, store.list()))
+            return self._handle_read(lambda: self._json(HTTPStatus.OK, store.list()))
         if route == "/api/ai-projects":
-            return self._handle(lambda: self._json(HTTPStatus.OK, ai_store.list()))
-        if route.startswith("/data") or route.endswith(".py"):
+            return self._handle_read(lambda: self._json(HTTPStatus.OK, ai_store.list()))
+        if (route.startswith("/api/") or route.startswith("/data") or route.endswith((".py", ".pyc"))
+                or "/." in route or "__pycache__" in route):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         return super().do_GET()
 
@@ -547,15 +629,17 @@ class Handler(SimpleHTTPRequestHandler):
             ]
             self._json(HTTPStatus.CREATED, store.import_many(cleaned))
 
+        if self.auth_post(route):
+            return
         m = FILE_ROUTE.match(route)
         if m and not m.group(2):
-            return self._handle(lambda: self._file_upload(int(m.group(1))))
+            return self._handle_write(lambda: self._file_upload(int(m.group(1))))
         if route == "/api/tasks":
-            return self._handle(create)
+            return self._handle_write(create)
         if route == "/api/ai-projects":
-            return self._handle(lambda: self._json(HTTPStatus.CREATED, ai_store.create(clean_ai_project(self._body()))))
+            return self._handle_write(lambda: self._json(HTTPStatus.CREATED, ai_store.create(clean_ai_project(self._body()))))
         if route == "/api/tasks/import":
-            return self._handle(import_many)
+            return self._handle_write(import_many)
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_PUT(self):
@@ -568,9 +652,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(HTTPStatus.NOT_FOUND, {"error": "AI 과제를 찾을 수 없습니다."})
             self._json(HTTPStatus.OK, item)
 
-        self._handle(update)
+        self._handle_write(update)
 
     def do_PATCH(self):
+        if self.auth_patch(self._route()):
+            return
         if not self._route().startswith("/api/tasks/"):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -583,6 +669,8 @@ class Handler(SimpleHTTPRequestHandler):
             if "s" in body:
                 fields["s"] = clean_status(body["s"])
             fields.update(clean_extra(body))
+            if "registered" in fields and self._user()["role"] != "admin":
+                raise ValidationError("서비스 게시·해제는 사이트관리자만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
             if fields.get("registered"):
                 cur = next((t for t in store.list() if t["id"] == task_id), None)
                 if cur is not None and fields.get("progress", cur.get("progress", 0)) != 100:
@@ -594,7 +682,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
             self._json(HTTPStatus.OK, task)
 
-        self._handle(update)
+        self._handle_write(update)
 
     def do_DELETE(self):
         route = self._route()
@@ -602,7 +690,7 @@ class Handler(SimpleHTTPRequestHandler):
         if m:
             if not m.group(2):
                 return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-            return self._handle(lambda: self._file_delete(int(m.group(1)), m.group(2)))
+            return self._handle_write(lambda: self._file_delete(int(m.group(1)), m.group(2)))
         if not (route.startswith("/api/tasks/") or route.startswith("/api/ai-projects/")):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         target = ai_store if route.startswith("/api/ai-projects/") else store
@@ -613,16 +701,21 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
 
-        self._handle(delete)
+        self._handle_write(delete)
 
 
 def main():
     parser = argparse.ArgumentParser(description="과제 관리 서버")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8885)
+    parser.add_argument("--reset-demo", action="store_true", help="과제·AI 과제·사용자를 demo-data.json 더미데이터로 되돌린 뒤 시작")
     args = parser.parse_args()
+    if args.reset_demo:
+        reset_demo()
+        print("더미데이터로 되돌렸습니다: 과제·AI 과제·사용자 (첨부 파일 삭제)")
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"과제 관리 서버: http://{args.host}:{args.port}  (저장 파일: {DATA_FILE})")
+    print(f"시연 계정: 100001(사이트관리자) / 100002(과제책임자) / 100003(과제참여자) — 비밀번호 {DEFAULT_SEED_PASSWORD}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
