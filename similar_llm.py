@@ -515,7 +515,12 @@ def validate_key(body):
     elif status == 401:
         hint = ""
         if provider == "anthropic" and not key.startswith("sk-ant-api"):
-            hint = f" 참고: 일반 API 키는 sk-ant-api… 로 시작하는데, 이 키는 다른 형식({'-'.join(key.split('-')[:3])}…)입니다."
+            # 키 앞부분만 보여 준다. '-'가 없는 키는 앞 세 덩어리가 키 전체가 되므로, 길이 상한(12자·키의 1/3)을 넘으면 앞 4자 이하만 쓴다
+            # (저장된 키는 화면으로 다시 내려보내지 않는다는 원칙: 끝 4자리 표시와 겹쳐 키가 드러나지 않게)
+            head = "-".join(key.split("-")[:3])
+            if len(head) > 12 or len(head) > len(key) // 3:
+                head = key[:min(4, len(key) // 4)]
+            hint = f" 참고: 일반 API 키는 sk-ant-api… 로 시작하는데, 이 키는 다른 형식({head}…)입니다."
         out.update(valid=False, reason="키가 유효하지 않습니다. 끝까지 빠짐없이 복사했는지, 콘솔에서 키 상태(Active)와 만료 시각을 확인하세요." + hint)
     elif status == 403:
         out.update(valid=False, reason="키는 인식되지만 이 요청을 허용하지 않습니다. 키의 권한(워크스페이스 등)을 확인하세요.")
