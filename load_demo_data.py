@@ -5,8 +5,9 @@
     python load_demo_data.py http://localhost:8885 100001 --all    (목 데이터 100건을 모두 넣기)
 
 - 비밀번호는 실행하면 물어본다. 입력해도 화면에 보이지 않고, 파일·명령줄에 남지 않는다.
-- 기본은 demo-similar-result.json 이 가리키는 과제 중 demo-mock-ai-projects.json 에 있는 50건만 넣는다.
-  (나머지 10건은 서버가 처음 만드는 시연 데이터 demo-data.json 에 이미 들어 있다.)
+- 기본은 demo-similar-result.json 이 가리키는 과제 중 demo-mock-ai-projects.json 에 있는 것만 넣는다.
+  지금의 시연 결과는 AI 과제 목록의 시연 데이터(demo-data.json) 100건을 묶은 것이라 기본 실행으로는 넣을 것이 거의 없다.
+  비교 과제를 늘려 보려면 --all 로 목 데이터 100건을 넣는다(시연 결과에 없어 '단독'으로 표시된다).
 - 이미 같은 명칭의 AI 과제가 있으면 건너뛰므로 여러 번 실행해도 중복되지 않는다.
 - 목 데이터는 실제 과제·인물이 아닌 가상 더미이며, API 키와 무관하다.
 """

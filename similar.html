@@ -342,7 +342,7 @@ function renderAI(){
   if(ok&&!aiRes&&S.method==='ai')info='버튼을 누르면 LLM이 과제를 읽고 비슷한 과제끼리 묶습니다.';
   if(ok&&aiRes){info='AI 결과: '+aiRes.at+' · 모델 '+(aiRes.model||'');if(aiRes.sig!==curSig())info+=' · AI 과제나 목적 체크가 바뀌었습니다. 다시 묶는 것을 권합니다.'}
   $('aiState').textContent=st;$('aiState').className='chip '+cls;$('aiInfo').textContent=info;
-  $('aiRun').disabled=aiBusy||!ok;$('aiRunLabel').textContent=aiBusy?'AI가 묶는 중… (최대 1~2분)':'AI로 유사과제 묶기';
+  $('aiRun').disabled=aiBusy||!ok;$('aiRunLabel').textContent=aiBusy?'AI가 묶는 중… (최대 2~3분)':'AI로 유사과제 묶기';
   $('aiKw').hidden=S.method!=='ai';$('aiShow').hidden=S.method!=='keyword';
   ['fTitle','thr','recalc'].forEach(id=>$(id).disabled=!!(R&&R.haveAI));   // 목적 체크는 AI에도 쓰이므로 막지 않음
   if(!window.__aiNoticeOrig)window.__aiNoticeOrig=$('aiNotice').innerHTML;

@@ -46,9 +46,9 @@ ANTHROPIC_VERSION = "2023-06-01"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 FALLBACK_MODELS = {"claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"}
 MAX_TOKENS = 16000      # 생각(thinking) 토큰도 여기에 포함되므로 넉넉히
-TIMEOUT_SEC = 180
+TIMEOUT_SEC = 300       # 100건을 한 번에 묶으면 응답이 길어지므로 넉넉히
 
-MAX_ITEMS = 50          # 한 번에 비교할 과제 수 (비용·시간 상한)
+MAX_ITEMS = 100         # 한 번에 비교할 과제 수 (비용·시간 상한). AI 과제 목록 100건을 한 번에 묶을 수 있게 함
 MAX_TITLE = 200
 MAX_MEMO = 1000        # 유사과제 탐색은 AI 과제의 목적(최대 2000자)을 memo 로 보내므로 늘림
 MIN_INTERVAL_SEC = 3.0  # 연속 호출 방지 (실수로 여러 번 눌러도 비용이 늘지 않게)
@@ -417,7 +417,7 @@ def _group_openai(c, user_text):
 def group_items(body):
     global _last_call
     demo = demo_result()
-    items = _clean_items(body, 1000 if demo else None)   # 시연 모드는 API 비용이 없어 건수 제한을 풀고, 실제 호출은 MAX_ITEMS(50건)를 지킨다
+    items = _clean_items(body, 1000 if demo else None)   # 시연 모드는 API 비용이 없어 건수 제한을 풀고, 실제 호출은 MAX_ITEMS(100건)를 지킨다
     if demo:   # 로컬 시연: API 를 부르지 않고, 저장해 둔 결과(Claude가 대화에서 직접 묶은 것)를 요청한 과제에 맞춰 돌려준다
         by_title = {i["title"]: i["id"] for i in items}   # 결과 파일이 제목(task_titles)으로 적혀 있으면 지금 과제의 번호로 바꾼다
         raw = {"groups": []}
