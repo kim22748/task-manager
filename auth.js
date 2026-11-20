@@ -5,7 +5,7 @@
  *      · 서버(server.py)로 열었고 로그아웃 상태 → login.html 로 이동 (로그인 후 원래 화면으로 돌아옴)
  *      · 서버가 없을 때(GitHub Pages, 파일 더블클릭) → '디자인 미리보기' 모드: 로그인 없이 사이트관리자 화면으로 보여 줌
  *  - 로그인되면 기존 사이드바에 '내 정보'(+ 사이트관리자에게만 '사용자 관리'·'사이트 설정') 메뉴를, 머리글에 이름·역할·로그아웃을 붙입니다.
- *  - 과제참여자(member)에게는 class="w-only" 요소(등록·수정·삭제 버튼 등)를 숨깁니다. 실제 차단은 서버가 합니다.
+ *  - 계정 구분은 사이트관리자(admin)·일반회원(user) 2종입니다. 과제책임자·과제참여자는 과제별 역할이라 각 화면이 과제 데이터로 판단합니다(실제 차단은 서버).
  *
  *  Auth.guard({admin})  : 로그인 확인 결과(user)를 돌려주는 Promise. admin:true 면 사이트관리자가 아닐 때 대시보드로 이동
  *  Auth.user            : { id, empNo, name, dept, email, role, preview? }
@@ -15,7 +15,7 @@
  *  Auth.ROLE / Auth.STATUS     : 표시 이름·색상
  */
 const Auth = (() => {
-  const ROLE = { admin: ['사이트관리자', '#722ed1'], owner: ['과제책임자', '#1677ff'], member: ['과제참여자', '#52c41a'] };
+  const ROLE = { admin: ['사이트관리자', '#722ed1'], user: ['일반회원', '#1677ff'] };
   const STATUS = { pending: ['승인 대기', '#fa8c16'], active: ['사용 중', '#52c41a'], inactive: ['비활성', '#8c8c8c'], rejected: ['반려', '#ff4d4f'] };
   const PREVIEW_USER = { id: 0, empNo: '000000', name: '미리보기', dept: '디자인 확인용', email: '', role: 'admin', status: 'active', preview: true, mustChangePw: false };
   const HOME = 'dashboard.html';
@@ -81,7 +81,6 @@ const Auth = (() => {
     .auth-who button,.auth-who a.btn{font:inherit;font-size:13px;height:auto;padding:2px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;color:inherit;cursor:pointer;text-decoration:none}
     .auth-who button:hover,.auth-who a.btn:hover{border-color:#1677ff;color:#1677ff}
     aside .auth-grp{padding:14px 24px 4px;font-size:12px;color:rgba(255,255,255,.35)}
-    html[data-role=member] .w-only{display:none!important}
     @media(max-width:640px){.auth-who .nm{display:none}}`;
 
   /** 기존 사이드바·머리글에 계정 정보를 붙인다 (화면마다 한 번) */
@@ -103,7 +102,7 @@ const Auth = (() => {
     if (header && !header.querySelector('.auth-who')) {
       header.insertAdjacentHTML('beforeend', preview
         ? `<span class="auth-who" title="서버 없이 열어 로그인 없이 보여 주는 화면입니다. 실제 로그인·저장은 server.py(8885)로 실행한 주소에서 확인하세요.">${tag(['디자인 미리보기', '#fa8c16'])}<a class="btn" href="login.html">로그인 화면</a></span>`
-        : `<span class="auth-who"><span class="nm">${esc(user.name)}</span>${tag(ROLE[user.role] || [user.role, '#8c8c8c'])}<button type="button" id="btnLogout">로그아웃</button></span>`);
+        : `<span class="auth-who"><span class="nm">${esc(user.name)}</span>${tag(ROLE[user.role] || ROLE.user)}<button type="button" id="btnLogout">로그아웃</button></span>`);
       const b = document.getElementById('btnLogout');
       if (b) b.onclick = logout;
     }

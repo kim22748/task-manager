@@ -833,6 +833,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
     def _file_upload(self, task_id):
         if store.get(task_id) is None:
             return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
+        self._check_task(task_id, ("admin", "owner", "member"), "첨부 파일은 이 과제의 과제책임자·과제참여자만 올릴 수 있습니다.")
         query = parse_qs(urlsplit(self.path).query)
         name = clean_filename((query.get("name") or [""])[0])
         # 세부사항(선택): 파일을 올리면서 적는 설명. 줄바꿈·탭을 뺀 제어문자는 지우고 500자까지.
@@ -890,6 +891,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             shutil.copyfileobj(f, self.wfile)
 
     def _file_delete(self, task_id, file_id):
+        self._check_task(task_id, ("admin", "owner", "member"), "첨부 파일은 이 과제의 과제책임자·과제참여자만 삭제할 수 있습니다.")
         if store.remove_file(task_id, file_id, by=self._actor()) is None:
             return self._json(HTTPStatus.NOT_FOUND, {"error": "파일을 찾을 수 없습니다."})
         (FILES_DIR / str(task_id) / file_id).unlink(missing_ok=True)
@@ -901,6 +903,31 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         u = self._user()
         return (u or {}).get("name") or None
 
+    # ---- 과제별 권한: 사이트관리자 / 과제책임자(과제를 등록한 사람) / 과제참여자(책임자가 초대한 사람) / 일반회원 ----
+    def _task_role(self, task):
+        me = self._user() or {}
+        if me.get("role") == "admin":
+            return "admin"
+        owner = (task.get("assignee") or "").strip()
+        if owner and owner == (me.get("name") or "").strip():
+            return "owner"
+        if any(p.get("empNo") == me.get("empNo") for p in task.get("participants") or []):
+            return "member"
+        return "general"
+
+    def _check_task(self, task_id, allow, message):
+        """과제가 있으면 이 사용자의 과제별 역할이 allow 안에 있어야 한다 (없는 과제는 뒤에서 404 로 답한다)."""
+        task = store.get(task_id)
+        if task is not None and self._task_role(task) not in allow:
+            raise ValidationError(message, HTTPStatus.FORBIDDEN)
+
+    def _check_ai_owner(self, item_id, message):
+        """AI 과제 수정·삭제: 사이트관리자와 그 과제의 과제책임자만."""
+        me = self._user() or {}
+        item = next((a for a in ai_store.list() if a.get("id") == item_id), None)
+        if item is not None and me.get("role") != "admin" and (item.get("ownerName") or "").strip() != (me.get("name") or "").strip():
+            raise ValidationError(message, HTTPStatus.FORBIDDEN)
+
     def _handle_read(self, fn):
         """조회: 로그인한 사용자면 누구나."""
         def run():
@@ -909,7 +936,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         self._handle(run)
 
     def _handle_write(self, fn):
-        """등록·수정·삭제: 사이트관리자·과제책임자만 (Origin 검사 포함)."""
+        """등록·수정·삭제: 로그인한 사용자 (Origin 검사 포함). 과제별 권한은 각 처리에서 확인한다."""
         def run():
             self._require_writer()
             fn()
@@ -1120,7 +1147,11 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._handle_write(create)
         if route == "/api/ai-projects":
             def create_ai():
-                item = ai_store.create(clean_ai_project(self._body()))
+                fields = clean_ai_project(self._body())
+                me = self._user()
+                if me["role"] != "admin":   # 일반회원이 등록하면 본인이 그 과제의 과제책임자
+                    fields["ownerName"] = me["name"]
+                item = ai_store.create(fields)
                 sync_tasks_with_projects()
                 self._json(HTTPStatus.CREATED, item)
             return self._handle_write(create_ai)
@@ -1143,6 +1174,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
         def update():
+            self._check_ai_owner(self._task_id(), "과제는 이 과제의 과제책임자와 사이트관리자만 수정할 수 있습니다.")
             item = ai_store.update(self._task_id(), clean_ai_project(self._body()))
             if item is not None:
                 sync_tasks_with_projects()
@@ -1161,6 +1193,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         def update():
             task_id = self._task_id()
             body = self._body()
+            # 과제 수정(진행률·메모·참여자 초대 포함)은 이 과제의 과제책임자와 사이트관리자만. 과제참여자는 첨부만 할 수 있다.
+            self._check_task(task_id, ("admin", "owner"), "과제는 이 과제의 과제책임자와 사이트관리자만 수정할 수 있습니다. (과제참여자는 첨부만 할 수 있습니다)")
             fields = {}
             if "title" in body:
                 fields["title"] = clean_title(body["title"])
@@ -1169,11 +1203,6 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             fields.update(clean_extra(body))
             if "participants" in body:
                 fields["participants"] = clean_participants(body["participants"])
-                # 과제참여자 초대·제외는 이 과제의 과제책임자와 사이트관리자만
-                me = self._user()
-                cur = next((t for t in store.list() if t["id"] == task_id), None)
-                if cur is not None and me["role"] != "admin" and (cur.get("assignee") or "").strip() != (me.get("name") or "").strip():
-                    raise ValidationError("과제참여자는 이 과제의 과제책임자만 초대할 수 있습니다.", HTTPStatus.FORBIDDEN)
             if "registered" in fields and self._user()["role"] != "admin":
                 raise ValidationError("서비스 게시·해제는 사이트관리자만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
             if fields.get("registered"):
@@ -1205,6 +1234,10 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         target = ai_store if route.startswith("/api/ai-projects/") else store
 
         def delete():
+            if target is ai_store:
+                self._check_ai_owner(self._task_id(), "과제는 이 과제의 과제책임자와 사이트관리자만 삭제할 수 있습니다.")
+            else:
+                self._check_task(self._task_id(), ("admin", "owner"), "과제는 이 과제의 과제책임자와 사이트관리자만 삭제할 수 있습니다.")
             gone = target.delete(self._task_id())
             if gone:
                 sync_tasks_with_projects()   # AI 과제를 지우면 진행 기록도, 진행 기록만 지우면 AI 과제 기준으로 다시 만든다
@@ -1228,7 +1261,7 @@ def main():
         print("더미데이터로 되돌렸습니다: 과제·AI 과제·사용자 (첨부 파일 삭제)")
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"과제 관리 서버: http://{args.host}:{args.port}  (저장 파일: {DATA_FILE})")
-    print(f"시연 계정: 100001(사이트관리자) / 100002(과제책임자) / 100007(과제참여자) — 비밀번호 {DEFAULT_SEED_PASSWORD}")
+    print(f"시연 계정: 100001 김하늘(사이트관리자) / 100002 이도윤·100007 오세훈(일반회원) — 비밀번호 {DEFAULT_SEED_PASSWORD}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -210,13 +210,14 @@ const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
 const me=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
 const isPart=t=>{const u=me();return !!u&&(t.participants||[]).some(p=>p.empNo===u.empNo)};
 const canView=t=>{const u=me();return !u||u.role==='admin'||(!!ai&&ai.access==='공개')||isMine(t)||isPart(t)};
-// 수정 권한: 서버 없는 미리보기는 모두 가능, 과제참여자는 쓰기 불가(서버도 막음), 사이트관리자는 모두, 과제책임자는 내 과제만
+// 수정 권한(서버도 같은 규칙으로 막음): 서버 없는 미리보기는 모두 가능, 사이트관리자는 모두, 과제책임자는 내 과제만.
+// 과제참여자는 첨부만 올리고 지울 수 있고(canAttach), 진행률·메모·과제 내용은 고칠 수 없다.
 const canEdit=t=>{
   if(!myName())return true;
   const role=Auth.user&&Auth.user.role;
-  if(role==='member')return false;
   return role==='admin'||isMine(t);
 };
+const canAttach=t=>canEdit(t)||isPart(t);
 
 // 어느 화면에서 왔는지(from)에 따라 돌아가기 링크와 사이드바 강조를 맞춘다
 const FROM={dashboard:['dashboard.html','대시보드'],overall:['overall.html','세부 진행 현황'],progress:['progress.html','내 과제 진행률']};
@@ -235,7 +236,7 @@ function applyFrom(){
 function ownerTag(t){
   if(!myName())return '';
   if(isMine(t))return `<span class="tag mine">내 과제</span><a class="btnlink" href="progress.html?task=${encodeURIComponent(t.id)}">내 과제 진행률에서 보기 →</a>`;
-  return `<span class="tag other">${esc(t.assignee||'과제책임자 없음')} 님의 과제${canEdit(t)?'':' · 조회 전용'}</span>`;
+  return `<span class="tag other">${esc(t.assignee||'과제책임자 없음')} 님의 과제${canEdit(t)?'':(isPart(t)?' · 과제참여자(첨부 가능)':' · 조회 전용')}</span>`;
 }
 
 // AI 과제 정보 카드: 세부 진행 현황에 등록된 내용 (목적·분류·단계·책임자·소속부서·공개 여부)
@@ -365,7 +366,7 @@ function renderBlocked(){
 
 function render(){
   if(!task){renderAIOnly();return}
-  const t=task,p=Math.min(100,Math.max(0,+t.progress||0)),edit=canEdit(t);
+  const t=task,p=Math.min(100,Math.max(0,+t.progress||0)),edit=canEdit(t),attach=canAttach(t);
   // 진행률 변경은 이 상세 페이지에서만 한다: '진행' 단계이고 아직 100%가 아니며 서비스 게시 전인 과제를 수정 권한이 있는 사람이
   const progEditable=edit&&t.s==='doing'&&!t.registered&&p<100;
   const req=FileStorage.checkRequired(files),okCnt=req.filter(r=>r.ok).length;
@@ -402,10 +403,10 @@ function render(){
     <div class="grid2">
       <div class="card">
         <h2>첨부 파일 <em>${files.length}개</em></h2>
-        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음).${edit?' 파일 1개당 20MB까지 올릴 수 있습니다.':' 다른 과제책임자의 과제라 내려받기만 할 수 있습니다.'}</p>
+        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음).${attach?' 파일 1개당 20MB까지 올릴 수 있습니다.':' 이 과제의 과제책임자·과제참여자가 아니라 내려받기만 할 수 있습니다.'}</p>
         <div class="req">${req.map(r=>`<div class="${r.ok?'ok':'no'}"><span>${esc(r.label)}</span>${r.ok?'<span class="tag ok">있음</span>':'<span class="tag no">없음</span>'}</div>`).join('')}</div>
         <div class="sub" style="margin:-8px 0 16px">필수 첨부 ${okCnt}/3${okCnt===3?' — 모두 갖춰졌습니다.':' — 빠진 파일이 있습니다.'}</div>
-        ${edit?`<div class="uploader">
+        ${attach?`<div class="uploader">
           <label for="upNote">세부 설명 <span class="sub" style="display:inline">(선택, 500자까지 — 함께 올리는 파일에 붙습니다)</span></label>
           <textarea id="upNote" maxlength="500" placeholder="올리는 파일에 대한 설명을 적어 주세요. 예: 무슨 파일인지, 버전, 참고할 점">${esc(pendingNote)}</textarea>
           <div class="drop" id="drop">파일을 여기로 끌어다 놓거나 <b id="pick">파일 선택</b></div>
@@ -415,7 +416,7 @@ function render(){
         ${sorted.length?`<div class="tablewrap"><table>
           <thead><tr><th>파일</th><th>종류</th><th style="text-align:right">크기</th><th>올린 시각</th><th></th></tr></thead>
           <tbody>${sorted.map(f=>`<tr><td>${esc(f.name)}${f.note?`<div class="fnote">${esc(f.note)}</div>`:''}</td><td>${f.kind==='기타'?'<span class="sub">기타</span>':esc(f.kind)}</td><td class="num">${size(f.size)}</td><td class="sub">${when(f.uploadedAt)}</td>
-            <td class="act"><button data-dl="${esc(f.id)}">내려받기</button>${edit?` <button class="del" data-rm="${esc(f.id)}">삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
+            <td class="act"><button data-dl="${esc(f.id)}">내려받기</button>${attach?` <button class="del" data-rm="${esc(f.id)}">삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
           :'<div class="empty">올라간 파일이 없습니다.</div>'}
       </div>
       <div class="card">
@@ -452,12 +453,12 @@ async function reload(){
 // 세부 설명은 함께 올리는 파일 모두에 붙는다 (파일마다 다르게 적으려면 나눠서 올린다).
 let pending=[],pendingNote='';
 function upload(list){
-  if(!list.length||busy||!canEdit(task))return;
+  if(!list.length||busy||!canAttach(task))return;
   pending=[...pending,...list];
   render();
 }
 async function doUpload(){
-  if(!pending.length||busy||!canEdit(task))return;
+  if(!pending.length||busy||!canAttach(task))return;
   const list=pending,note=pendingNote.trim();
   busy=true;showError('');$('upSave').disabled=true;
   const done=[],failed=[];
@@ -571,7 +572,7 @@ document.addEventListener('click',async e=>{
   if(d.unpick!==undefined){pending=pending.filter((_,i)=>i!==+d.unpick);render()}
   if(d.dl){try{await FileStorage.download(task.id,meta(d.dl))}catch(err){showError(err.message)}}
   if(d.rm){
-    const f=meta(d.rm);if(!f||!canEdit(task)||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
+    const f=meta(d.rm);if(!f||!canAttach(task)||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
     try{await FileStorage.remove(task.id,f);await reload();render();showOk('파일을 삭제했습니다.')}catch(err){showError('삭제하지 못했습니다: '+err.message)}
   }
 });

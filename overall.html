@@ -318,6 +318,7 @@ function openModal(){
   // 로그인한 사람을 과제책임자로 미리 채운다 → 등록하면 바로 '내 과제'가 된다
   const me=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
   $('ownerName').value=me?me.name:'';
+  $('ownerName').readOnly=!!me&&me.role!=='admin';   // 일반회원이 등록하면 본인이 과제책임자 (서버도 본인 이름으로 저장). 사이트관리자만 다른 사람을 지정할 수 있다
   $('ownerDept').value=me?me.dept||'':'';
   $('access').innerHTML=ACCESS.map(a=>`<label><input type="radio" name="access" value="${a}"${a===ACCESS[0]?' checked':''}>${a}</label>`).join('');
   clearInvalid();

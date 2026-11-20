@@ -23,7 +23,7 @@
   const u=await Auth.guard();
   if(u.mustChangePw) force.hidden=false;
   const row=(k,v)=>`<tr><th style="width:110px">${k}</th><td>${v}</td></tr>`;
-  info.innerHTML=`<table>${row('성명',Auth.esc(u.name))}${row('사번',Auth.esc(u.empNo))}${row('소속',Auth.esc(u.dept))}${row('이메일',Auth.esc(u.email)||'-')}${row('역할',Auth.tag(Auth.ROLE[u.role]))}</table>`;
+  info.innerHTML=`<table>${row('성명',Auth.esc(u.name))}${row('사번',Auth.esc(u.empNo))}${row('소속',Auth.esc(u.dept))}${row('이메일',Auth.esc(u.email)||'-')}${row('구분',Auth.tag(Auth.ROLE[u.role]||Auth.ROLE.user))}</table>`;
   form.onsubmit=async e=>{
     e.preventDefault(); err.hidden=ok.hidden=true;
     if(Auth.preview){ err.textContent='디자인 미리보기에서는 비밀번호를 바꿀 수 없습니다.'; err.hidden=false; return; }

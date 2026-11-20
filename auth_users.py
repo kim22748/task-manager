@@ -2,19 +2,20 @@
 
 server.py 가 이 모듈을 불러 씁니다. Python 3 표준 라이브러리만 사용합니다.
 
-역할(role):  admin = 사이트관리자 / owner = 과제책임자 / member = 과제참여자
+계정 구분(role):  admin = 사이트관리자 / user = 일반회원  (가입자는 사이트관리자를 빼고 모두 일반회원)
+과제책임자·과제참여자는 계정이 아니라 과제별 역할입니다: 과제를 등록한 사람이 그 과제의 과제책임자, 과제책임자가 초대한 사람이 과제참여자.
 상태(status): pending(승인 대기) / active(사용 중) / inactive(비활성) / rejected(반려)
 
 보안: 비밀번호 PBKDF2 해시 · HttpOnly 세션 · (IP,사번)별 5회 실패 잠금 · Origin 검사(CSRF) · 관리자 작업 기록(data/audit.log)
 
 API:
-    POST   /api/auth/signup     {"empNo"(6자리 숫자),"requestedRole"(owner|member),"name","dept","email"(@lh.or.kr),"password"}  → 승인 대기 계정 생성
+    POST   /api/auth/signup     {"empNo"(6자리 숫자),"name","dept","email"(@lh.or.kr),"password"}  → 승인 대기 계정 생성
     POST   /api/auth/login      {"empNo","password"}                         → 세션 쿠키 발급
     POST   /api/auth/logout
     GET    /api/auth/me                                                      → 현재 로그인 사용자
     POST   /api/auth/password   {"current","new"}                            → 내 비밀번호 변경
     GET    /api/users           (admin) 전체 사용자 목록
-    PATCH  /api/users/<id>      (admin) {"action": "approve|reject|setRole|deactivate|activate|resetPassword", "role"?}
+    PATCH  /api/users/<id>      (admin) {"action": "approve|reject|deactivate|activate|resetPassword"}
     GET    /api/audit           (admin) 최근 처리 이력 200건
     GET    /api/users/directory (로그인 사용자) 사용 중인 사용자의 id·이름·부서·역할
 """
@@ -37,8 +38,11 @@ BASE_DIR = Path(__file__).resolve().parent
 USERS_FILE = BASE_DIR / "data" / "users.json"
 AUDIT_FILE = BASE_DIR / "data" / "audit.log"
 DEMO_FILE = BASE_DIR / "demo-data.json"
-ROLES = ["admin", "owner", "member"]
-WRITER_ROLES = ("admin", "owner")   # 과제 등록·수정·삭제를 할 수 있는 역할 (과제참여자는 조회만)
+ROLES = ["admin", "user"]   # 사이트관리자 / 일반회원. 예전 데이터의 owner·member 는 읽을 때 user 로 바꾼다
+
+
+def account_role(role):
+    return "admin" if role == "admin" else "user"
 PBKDF2_ITER = 200_000
 SESSION_TTL = 8 * 3600
 MAX_FAILS, LOCK_SECONDS = 5, 300
@@ -106,8 +110,7 @@ def make_seed_users():
         created = (now - timedelta(days=d.get("daysAgo", 0))).isoformat(timespec="seconds")
         users.append({
             "id": i, "empNo": d["empNo"], "name": d["name"], "dept": d["dept"],
-            "email": f"user{d['empNo']}{EMAIL_DOMAIN}", "role": d["role"],
-            "requestedRole": d.get("requestedRole", "member"), "status": d["status"],
+            "email": f"user{d['empNo']}{EMAIL_DOMAIN}", "role": account_role(d["role"]), "status": d["status"],
             "salt": salt, "pwHash": h, "createdAt": created,
             "approvedAt": created if d["status"] in ("active", "inactive") else "", "lastLoginAt": "",
         })
@@ -131,7 +134,12 @@ class UserStore:
     def _read(self):
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
-            return data if isinstance(data, list) else []
+            data = data if isinstance(data, list) else []
+            for u in data:   # 예전 계정 역할(owner·member)은 일반회원(user)으로 읽는다
+                if isinstance(u, dict):
+                    u["role"] = account_role(u.get("role"))
+                    u.pop("requestedRole", None)
+            return data
         except (FileNotFoundError, json.JSONDecodeError):
             return []
 
@@ -187,7 +195,7 @@ sess_lock = threading.Lock()
 
 
 def public(u):
-    d = {k: u.get(k, "") for k in ("id", "empNo", "name", "dept", "email", "role", "requestedRole", "status", "createdAt", "approvedAt", "lastLoginAt")}
+    d = {k: u.get(k, "") for k in ("id", "empNo", "name", "dept", "email", "role", "status", "createdAt", "approvedAt", "lastLoginAt")}
     d["mustChangePw"] = bool(u.get("mustChangePw", False))
     return d
 
@@ -261,12 +269,10 @@ class AuthMixin:
         return u
 
     def _require_writer(self):
-        """과제 등록·수정·삭제: 사이트관리자·과제책임자만. 쓰기 요청이므로 Origin 도 검사한다."""
+        """쓰기 요청: 로그인한 사용자(일반회원 포함)면 통과하고 Origin 을 검사한다.
+        과제별 권한(과제책임자·과제참여자·사이트관리자)은 각 요청 처리에서 따로 확인한다."""
         self._check_origin()
-        u = self._require()
-        if u["role"] not in WRITER_ROLES:
-            raise ValidationError("과제참여자는 조회만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
-        return u
+        return self._require()
 
     def _cookie(self, token, max_age):
         return f"{COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
@@ -313,18 +319,16 @@ class AuthMixin:
         if not re.fullmatch(r"[A-Za-z0-9._%+-]+@lh\.or\.kr", email, re.IGNORECASE):
             raise ValidationError("이메일은 @lh.or.kr 주소만 사용할 수 있습니다.")
         email = email.lower()
-        req = b.get("requestedRole")
-        if req not in ("owner", "member"):  # 사이트관리자는 가입 신청으로 선택할 수 없다
-            raise ValidationError("역할은 과제책임자 또는 과제참여자 중에서 선택하세요.")
+        # 가입할 때 역할을 고르지 않는다: 가입자는 모두 일반회원(user). 사이트관리자는 가입으로 만들 수 없다.
         pw = b.get("password")
         check_password_rule(pw)
         salt, h = hash_password(pw)
         users_store.create({
             "empNo": emp, "name": need(b, "name", "성명", 50), "dept": need(b, "dept", "소속", 100), "email": email,
-            "role": "member", "requestedRole": req, "status": "pending", "salt": salt, "pwHash": h,
+            "role": "user", "status": "pending", "salt": salt, "pwHash": h,
             "createdAt": now_iso(), "approvedAt": "", "lastLoginAt": "",
         })
-        audit(emp, "signup", emp, f"신청 역할 {req}")
+        audit(emp, "signup", emp, "")
         self._json(HTTPStatus.CREATED, {"ok": True, "message": "가입 신청이 접수되었습니다. 사이트관리자 승인 후 로그인할 수 있습니다."})
 
     def _login(self):
@@ -398,37 +402,32 @@ class AuthMixin:
             uid = int(self._route().rsplit("/", 1)[1])
         except ValueError:
             raise ValidationError("사용자 ID가 올바르지 않습니다.")
-        action, role = b.get("action"), b.get("role")
-        if action not in ("approve", "reject", "setRole", "deactivate", "activate", "resetPassword"):
+        action = b.get("action")
+        if action not in ("approve", "reject", "deactivate", "activate", "resetPassword"):   # 역할 변경(setRole)은 없다: 계정은 사이트관리자/일반회원뿐
             raise ValidationError("지원하지 않는 작업입니다.")
-        if action in ("approve", "setRole") and role not in ROLES:
-            raise ValidationError("역할 값이 올바르지 않습니다.")
         target = users_store.find(id=uid)
         if not target:
             raise ValidationError("사용자를 찾을 수 없습니다.", HTTPStatus.NOT_FOUND)
         if action in ("approve", "reject") and target["status"] != "pending":
             raise ValidationError("승인 대기 상태의 사용자만 처리할 수 있습니다.")
-        if action in ("setRole", "deactivate", "resetPassword") and target["status"] in ("pending", "rejected"):
+        if action in ("deactivate", "resetPassword") and target["status"] in ("pending", "rejected"):
             raise ValidationError("승인된 사용자만 처리할 수 있습니다.")
         if action == "activate" and target["status"] != "inactive":
             raise ValidationError("비활성 상태의 사용자만 활성화할 수 있습니다.")
         out = {}
 
         def apply(u, users):
-            # 마지막 사이트관리자는 강등·비활성화할 수 없다 (본인 포함)
+            # 마지막 사이트관리자는 비활성화할 수 없다 (본인 포함)
             admins = [x for x in users if x["role"] == "admin" and x["status"] == "active"]
-            loses_admin = u["role"] == "admin" and u["status"] == "active" and (
-                action == "deactivate" or (action == "setRole" and role != "admin"))
+            loses_admin = u["role"] == "admin" and u["status"] == "active" and action == "deactivate"
             if loses_admin and len(admins) <= 1:
                 raise ValidationError("마지막 사이트관리자는 변경할 수 없습니다.")
             if u["id"] == me["id"] and action == "deactivate":
                 raise ValidationError("본인 계정은 비활성화할 수 없습니다.")
             if action == "approve":
-                u.update(status="active", role=role, approvedAt=now_iso())
+                u.update(status="active", approvedAt=now_iso())   # 승인하면 일반회원으로 사용 시작
             elif action == "reject":
                 u["status"] = "rejected"
-            elif action == "setRole":
-                u["role"] = role
             elif action == "deactivate":
                 u["status"] = "inactive"
             elif action == "activate":
@@ -439,8 +438,8 @@ class AuthMixin:
                 u["mustChangePw"] = True   # 첫 로그인 때 새 비밀번호로 바꿔야 다른 기능을 쓸 수 있다
                 out["tempPassword"] = tmp
         res = users_store.update(uid, apply)
-        audit(me["empNo"], action, target["empNo"], f"역할 {role}" if action in ("approve", "setRole") else "")
-        if action in ("deactivate", "setRole", "resetPassword"):
+        audit(me["empNo"], action, target["empNo"], "")
+        if action in ("deactivate", "resetPassword"):
             with sess_lock:  # 상태·권한이 바뀐 사용자는 기존 세션을 끊는다
                 for t in [t for t, s in sessions.items() if s["uid"] == uid and uid != me["id"]]:
                     sessions.pop(t)

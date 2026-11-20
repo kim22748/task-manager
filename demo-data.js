@@ -53,8 +53,7 @@ const DemoData = (() => {
 
     // 화면 표시용 사용자 (비밀번호 없음) — 서버의 /api/users 응답과 같은 모양
     const users = demo.users.map((d, i) => ({
-      id: i + 1, empNo: d.empNo, name: d.name, dept: d.dept, email: `user${d.empNo}@lh.or.kr`, role: d.role,
-      requestedRole: d.requestedRole || 'member', status: d.status, createdAt: at(d.daysAgo || 0, 10),
+      id: i + 1, empNo: d.empNo, name: d.name, dept: d.dept, email: `user${d.empNo}@lh.or.kr`, role: d.role === 'admin' ? 'admin' : 'user', status: d.status, createdAt: at(d.daysAgo || 0, 10),
       approvedAt: ['active', 'inactive'].includes(d.status) ? at(d.daysAgo || 0, 10) : '', lastLoginAt: '', mustChangePw: false,
     }));
 
