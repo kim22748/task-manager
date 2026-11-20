@@ -275,7 +275,6 @@ function renderAIOnly(){
 }
 
 // ---------- 과제참여자 선택 (사이트관리자 · 이 과제의 과제책임자) ----------
-const ROLE_LABEL={admin:'사이트관리자',owner:'과제책임자',member:'과제참여자'};
 let allUsers=[],picked=new Set();
 // 지정할 수 있는 사람: 사용 중인 사용자 (서버: /api/users/directory, 서버 없는 화면: 더미데이터의 사용자)
 async function loadUsers(){
@@ -291,7 +290,7 @@ function renderPartList(){
   const q=$('pSearch').value.trim().toLowerCase();
   const list=allUsers.filter(u=>!q||[u.name,u.dept,u.empNo].some(v=>String(v||'').toLowerCase().includes(q)));
   $('pList').innerHTML=list.length?list.map(u=>`<label class="prow"><input type="checkbox" data-emp="${esc(u.empNo)}"${picked.has(u.empNo)?' checked':''}>
-      <span><b>${esc(u.name)}</b> <span class="sub" style="display:inline">${esc(u.dept||'')} · ${esc(ROLE_LABEL[u.role]||u.role||'')} · 사번 ${esc(u.empNo)}</span></span></label>`).join('')
+      <span><b>${esc(u.name)}</b> <span class="sub" style="display:inline">${esc(u.dept||'')} · 사번 ${esc(u.empNo)}</span></span></label>`).join('')
     :'<div class="empty">조건에 맞는 사용자가 없습니다.</div>';
   $('pCount').textContent=`선택 ${picked.size}명`;
 }
