@@ -105,7 +105,7 @@
     <div class="notice ok" id="ok" hidden></div>
     <div class="card">
       <h2>과제별 진행 현황 <em id="cnt"></em></h2>
-      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 다른 담당자의 과제는 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있고, <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
+      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 다른 과제책임자의 과제는 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있고, <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
       <div class="toolbar">
         <select id="fCategory" title="분류"></select>
         <select id="fStage" title="AI 과제 단계"></select>
@@ -182,7 +182,7 @@ const showError=msg=>{const el=$('err');el.textContent=msg||'';el.hidden=!msg;if
 let okTimer;const showOk=msg=>{$('ok').textContent=msg;$('ok').hidden=false;$('err').hidden=true;clearTimeout(okTimer);okTimer=setTimeout(()=>$('ok').hidden=true,4000)};
 const serverOnly=what=>{showError(`${what} 기능은 서버(server.py)로 실행한 주소에서 사이트관리자로 로그인해야 쓸 수 있습니다.`)};
 const opts=(list,sel)=>list.map(v=>`<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`).join('');
-// 로그인한 사람의 과제인가 (담당자 이름이 같을 때). 서버 없는 미리보기에서는 모두 '다른 사람 과제'로 보고 상세 페이지로 보낸다.
+// 로그인한 사람의 과제인가 (과제책임자 이름이 같을 때). 서버 없는 미리보기에서는 모두 '다른 사람 과제'로 보고 상세 페이지로 보낸다.
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
 // 과제 한 건의 진행 상태: 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
@@ -215,7 +215,7 @@ const state={status:'',q:''};
 // 대시보드 카드에서 넘어온 상태 (예: overall.html?status=게시 대기)
 {const qs=new URLSearchParams(location.search).get('status');if(STATES.some(([s])=>s===qs))state.status=qs}
 
-// 과제 진행 ↔ AI 과제 연결: projectId, 없으면 같은 명칭 + 담당자(=과제책임자)
+// 과제 진행 ↔ AI 과제 연결: projectId, 없으면 같은 명칭 + 과제책임자(=과제책임자)
 const sameKey=s=>String(s||'').trim();
 const aiOf=t=>aiItems.find(p=>t.projectId!=null&&p.id===t.projectId)||aiItems.find(p=>sameKey(p.title)===sameKey(t.title)&&sameKey(p.ownerName)===sameKey(t.assignee))||null;
 
@@ -250,7 +250,7 @@ function render(){
   $('cnt').textContent=rows.length===n?`전체 ${n}건`:`${rows.length}건 / 전체 ${n}건`;
   const ids=new Set(tasks.map(t=>String(t.id)));selected.forEach(id=>{if(!ids.has(id))selected.delete(id)});
   $('rows').innerHTML=rows.length?rows.map(({t,a})=>{
-    // 내 과제는 '내 과제 진행률'(진행률 관리)로, 다른 담당자의 과제는 조회용 과제 상세 페이지로 이동
+    // 내 과제는 '내 과제 진행률'(진행률 관리)로, 다른 과제책임자의 과제는 조회용 과제 상세 페이지로 이동
     const mineTask=isMine(t),s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,
       href=mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`,on=selected.has(String(t.id));
     return `<tr${on?' class="sel"':''}>

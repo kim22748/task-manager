@@ -96,7 +96,7 @@
   <header>내 과제 진행률<small id="mode"></small></header>
   <div class="content">
     <div class="card who">
-      <label for="who">담당자</label>
+      <label for="who">과제책임자</label>
       <select id="who" title="누구의 내 과제 진행률을 볼지 고릅니다"></select>
       <span class="sub" id="whoInfo"></span>
     </div>
@@ -129,7 +129,7 @@
       <h2>① 진행 중 과제 <em id="cntA"></em></h2>
       <p class="desc">진행률은 여기서 <b>표시만</b> 됩니다. 바꾸려면 과제명이나 '상세'를 눌러 <b>과제 상세</b>에서 변경하세요. 변경 내용은 과제의 변경 이력에 기록됩니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>마감일</th><th>진행률</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>과제책임자</th><th>마감일</th><th>진행률</th><th></th></tr></thead>
         <tbody id="rowsA"></tbody>
       </table></div>
       <div class="sub" id="reviewNote" style="margin-top:8px"></div>
@@ -140,7 +140,7 @@
       <p class="desc">진행률 100%를 달성했지만 아직 서비스 게시되지 않은 과제입니다.</p>
       <div class="bulk"><button class="g" id="bulkReg" disabled>선택 과제 서비스 게시</button><span class="sub" id="selInfo"></span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th style="width:32px"><input type="checkbox" id="chkAll" title="전체 선택"></th><th>과제</th><th>담당자</th><th>단계</th><th>마감일</th><th></th></tr></thead>
+        <thead><tr><th style="width:32px"><input type="checkbox" id="chkAll" title="전체 선택"></th><th>과제</th><th>과제책임자</th><th>단계</th><th>마감일</th><th></th></tr></thead>
         <tbody id="rowsB"></tbody>
       </table></div>
     </div>
@@ -149,7 +149,7 @@
       <h2>③ 서비스 게시 완료 <em id="cntC"></em></h2>
       <p class="desc">서비스 게시된 과제입니다. 과제명이나 '상세'를 누르면 올라간 파일과 상세 현황을 볼 수 있습니다. 잘못 게시했다면 '게시 해제'로 되돌릴 수 있습니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th>첨부</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>과제책임자</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th>첨부</th><th></th></tr></thead>
         <tbody id="rowsC"></tbody>
       </table></div>
     </div>
@@ -191,11 +191,11 @@ let tasks=[],selected=new Set(),fileMap={},aiItems=[];
 const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
 const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
 async function loadFiles(){try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}}
-// 누구의 과제를 볼지: '' = 전체. 로그인했으면 처음엔 내 이름(담당자)의 과제를 보여 준다.
+// 누구의 과제를 볼지: '' = 전체. 로그인했으면 처음엔 내 이름(과제책임자)의 과제를 보여 준다.
 let who='';
 const WHO_KEY='progress-who';
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
-// 선택 상자의 사람 목록: 과제 담당자 + AI 과제 책임자
+// 선택 상자의 사람 목록: 과제 과제책임자 + AI 과제 책임자
 const assignees=()=>[...new Set([...tasks.map(t=>(t.assignee||'').trim()),...aiItems.map(p=>(p.ownerName||'').trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
 const mine=t=>!who||(t.assignee||'').trim()===who;
 // 세부 진행 현황에도 같은 명칭·같은 책임자로 등록된 과제인지 (진행률 과제와 AI 과제의 연결 기준)
@@ -209,7 +209,7 @@ function pickWho(){
   const me=myName();let saved='';
   try{saved=localStorage.getItem(WHO_KEY)||''}catch(e){}
   who=me||(assignees().includes(saved)?saved:'');
-  // 넘어온 과제가 지금 보는 사람의 것이 아니면, 그 과제의 담당자로 바꿔서 보여 준다
+  // 넘어온 과제가 지금 보는 사람의 것이 아니면, 그 과제의 과제책임자로 바꿔서 보여 준다
   const ft=focusId&&tasks.find(t=>String(t.id)===focusId);
   if(ft&&!mine(ft))who=(ft.assignee||'').trim();
 }

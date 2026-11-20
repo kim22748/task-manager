@@ -210,11 +210,11 @@ function render(tasks){
 
   <div class="row row3b">
     <div class="card"><h2>주의 필요<em>마감 지연·임박 ${attention.length}건</em><a href="overall.html">더 보기 →</a></h2>
-      ${attention.length?`<ul>${attention.slice(0,4).map(x=>`<li><span><a class="tlink t" href="${detail(x.t)}">${esc(x.t.title)}</a><span class="sub">${esc(x.t.assignee||'담당자 없음')} · 마감 ${esc(x.t.due)}</span></span>${dueTag(x)}</li>`).join('')}</ul>`:'<div class="empty">마감이 지났거나 임박한 과제가 없습니다.</div>'}
+      ${attention.length?`<ul>${attention.slice(0,4).map(x=>`<li><span><a class="tlink t" href="${detail(x.t)}">${esc(x.t.title)}</a><span class="sub">${esc(x.t.assignee||'과제책임자 없음')} · 마감 ${esc(x.t.due)}</span></span>${dueTag(x)}</li>`).join('')}</ul>`:'<div class="empty">마감이 지났거나 임박한 과제가 없습니다.</div>'}
     </div>
     <div class="card"><h2>서비스 게시 완료<em>${published.length}건</em><a href="progress.html">내 과제 진행률 →</a></h2>
       ${published.length?`<ul>${published.slice(0,4).map(t=>{const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length;
-        return `<li><span><a class="tlink t" href="${detail(t)}">${esc(t.title)}</a><span class="sub">${esc(t.assignee||'담당자 없음')} · 게시 ${esc(t.registeredAt||'-')}</span></span><span class="tag ${req===3?'att-ok':'att-no'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3</span></li>`}).join('')}</ul>`
+        return `<li><span><a class="tlink t" href="${detail(t)}">${esc(t.title)}</a><span class="sub">${esc(t.assignee||'과제책임자 없음')} · 게시 ${esc(t.registeredAt||'-')}</span></span><span class="tag ${req===3?'att-ok':'att-no'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3</span></li>`}).join('')}</ul>`
         :'<div class="empty">서비스 게시된 과제가 아직 없습니다.</div>'}
     </div>
     <div class="card"><h2>최근 변경 이력</h2>

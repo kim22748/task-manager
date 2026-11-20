@@ -47,7 +47,7 @@ const AIStorage = (() => {
       } else if (t.title !== p.title || t.assignee !== p.ownerName) {
         const parts = [];
         if (t.title !== p.title) parts.push(`과제명: ${t.title} → ${p.title}`);
-        if (t.assignee !== p.ownerName) parts.push(`담당자: ${t.assignee || '없음'} → ${p.ownerName || '없음'}`);
+        if (t.assignee !== p.ownerName) parts.push(`과제책임자: ${t.assignee || '없음'} → ${p.ownerName || '없음'}`);
         t.title = p.title; t.assignee = p.ownerName || '';
         t.history = [...(t.history || []), { at: now, text: parts.join(' / ') + ' (AI 과제 수정에 따라)' }].slice(-100);
       }

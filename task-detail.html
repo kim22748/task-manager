@@ -134,7 +134,7 @@
 <dialog id="partDlg">
   <form id="partForm" method="dialog" novalidate>
     <h3>과제참여자 선택</h3>
-    <div class="sub">이 과제에 참여하는 사람을 고르세요. 과제책임자(담당자)는 목록에서 빠져 있습니다.</div>
+    <div class="sub">이 과제에 참여하는 사람을 고르세요. 과제책임자는 목록에서 빠져 있습니다.</div>
     <input type="text" id="pSearch" placeholder="이름·부서·사번 검색" style="margin-top:12px">
     <div class="plist" id="pList"></div>
     <div class="sub" id="pCount" style="margin-top:8px"></div>
@@ -202,7 +202,7 @@ function statusTag(t){
   return `<span class="tag st">${STAGE[t.s]||esc(t.s)}</span>`;
 }
 
-// 누가 본 화면인가: 내 과제인지 / 다른 담당자의 과제인지 (로그인했을 때만 구분. 서버 없는 미리보기에서는 모두 수정 가능)
+// 누가 본 화면인가: 내 과제인지 / 다른 과제책임자의 과제인지 (로그인했을 때만 구분. 서버 없는 미리보기에서는 모두 수정 가능)
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
 // 수정 권한: 서버 없는 미리보기는 모두 가능, 과제참여자는 쓰기 불가(서버도 막음), 사이트관리자는 모두, 과제책임자는 내 과제만
@@ -230,7 +230,7 @@ function applyFrom(){
 function ownerTag(t){
   if(!myName())return '';
   if(isMine(t))return `<span class="tag mine">내 과제</span><a class="btnlink" href="progress.html?task=${encodeURIComponent(t.id)}">내 과제 진행률에서 보기 →</a>`;
-  return `<span class="tag other">${esc(t.assignee||'담당자 없음')} 님의 과제${canEdit(t)?'':' · 조회 전용'}</span>`;
+  return `<span class="tag other">${esc(t.assignee||'과제책임자 없음')} 님의 과제${canEdit(t)?'':' · 조회 전용'}</span>`;
 }
 
 // AI 과제 정보 카드: 세부 진행 현황에 등록된 내용 (목적·분류·단계·책임자·소속부서·접근권한)
@@ -264,7 +264,7 @@ function renderAIOnly(){
         ${myName()?(mineAI?'<span class="tag mine">내 AI 과제</span>':`<span class="tag other">${esc(a.ownerName)} 님의 AI 과제</span>`):''}</div>
     </div>
     ${aiCard(a)}
-    <div class="card empty" style="text-align:left">이 AI 과제와 연결된 <b>진행률 과제</b>가 없습니다(같은 명칭·같은 담당자 기준). 첨부 파일과 변경 이력은 진행률 과제에 쌓이므로 여기에는 표시되지 않습니다.
+    <div class="card empty" style="text-align:left">이 AI 과제와 연결된 <b>진행률 과제</b>가 없습니다(같은 명칭·같은 과제책임자 기준). 첨부 파일과 변경 이력은 진행률 과제에 쌓이므로 여기에는 표시되지 않습니다.
       <a class="tlink" href="progress.html">내 과제 진행률</a>에서 확인하세요.</div>
   </div>`;
 }
@@ -362,7 +362,7 @@ function render(){
       <div class="title"><h2>${esc(t.title)}</h2>${statusTag(t)}${ownerTag(t)}
         ${edit?`<span class="actions"><button type="button" id="btnEdit">수정</button><button type="button" class="del" id="btnDelete">삭제</button></span>`:''}</div>
       <dl>
-        <div><dt>담당자</dt><dd>${esc(t.assignee)||'-'}</dd></div>
+        <div><dt>과제책임자</dt><dd>${esc(t.assignee)||'-'}</dd></div>
         <div><dt>단계</dt><dd>${STAGE[t.s]||esc(t.s)||'-'}</dd></div>
         <div><dt>진행률</dt><dd><div class="pbar"><div><i style="width:${p}%"></i></div><b>${p}%</b></div></dd></div>
         <div><dt>우선순위</dt><dd>${PRI[t.priority]||'-'}</dd></div>
@@ -386,7 +386,7 @@ function render(){
     <div class="grid2">
       <div class="card">
         <h2>첨부 파일 <em>${files.length}개</em></h2>
-        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음).${edit?' 파일 1개당 20MB까지 올릴 수 있습니다.':' 다른 담당자의 과제라 내려받기만 할 수 있습니다.'}</p>
+        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음).${edit?' 파일 1개당 20MB까지 올릴 수 있습니다.':' 다른 과제책임자의 과제라 내려받기만 할 수 있습니다.'}</p>
         <div class="req">${req.map(r=>`<div class="${r.ok?'ok':'no'}"><span>${esc(r.label)}</span>${r.ok?'<span class="tag ok">있음</span>':'<span class="tag no">없음</span>'}</div>`).join('')}</div>
         <div class="sub" style="margin:-8px 0 16px">필수 첨부 ${okCnt}/3${okCnt===3?' — 모두 갖춰졌습니다.':' — 빠진 파일이 있습니다.'}</div>
         ${edit?`<div class="uploader">
@@ -418,7 +418,7 @@ function render(){
   }
 }
 
-// 과제(진행률)와 AI 과제는 '같은 명칭 + 같은 담당자(책임자) 이름'으로 연결된다
+// 과제(진행률)와 AI 과제는 '같은 명칭 + 같은 과제책임자(책임자) 이름'으로 연결된다
 async function reload(){
   const tasks=await TaskStorage.list();
   try{aiItems=await AIStorage.list()}catch(e){aiItems=[]}
@@ -468,7 +468,7 @@ async function openEdit(){
   const t=task,a=ai;
   if(!t||!canEdit(t))return;
   $('aiFields').hidden=!a;
-  $('editNote').textContent=a?'과제책임자 이름을 바꾸면 이 과제의 담당자도 함께 바뀝니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
+  $('editNote').textContent=a?'과제책임자 이름을 바꾸면 '내 과제' 표시와 수정 권한도 그 사람 기준으로 바뀝니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
   if(a){
     $('eTitle').value=a.title||'';$('ePurpose').value=a.purpose||'';
     const cats=await loadCategories(a.category);

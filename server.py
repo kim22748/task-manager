@@ -108,7 +108,7 @@ TRACKED = [
     ("registered", "서비스 게시", lambda v: "게시" if v else "해제"),
     ("approver", "승인자", lambda v: v or "없음"),
     ("regReason", "게시 사유", lambda v: v or "없음"),
-    ("assignee", "담당자", lambda v: v or "없음"),
+    ("assignee", "과제책임자", lambda v: v or "없음"),
     ("due", "마감일", lambda v: v or "없음"),
     ("priority", "우선순위", lambda v: PRIORITY_LABEL.get(v, v)),
     ("title", "과제명", lambda v: v),
@@ -485,7 +485,7 @@ def clean_extra(body):
     if "assignee" in body:
         v = body["assignee"]
         if not isinstance(v, str) or len(v.strip()) > 50:
-            raise ValidationError("담당자는 50자 이하로 입력하세요.")
+            raise ValidationError("과제책임자는 50자 이하로 입력하세요.")
         out["assignee"] = v.strip()
     if "memo" in body:
         v = body["memo"]
