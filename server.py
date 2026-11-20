@@ -81,7 +81,10 @@ AI_CATEGORIES = ["개발", "법률", "노사", "IT"]   # 처음 실행할 때의
 CAT_FILE = BASE_DIR / "data" / "categories.json"
 MAX_CATEGORY = 20
 AI_STAGES = ["기획중", "개발중", "승인요청", "승인검토중", "활용중", "활용종료"]
-AI_ACCESS = ["전사", "소속부서", "사용자별 지정"]
+AI_ACCESS = ["공개", "비공개"]   # 공개: 로그인한 모든 사용자가 세부사항을 봄 / 비공개: 과제책임자·과제참여자만
+# 예전 접근권한범위 3종 → 공개/비공개 (예전 데이터·엑셀도 받아 준다)
+AI_ACCESS_OLD = {"전사": "공개", "소속부서": "비공개", "사용자별 지정": "비공개"}
+norm_access = lambda v: AI_ACCESS_OLD.get(v, v)
 # 엑셀 열: (항목, 머리글, 같은 뜻으로 받아 주는 머리글들, 열 너비)
 AI_COLUMNS = [
     ("title", "명칭", ("과제명", "AI 과제명"), 30),
@@ -90,7 +93,7 @@ AI_COLUMNS = [
     ("stage", "단계", (), 12),
     ("ownerName", "과제책임자", ("과제책임자 이름", "책임자"), 14),
     ("ownerDept", "소속부서", ("과제책임자 소속부서", "부서"), 16),
-    ("access", "접근권한범위", ("접근권한",), 14),
+    ("access", "공개 여부", ("접근권한범위", "접근권한", "공개여부"), 14),
 ]
 MAX_XLSX = 5 * 1024 * 1024   # 올리는 엑셀 파일 최대 크기
 MAX_IMPORT_ROWS = 1000
@@ -194,6 +197,7 @@ def demo_items():
     for i, d in enumerate(demo["aiProjects"]):
         created = at(d["daysAgo"], 10)
         fields = {k: d[k] for k in ("title", "purpose", "category", "stage", "ownerName", "ownerDept", "access")}
+        fields["access"] = norm_access(fields["access"])
         ai.append({"id": int(day(d["daysAgo"]).replace(hour=10, minute=0, second=0, microsecond=0).timestamp() * 1000) + i,
                    **fields, "createdAt": created, "updatedAt": created})
     ai.sort(key=lambda t: t["id"], reverse=True)
@@ -555,6 +559,8 @@ def clean_ai_project(body):
 
     def choice(key, label, allowed):
         v = body.get(key)
+        if key == "access":
+            v = norm_access(v)
         if v not in allowed:
             raise ValidationError(f"{label} 값이 올바르지 않습니다.")
         return v
@@ -566,13 +572,27 @@ def clean_ai_project(body):
         "stage": choice("stage", "단계", AI_STAGES),
         "ownerName": text("ownerName", "과제책임자 이름", 50),
         "ownerDept": text("ownerDept", "과제책임자 소속부서", 100),
-        "access": choice("access", "접근권한범위", AI_ACCESS),
+        "access": choice("access", "공개 여부", AI_ACCESS),
     }
 
 
 _demo_tasks, _demo_ai = demo_items()
 store = TaskStore(DATA_FILE, seed=_demo_tasks)
 ai_store = AIProjectStore(AI_DATA_FILE, seed=_demo_ai)
+
+
+def migrate_access():
+    """예전 접근권한범위(전사/소속부서/사용자별 지정)로 저장된 AI 과제를 공개/비공개로 바꿔 둔다."""
+    items = ai_store.list()
+    old = [it for it in items if it.get("access") in AI_ACCESS_OLD]
+    for it in old:
+        it["access"] = norm_access(it["access"])
+    if old:
+        ai_store.replace_all(items)
+    return len(old)
+
+
+migrate_access()
 
 
 class CategoryStore:

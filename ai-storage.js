@@ -104,7 +104,10 @@ const AIStorage = (() => {
     },
 
     async list() {
-      return mode === 'server' ? request('GET', API) : readLocal();
+      const items = await (mode === 'server' ? request('GET', API) : readLocal());
+      // 예전 접근권한범위 3종 → 공개/비공개
+      const OLD = { '전사': '공개', '소속부서': '비공개', '사용자별 지정': '비공개' };
+      return items.map(p => OLD[p.access] ? { ...p, access: OLD[p.access] } : p);
     },
 
     /** fields: { title, purpose, category, stage, ownerName, ownerDept, access } */
