@@ -56,6 +56,14 @@
   .due-over{background:var(--danger)}.due-soon{background:var(--wait)}.due-ok{background:#8c8c8c}
   .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
   .tag.mine{background:#e6f4ff;color:#0958d9;border:1px solid #91caff;line-height:20px}
+  .tag.part{background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f;line-height:20px}
+  a.tlink.locked{color:var(--text);font-weight:400}
+  a.btnlink.locked{border-color:#d9d9d9;color:var(--sub)}
+  a.btnlink.locked:hover{background:#fafafa}
+  dialog{border:0;border-radius:8px;padding:24px;width:min(440px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  dialog h3{margin:0 0 12px;font-size:16px}
+  dialog p{margin:0 0 10px;font-size:14px;line-height:1.6}
   a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
   a.tlink:hover{text-decoration:underline}
   a.btnlink{display:inline-block;padding:4px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:13px}
@@ -105,7 +113,7 @@
     <div class="notice ok" id="ok" hidden></div>
     <div class="card">
       <h2>과제별 진행 현황 <em id="cnt"></em></h2>
-      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 다른 과제책임자의 과제는 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있고, <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
+      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)는 내가 <b>과제책임자</b>이거나 <b>과제참여자</b>인 과제만 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
       <div class="toolbar">
         <select id="fCategory" title="분류"></select>
         <select id="fStage" title="AI 과제 단계"></select>
@@ -126,6 +134,15 @@
     </div>
   </div>
 </div>
+
+<!-- 세부사항을 볼 수 없는 과제를 눌렀을 때의 알림창 -->
+<dialog id="lockDlg">
+  <h3>세부사항을 볼 수 없는 과제입니다</h3>
+  <p><b id="lockTitle"></b></p>
+  <p>이 과제의 세부사항은 <b>과제책임자</b>와 <b>과제참여자</b>만 볼 수 있습니다.</p>
+  <p>세부사항을 보고 싶으면 과제책임자 <b id="lockOwner"></b>에게 연락해 과제참여자로 지정해 달라고 요청하세요.</p>
+  <div class="foot"><button type="button" class="p" id="lockOk">확인</button></div>
+</dialog>
 
 <!-- 신규작성 -->
 <div class="overlay" id="overlay" hidden>
@@ -185,6 +202,11 @@ const opts=(list,sel)=>list.map(v=>`<option value="${esc(v)}"${v===sel?' selecte
 // 로그인한 사람의 과제인가 (과제책임자 이름이 같을 때). 서버 없는 미리보기에서는 모두 '다른 사람 과제'로 보고 상세 페이지로 보낸다.
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
+// 세부사항을 볼 수 있는 사람: 그 과제의 과제책임자·과제참여자, 그리고 사이트관리자.
+// (서버 없는 미리보기는 로그인이 없어 누구인지 알 수 없으므로 모두 볼 수 있다)
+const me=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+const isPart=t=>{const u=me();return !!u&&(t.participants||[]).some(p=>p.empNo===u.empNo)};
+const canView=t=>{const u=me();return !u||u.role==='admin'||isMine(t)||isPart(t)};
 // 과제 한 건의 진행 상태: 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
 function statusOf(t){
   if(t.registered)return '게시 완료';
@@ -251,11 +273,11 @@ function render(){
   const ids=new Set(tasks.map(t=>String(t.id)));selected.forEach(id=>{if(!ids.has(id))selected.delete(id)});
   $('rows').innerHTML=rows.length?rows.map(({t,a})=>{
     // 내 과제는 '내 과제 진행률'(진행률 관리)로, 다른 과제책임자의 과제는 조회용 과제 상세 페이지로 이동
-    const mineTask=isMine(t),s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,
-      href=mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`,on=selected.has(String(t.id));
+    const mineTask=isMine(t),ok=canView(t),lock=ok?'':` data-lock="${t.id}"`,s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,
+      href=!ok?'#':mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`,on=selected.has(String(t.id));
     return `<tr${on?' class="sel"':''}>
       <td class="chk admin-only"><input type="checkbox" data-chk="${t.id}"${on?' checked':''} aria-label="선택"></td>
-      <td><a class="tlink" href="${href}">${esc(t.title)}</a>${mineTask?' <span class="tag mine">내 과제</span>':''}${a&&a.purpose?`<span class="purpose" title="${esc(a.purpose)}">${esc(a.purpose)}</span>`:''}</td>
+      <td><a class="tlink${ok?'':' locked'}" href="${href}"${lock}>${esc(t.title)}</a>${mineTask?' <span class="tag mine">내 과제</span>':(isPart(t)?' <span class="tag part">참여 과제</span>':'')}${a&&a.purpose?`<span class="purpose" title="${esc(a.purpose)}">${esc(a.purpose)}</span>`:''}</td>
       <td>${a?esc(a.category):'<span class="sub">-</span>'}</td>
       <td>${a?`<span class="tag" style="background:${STAGE_COLOR[a.stage]||'#8c8c8c'}">${esc(a.stage)}</span>`:'<span class="sub">-</span>'}</td>
       <td>${esc(t.assignee)||'-'}${a&&a.ownerDept?`<div class="sub">${esc(a.ownerDept)}</div>`:''}</td>
@@ -264,7 +286,7 @@ function render(){
       <td><div class="pbar"><div><i style="width:${p}%;background:${COLOR[s]}"></i></div><span>${p}%</span></div></td>
       <td>${dueTag(t)}</td>
       <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
-      <td class="act"><a class="btnlink" href="${href}" title="${mineTask?'내 과제 진행률로 이동':'과제 세부 보기'}">${mineTask?'내 진행률':'세부'}</a></td></tr>`}).join('')
+      <td class="act"><a class="btnlink${ok?'':' locked'}" href="${href}"${lock} title="${!ok?'과제책임자·과제참여자만 볼 수 있습니다':mineTask?'내 과제 진행률로 이동':'과제 세부 보기'}">${mineTask?'내 진행률':'세부'}</a></td></tr>`}).join('')
     :`<tr><td colspan="11" class="empty">${n?'조건에 맞는 과제가 없습니다.':'등록된 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
   updateSel(rows);
 }
@@ -403,6 +425,19 @@ $('impOk').onclick=async()=>{
     const r=await res.json();impBusy=false;closeImp();showOk(`엑셀에서 과제 ${r.created}건을 등록했습니다.`);reload();
   }catch(err){impBusy=false;$('impOk').disabled=false;$('impSum').innerHTML=`<span style="color:#ff4d4f">등록하지 못했습니다: ${esc(err.message)}</span>`}
 };
+
+// 볼 수 없는 과제를 누르면 이동하지 않고 알림창으로 과제책임자에게 연락하라고 안내한다
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-lock]');
+  if(!el)return;
+  e.preventDefault();
+  const t=tasks.find(x=>String(x.id)===el.dataset.lock);if(!t)return;
+  const a=aiOf(t);
+  $('lockTitle').textContent=t.title;
+  $('lockOwner').textContent=(t.assignee||'(미지정)')+(a&&a.ownerDept?` (${a.ownerDept})`:'');
+  $('lockDlg').showModal();
+});
+$('lockOk').onclick=()=>$('lockDlg').close();
 
 $('q').addEventListener('input',e=>{state.q=e.target.value;render()});
 $('fCategory').onchange=$('fStage').onchange=render;

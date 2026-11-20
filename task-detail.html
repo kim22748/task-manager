@@ -205,6 +205,11 @@ function statusTag(t){
 // 누가 본 화면인가: 내 과제인지 / 다른 과제책임자의 과제인지 (로그인했을 때만 구분. 서버 없는 미리보기에서는 모두 수정 가능)
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
+// 세부사항을 볼 수 있는 사람: 그 과제의 과제책임자·과제참여자, 그리고 사이트관리자.
+// (서버 없는 미리보기는 로그인이 없어 누구인지 알 수 없으므로 모두 볼 수 있다)
+const me=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+const isPart=t=>{const u=me();return !!u&&(t.participants||[]).some(p=>p.empNo===u.empNo)};
+const canView=t=>{const u=me();return !u||u.role==='admin'||isMine(t)||isPart(t)};
 // 수정 권한: 서버 없는 미리보기는 모두 가능, 과제참여자는 쓰기 불가(서버도 막음), 사이트관리자는 모두, 과제책임자는 내 과제만
 const canEdit=t=>{
   if(!myName())return true;
@@ -345,6 +350,18 @@ function histItem(h,idx){
     </div>`;
   }
   return `<li class="hrow${open?' open':''}" data-hist="${idx}" title="누르면 자세히 봅니다"><time>${esc(histWhen(h))}${h.by?` · <b>${esc(h.by)}</b>`:''}</time>${esc(h.text)}${f?' <span class="hclip">📎</span>':''}${detail}</li>`;
+}
+
+// 볼 수 없는 과제: 내용 대신 과제책임자에게 연락하라는 안내만 보여 준다
+function renderBlocked(){
+  const t=task,owner=(t.assignee||'(미지정)')+(ai&&ai.ownerDept?` (${ai.ownerDept})`:'');
+  document.title='TaskFlow · 과제 상세';
+  $('body').innerHTML=`<div class="card">
+    <div class="title"><h2>${esc(t.title)}</h2></div>
+    <p style="margin:16px 0 8px">이 과제의 세부사항은 <b>과제책임자</b>와 <b>과제참여자</b>만 볼 수 있습니다.</p>
+    <p style="margin:0 0 16px">세부사항을 보고 싶으면 과제책임자 <b>${esc(owner)}</b>에게 연락해 과제참여자로 지정해 달라고 요청하세요.</p>
+    <a class="btnlink" href="${FROM[from][0]}">← ${FROM[from][1]}(으)로 돌아가기</a>
+  </div>`;
 }
 
 function render(){
@@ -569,6 +586,7 @@ document.addEventListener('click',async e=>{
   try{await reload()}catch(e){showError('불러오지 못했습니다: '+e.message)}
   applyFrom();
   if(!task&&!ai){$('body').innerHTML=`<div class="card empty">과제를 찾을 수 없습니다. <a href="${FROM[from][0]}">${FROM[from][1]}(으)로 돌아가기</a></div>`;return}
+  if(task&&!canView(task)){renderBlocked();return}   // 주소로 직접 들어와도 과제책임자·과제참여자가 아니면 보여 주지 않는다
   render();
 })();
 </script>
