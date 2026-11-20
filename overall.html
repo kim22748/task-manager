@@ -78,11 +78,6 @@
   <header><a href="dashboard.html">← 대시보드</a>세부 진행 현황<small id="mode"></small></header>
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 보여줍니다. 팀 전체 과제를 보려면 서버(<code>python server.py</code>)로 실행한 주소에서 열어 주세요.</div>
-    <div class="stats" id="stats"></div>
-    <div class="grid2">
-      <div class="card"><h2>진행 상태별 현황</h2><p class="desc">막대나 범례를 누르면 아래 목록이 그 상태로 좁혀집니다.</p><div id="stage"></div></div>
-      <div class="card"><h2>진행률 분포</h2><p class="desc">전체 과제를 진행률 구간으로 나눈 건수</p><div id="dist"></div></div>
-    </div>
     <div class="card">
       <h2>과제별 진행 현황 <em id="cnt"></em></h2>
       <p class="desc">다른 담당자의 과제는 과제명이나 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동해 진행률을 관리합니다.</p>
@@ -118,7 +113,6 @@ function statusOf(t){
 }
 const STATES=[['검토','var(--review)'],['진행 중','var(--doing)'],['게시 대기','var(--wait)'],['게시 완료','var(--pub)'],['종료','var(--end)']];
 const COLOR=Object.fromEntries(STATES);
-const BUCKETS=[['0%',0,0],['1–49%',1,49],['50–99%',50,99],['100%',100,100]];
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
 function dueTag(t){
   if(!t.due)return '<span class="sub">-</span>';
@@ -130,45 +124,20 @@ function dueTag(t){
 }
 
 let tasks=[],fileMap={};
-const state={status:'',bucket:null,q:''};
+const state={status:'',q:''};
 // 대시보드 카드에서 넘어온 상태 (예: overall.html?status=게시 대기)
 {const qs=new URLSearchParams(location.search).get('status');if(STATES.some(([s])=>s===qs))state.status=qs}
 
 function matches(t){
   if(state.status&&statusOf(t)!==state.status)return false;
-  if(state.bucket&&!(prog(t)>=state.bucket[0]&&prog(t)<=state.bucket[1]))return false;
   const q=state.q.trim().toLowerCase();
   return !q||(t.title||'').toLowerCase().includes(q)||(t.assignee||'').toLowerCase().includes(q);
 }
-function toggle(key,val){state[key]=(JSON.stringify(state[key])===JSON.stringify(val))?(key==='status'?'':null):val;render()}
 
 function render(){
-  const n=tasks.length,cnt=s=>tasks.filter(t=>statusOf(t)===s).length;
-  const avg=n?Math.round(tasks.reduce((s,t)=>s+prog(t),0)/n):0;
-  const late=tasks.filter(t=>t.due&&!['게시 완료','종료'].includes(statusOf(t))&&new Date(t.due+'T00:00:00')<today()).length;
-  $('stats').innerHTML=[
-    ['전체 과제',n,'',''],
-    ['진행 중',cnt('진행 중'),'var(--doing)',n?Math.round(cnt('진행 중')/n*100)+'%':''],
-    ['게시 대기',cnt('게시 대기'),cnt('게시 대기')?'var(--wait)':'','진행률 100%'],
-    ['게시 완료',cnt('게시 완료'),'var(--pub)',n?Math.round(cnt('게시 완료')/n*100)+'%':''],
-    ['전체 평균 진행률',n?avg+'%':'-','var(--primary)','단순평균'],
-    ['마감 지연',late,late?'var(--danger)':'','']
-  ].map(([t,v,c,s])=>`<div class="card stat"><span>${t}</span><b${c?` style="color:${c}"`:''}>${v}</b><small>${s||'&nbsp;'}</small></div>`).join('');
-
-  $('stage').innerHTML=n?`<div class="stack">${STATES.map(([s,c])=>cnt(s)?`<i data-s="${s}" style="width:${cnt(s)/n*100}%;background:${c}" title="${s} ${cnt(s)}건"></i>`:'').join('')}</div>
-    <div class="legend">${STATES.map(([s,c])=>`<button data-s="${s}"><i style="background:${c}"></i>${s} <b>${cnt(s)}건</b> <em>(${n?Math.round(cnt(s)/n*100):0}%)</em></button>`).join('')}</div>`
-    :'<div class="empty">등록된 과제가 없습니다. 과제 목록에서 추가해 보세요.</div>';
-  $('stage').querySelectorAll('[data-s]').forEach(el=>el.onclick=()=>toggle('status',el.dataset.s));
-
-  const bc=BUCKETS.map(([l,a,b])=>({l,a,b,n:tasks.filter(t=>prog(t)>=a&&prog(t)<=b).length}));
-  const max=Math.max(1,...bc.map(x=>x.n));
-  $('dist').innerHTML=n?`<div class="bars">${bc.map((x,i)=>`<button data-i="${i}" class="${state.bucket&&state.bucket[0]===x.a?'sel':''}" title="${x.l} ${x.n}건"><em>${x.n||''}</em><div style="height:${x.n/max*100}%"></div><span>${x.l}</span></button>`).join('')}</div>`:'<div class="empty">데이터가 없습니다.</div>';
-  $('dist').querySelectorAll('button').forEach(b=>b.onclick=()=>{const x=bc[b.dataset.i];toggle('bucket',[x.a,x.b])});
-
-  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button data-v="${v}" class="${state.status===v?'on':''}">${l}</button>`).join('')
-    +(state.bucket?`<button class="on" id="clrB">진행률 ${state.bucket[0]===state.bucket[1]?state.bucket[0]:state.bucket[0]+'–'+state.bucket[1]}% ✕</button>`:'');
+  const n=tasks.length;
+  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button data-v="${v}" class="${state.status===v?'on':''}">${l}</button>`).join('');
   $('chips').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{state.status=b.dataset.v;render()});
-  if($('clrB'))$('clrB').onclick=()=>{state.bucket=null;render()};
 
   const rows=tasks.filter(matches).sort((a,b)=>prog(b)-prog(a)||String(b.id).localeCompare(String(a.id)));
   $('cnt').textContent=rows.length+'건';
