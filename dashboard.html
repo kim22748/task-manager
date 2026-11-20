@@ -56,6 +56,16 @@
   .col em{font-style:normal;color:var(--text);margin-bottom:2px;font-size:12px}
   .col div{width:100%;max-width:34px;background:var(--primary);border-radius:3px 3px 0 0;min-height:2px}
   .col span{margin-top:4px;white-space:nowrap}
+  /* 꺾은선 그래프 (최근 7일 등록): 선·면은 SVG, 점·숫자·날짜는 HTML 로 같은 위치(--x, --y %)에 올린다 */
+  .line{height:112px;padding-top:6px;display:flex;flex-direction:column;font-size:11px;color:var(--sub)}
+  .line .plot{position:relative;flex:1;min-height:0;margin-top:16px;border-bottom:1px solid var(--border)}
+  .line svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .line polyline{fill:none;stroke:var(--primary);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+  .line polygon{fill:var(--primary);opacity:.1}
+  .line .pt{position:absolute;left:var(--x);bottom:var(--y);width:8px;height:8px;margin:0 0 -4px -4px;border-radius:50%;background:#fff;border:2px solid var(--primary);box-sizing:border-box}
+  .line .pt em{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font-style:normal;font-size:12px;color:var(--text)}
+  .line .xs{display:flex;margin-top:4px}
+  .line .xs span{flex:1;text-align:center;white-space:nowrap}
 
   ul{list-style:none;margin:0;padding:0}
   li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;min-width:0}
@@ -78,6 +88,9 @@
   .arc{animation:arcdraw .7s cubic-bezier(.3,.7,.3,1) both}
   .col div{transform-origin:bottom;animation:grow .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(380ms + var(--i,0)*70ms)}
   .col em{animation:fadein .4s ease both;animation-delay:calc(800ms + var(--i,0)*70ms)}
+  .line svg{animation:linewipe .9s ease-out both;animation-delay:380ms}
+  .line .pt{animation:fadein .3s ease both;animation-delay:calc(500ms + var(--i,0)*90ms)}
+  @keyframes linewipe{from{clip-path:inset(-10px 100% -10px -10px)}to{clip-path:inset(-10px)}}
   /* 5. 평균 진행률 막대가 왼쪽에서 채워짐 */
   @keyframes fillbar{from{transform:scaleX(0)}}
   .kpi .mini i{transform-origin:left;animation:fillbar 1s cubic-bezier(.2,.8,.2,1) both;animation-delay:.9s}
@@ -92,7 +105,7 @@
   a.kpi.alert{animation-name:rise,pulse;animation-duration:.5s,1.6s;animation-timing-function:cubic-bezier(.2,.8,.2,1),ease-in-out;
     animation-delay:calc(var(--n,0)*60ms),1.4s;animation-iteration-count:1,3;animation-fill-mode:both,none}
   /* 시스템에서 '동작 줄이기'를 켠 사용자에게는 움직임을 끈다 */
-  @media (prefers-reduced-motion:reduce){a.kpi,a.kpi.alert,.row .card,.arc,.col div,.col em,.kpi .mini i{animation:none!important}
+  @media (prefers-reduced-motion:reduce){a.kpi,a.kpi.alert,.row .card,.arc,.col div,.col em,.line svg,.line .pt,.kpi .mini i{animation:none!important}
     .donut .arc,.legend a{transition:none!important}}
   @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.row3,.row3b{grid-template-columns:1fr}}
   @media(max-width:640px){aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.content{padding:12px}}
@@ -185,6 +198,9 @@ function render(tasks){
   const days=[...Array(7)].map((_,i)=>{const d=new Date(today);d.setDate(d.getDate()-6+i);return d});
   const dayCnt=days.map(d=>tasks.filter(t=>{const x=new Date(+t.id);return x.getFullYear()===d.getFullYear()&&x.getMonth()===d.getMonth()&&x.getDate()===d.getDate()}).length);
   const dmax=Math.max(1,...dayCnt);
+  // 꺾은선 좌표: x 는 7칸의 가운데(%), y 는 최댓값 대비 높이(%)
+  const pts=dayCnt.map((n,i)=>({x:(i+.5)/7*100,y:n/dmax*100,n}));
+  const linePts=pts.map(p=>`${p.x},${100-p.y}`).join(' ');
 
   const kpi=(label,val,color,sub,href,extra='',suffix='',cls='')=>`<a class="kpi ${cls}" href="${href}" style="--c:${color}"><span>${label}</span><b data-count="${val}" data-suffix="${suffix}">${val}${suffix}</b><small>${sub}</small>${extra}</a>`;
   const dueTag=x=>x.d<0?`<span class="tag due-over">D+${-x.d} 지연</span>`:`<span class="tag due-soon">${x.d===0?'오늘':'D-'+x.d}</span>`;
@@ -210,7 +226,13 @@ function render(tasks){
       <div class="chart">${bc.map((x,i)=>`<div class="col" style="--i:${i}"><em>${x.n||''}</em><div style="height:${x.n/bmax*100}%"></div><span>${x.l}</span></div>`).join('')}</div>
     </div>
     <div class="card"><h2>최근 7일 등록<em>건</em></h2>
-      <div class="chart">${days.map((d,i)=>`<div class="col" style="--i:${i}"><em>${dayCnt[i]||''}</em><div style="height:${dayCnt[i]/dmax*100}%"></div><span>${d.getMonth()+1}/${d.getDate()}</span></div>`).join('')}</div>
+      <div class="line">
+        <div class="plot" role="img" aria-label="최근 7일 등록 건수: ${days.map((d,i)=>`${d.getMonth()+1}/${d.getDate()} ${dayCnt[i]}건`).join(', ')}">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points="${pts[0].x},100 ${linePts} ${pts[6].x},100"/><polyline points="${linePts}"/></svg>
+          ${pts.map((p,i)=>`<i class="pt" style="--i:${i};--x:${p.x}%;--y:${p.y}%" title="${days[i].getMonth()+1}/${days[i].getDate()} ${p.n}건"><em>${p.n}</em></i>`).join('')}
+        </div>
+        <div class="xs">${days.map(d=>`<span>${d.getMonth()+1}/${d.getDate()}</span>`).join('')}</div>
+      </div>
     </div>
   </div>
 
