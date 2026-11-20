@@ -133,8 +133,8 @@
 <input type="file" id="picker" multiple hidden>
 <dialog id="partDlg">
   <form id="partForm" method="dialog" novalidate>
-    <h3>과제참여자 선택</h3>
-    <div class="sub">이 과제에 참여하는 사람을 고르세요. 과제책임자는 목록에서 빠져 있습니다.</div>
+    <h3>과제참여자 초대</h3>
+    <div class="sub">이 과제에 초대할 사람을 고르세요. 초대된 사람은 이 과제의 세부사항을 볼 수 있습니다. 체크를 풀면 참여자에서 빠집니다.</div>
     <input type="text" id="pSearch" placeholder="이름·부서·사번 검색" style="margin-top:12px">
     <div class="plist" id="pList"></div>
     <div class="sub" id="pCount" style="margin-top:8px"></div>
@@ -320,7 +320,7 @@ $('partForm').addEventListener('submit',async e=>{
     await TaskStorage.update(task.id,{participants:list});
     $('partDlg').close();
     await reload();render();
-    showOk(list.length?`과제참여자 ${list.length}명을 저장했습니다.`:'과제참여자를 모두 뺐습니다.');
+    showOk(list.length?`과제참여자 ${list.length}명을 초대했습니다. 초대된 사람은 이 과제의 세부사항을 볼 수 있습니다.`:'과제참여자를 모두 뺐습니다.');
   }catch(err){$('pErr').textContent='저장하지 못했습니다: '+err.message;$('pSave').disabled=false}
 });
 
@@ -389,7 +389,7 @@ function render(){
         <div><dt>승인자</dt><dd>${esc(t.approver)||'-'}</dd></div>
         <div style="grid-column:1/-1"><dt>과제참여자 <span class="sub" style="display:inline">${(t.participants||[]).length}명</span></dt>
           <dd class="parts">${(t.participants||[]).length?t.participants.map(u=>`<span class="pchip" title="${esc(u.dept||'')} · 사번 ${esc(u.empNo||'')}">${esc(u.name)}${u.dept?` <em>${esc(u.dept)}</em>`:''}</span>`).join(''):'<span class="sub" style="display:inline">지정된 과제참여자가 없습니다.</span>'}
-            ${edit?'<button type="button" id="btnParts">참여자 선택</button>':''}</dd></div>
+            ${edit?'<button type="button" id="btnParts" class="p">+ 참여자 초대</button>':''}</dd></div>
         <div style="grid-column:1/-1"><dt>게시 사유</dt><dd>${esc(t.regReason)||'-'}</dd></div>
         ${t.memo?`<div style="grid-column:1/-1"><dt>메모</dt><dd>${esc(t.memo)}</dd></div>`:''}
       </dl>

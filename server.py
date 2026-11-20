@@ -1149,6 +1149,11 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             fields.update(clean_extra(body))
             if "participants" in body:
                 fields["participants"] = clean_participants(body["participants"])
+                # 과제참여자 초대·제외는 이 과제의 과제책임자와 사이트관리자만
+                me = self._user()
+                cur = next((t for t in store.list() if t["id"] == task_id), None)
+                if cur is not None and me["role"] != "admin" and (cur.get("assignee") or "").strip() != (me.get("name") or "").strip():
+                    raise ValidationError("과제참여자는 이 과제의 과제책임자만 초대할 수 있습니다.", HTTPStatus.FORBIDDEN)
             if "registered" in fields and self._user()["role"] != "admin":
                 raise ValidationError("서비스 게시·해제는 사이트관리자만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
             if fields.get("registered"):
