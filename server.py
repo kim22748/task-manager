@@ -159,6 +159,11 @@ def demo_items():
     def at(n, hour):
         return day(n).replace(hour=hour, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
 
+    # 과제참여자: AI 과제 항목의 members(사번 목록) → 같은 명칭 과제의 participants [{empNo, name, dept}] (사용 중인 사용자만)
+    active = {u["empNo"]: u for u in demo["users"] if u.get("status") == "active"}
+    parts = {a["title"]: [{"empNo": e, "name": active[e]["name"], "dept": active[e]["dept"]} for e in a.get("members", []) if e in active]
+             for a in demo["aiProjects"]}
+
     tasks = []
     for i, d in enumerate(demo["tasks"]):
         n, s, prog = d["daysAgo"], d["s"], d.get("progress", 0)
@@ -179,6 +184,8 @@ def demo_items():
             r = d.get("registeredDaysAgo", 0)
             hist.append({"at": at(r, 17), "text": f"서비스 게시: 해제 → 게시 / 승인자: 없음 → {d['approver']} / 게시 사유: 없음 → {d['regReason']}"})
             task.update(registered=True, approver=d["approver"], regReason=d["regReason"], registeredAt=day(r).date().isoformat())
+        if parts.get(d["title"]):
+            task["participants"] = parts[d["title"]]
         task["history"] = hist
         tasks.append(task)
     tasks.sort(key=lambda t: t["id"], reverse=True)   # 최신 등록이 위로

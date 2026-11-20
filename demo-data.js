@@ -19,6 +19,11 @@ const DemoData = (() => {
     const atDate = (n, h) => { const d = day(n); d.setHours(h, 0, 0, 0); return d; };
     const at = (n, h) => atDate(n, h).toISOString();
 
+    // 과제참여자: AI 과제 항목의 members(사번 목록) → 같은 명칭 과제의 participants [{empNo, name, dept}] (사용 중인 사용자만)
+    const active = Object.fromEntries(demo.users.filter(u => u.status === 'active').map(u => [u.empNo, u]));
+    const parts = Object.fromEntries(demo.aiProjects.map(a => [a.title,
+      (a.members || []).filter(e => active[e]).map(e => ({ empNo: e, name: active[e].name, dept: active[e].dept }))]));
+
     const tasks = demo.tasks.map((d, i) => {
       const n = d.daysAgo, s = d.s, prog = d.progress || 0;
       const history = [{ at: at(n, 10), text: '과제 등록' }];
@@ -35,6 +40,7 @@ const DemoData = (() => {
         history.push({ at: at(r, 17), text: `서비스 게시: 해제 → 게시 / 승인자: 없음 → ${d.approver} / 게시 사유: 없음 → ${d.regReason}` });
         Object.assign(t, { registered: true, approver: d.approver, regReason: d.regReason, registeredAt: ymd(day(r)) });
       }
+      if ((parts[d.title] || []).length) t.participants = parts[d.title];
       t.history = history;
       return t;
     }).sort((a, b) => b.id - a.id);
