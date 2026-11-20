@@ -72,8 +72,6 @@
   .pend{list-style:none;margin:8px 0 0;padding:0}
   .pend li{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0}
   .pend li span{flex:1;min-width:0;word-break:break-all}
-  /* 과제참여자에게는 글쓰기 버튼을 숨긴다 (실제 차단은 서버가 한다) */
-  html[data-role=member] .w-only{display:none!important}
 </style>
 </head>
 <body>
@@ -90,7 +88,7 @@
       <div class="toolbar">
         <input type="search" id="q" placeholder="제목·과제명·설명·글쓴이·파일 이름 검색">
         <span class="grow"></span>
-        <button class="p w-only" id="btnNew" type="button">글쓰기</button>
+        <button class="p" id="btnNew" type="button" hidden>글쓰기</button>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th>번호</th><th>제목 / 과제</th><th>글쓴이</th><th>작성일</th><th>첨부</th></tr></thead>
@@ -127,9 +125,9 @@ const MAX_FILE=20*1024*1024,MAX_FILES=10;
 let posts=[],tasks=[],openId=null,editing=null,pending=[],removing=new Set(),busy=false,server=false;
 
 const me=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
-const canWrite=()=>{const u=me();return !!u&&(u.role==='admin'||u.role==='owner')};
 const canEdit=p=>{const u=me();return !!u&&(u.role==='admin'||p.authorEmpNo===u.empNo)};
-// 글을 올릴 수 있는 과제: 서비스 게시 완료 + (사이트관리자는 전부, 과제책임자는 자기 과제)
+// 글을 올릴 수 있는 과제: 서비스 게시 완료 + (사이트관리자는 전부, 그 밖에는 내가 과제책임자인 과제)
+// 계정은 사이트관리자/일반회원뿐이고 과제책임자는 과제별 역할이라, 글쓰기 버튼은 올릴 과제가 있는 사람에게만 보인다.
 const myPublished=()=>{const u=me();return tasks.filter(t=>t.registered&&u&&(u.role==='admin'||String(t.assignee||'').trim()===String(u.name||'').trim()))};
 const showError=m=>{$('err').textContent=m;$('err').hidden=false;$('ok').hidden=true};
 const showOk=m=>{$('ok').textContent=m;$('ok').hidden=false;$('err').hidden=true;clearTimeout(showOk.t);showOk.t=setTimeout(()=>$('ok').hidden=true,4000)};
@@ -256,7 +254,7 @@ $('q').addEventListener('input',render);
   server=TaskStorage.mode==='server';
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 서버 없음';
   $('warn').hidden=server;
-  if(!canWrite())$('btnNew').hidden=true;
+  $('btnNew').hidden=!(me()&&(me().role==='admin'||myPublished().length));
   try{await load()}catch(e){showError('불러오지 못했습니다: '+e.message)}
   render();
 })();
