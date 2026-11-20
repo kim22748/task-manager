@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaskFlow · 사용자 관리</title><link rel="stylesheet" href="common.css"></head>
+<title>TaskFlow · 사용자 관리</title><link rel="stylesheet" href="common.css">
+<style>
+  /* 요약 카드를 누르면 그 상태로 목록이 걸러진다 (대시보드의 카드와 같은 동작) */
+  .stats button.stat{border:2px solid transparent;font:inherit;text-align:left;cursor:pointer;color:var(--text)}
+  .stats button.stat:hover{border-color:#d9d9d9}
+  .stats button.stat.on{border-color:var(--primary)}
+  .stats button.stat:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+</style></head>
 <body>
 <aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
@@ -38,8 +45,8 @@ function filtered(){
 }
 function render(){
   const cnt=s=>users.filter(u=>u.status===s).length;
-  stats.innerHTML=[['전체',users.length],['승인 대기',cnt('pending')],['사용 중',cnt('active')],['비활성',cnt('inactive')],['반려',cnt('rejected')]]
-    .map(([l,n])=>`<div class="card stat"><span>${l}</span><b>${n}</b></div>`).join('');
+  stats.innerHTML=[['','전체',users.length],['pending','승인 대기',cnt('pending')],['active','사용 중',cnt('active')],['inactive','비활성',cnt('inactive')],['rejected','반려',cnt('rejected')]]
+    .map(([s,l,n])=>`<button type="button" class="card stat${fStatus.value===s?' on':''}" data-s="${s}" aria-pressed="${fStatus.value===s}" title="${l} 사용자만 보기"><span>${l}</span><b>${n}</b></button>`).join('');
   const list=filtered(), pages=Math.max(1,Math.ceil(list.length/PAGE)); page=Math.min(page,pages);
   count.textContent=`${list.length}명`; pageInfo.textContent=`${page} / ${pages}`; prev.disabled=page<=1; next.disabled=page>=pages;
   rows.innerHTML=list.slice((page-1)*PAGE,page*PAGE).map(u=>{
@@ -72,6 +79,7 @@ rows.onclick=async e=>{
     await load();
   }catch(ex){ msg(err,ex.message); }
 };
+stats.onclick=e=>{ const b=e.target.closest('button[data-s]'); if(!b) return; fStatus.value=b.dataset.s; page=1; render(); };
 [fStatus,fRole].forEach(s=>s.onchange=()=>{page=1;render();}); q.oninput=()=>{page=1;render();};
 prev.onclick=()=>{page--;render();}; next.onclick=()=>{page++;render();};
 (async()=>{
