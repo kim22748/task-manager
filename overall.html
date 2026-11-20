@@ -24,35 +24,31 @@
   .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
   .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub)}
   .desc{color:var(--sub);font-size:13px;margin:0 0 16px}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
-  .stat span{color:var(--sub);font-size:14px}
-  .stat b{display:block;font-size:28px;margin-top:4px;font-variant-numeric:tabular-nums}
-  .stat small{color:var(--sub);font-size:12px}
-  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
-  .stack{display:flex;height:28px;border-radius:6px;overflow:hidden;background:#f0f0f0}
-  .stack i{display:block;height:100%;cursor:pointer}
-  .stack i:hover{opacity:.8}
-  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px}
-  .legend button{border:0;background:none;padding:2px 0;display:flex;align-items:center;gap:6px;font:inherit;font-size:14px;cursor:pointer;color:var(--text)}
-  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
-  .legend em{font-style:normal;color:var(--sub)}
-  .bars{display:flex;align-items:flex-end;gap:12px;height:150px;padding-top:18px}
-  .bars button{flex:1;height:100%;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font:inherit;font-size:12px;color:var(--sub);cursor:pointer;min-width:0}
-  .bars button em{font-style:normal;color:var(--text);margin-bottom:2px}
-  .bars button div{width:100%;max-width:56px;background:var(--primary);border-radius:4px 4px 0 0;min-height:2px}
-  .bars button:hover div,.bars button.sel div{background:#003eb3}
-  .bars button span{margin-top:6px;white-space:nowrap}
+  input,select,textarea,button{font:inherit;font-size:14px;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  textarea{resize:vertical;width:100%}
+  button{cursor:pointer}
+  button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.danger{color:#ff4d4f;border-color:#ff4d4f}
+  button:disabled{opacity:.5;cursor:not-allowed}
   .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
-  .toolbar input{font:inherit;font-size:14px;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;min-width:200px}
+  .toolbar .grow{flex:1}
+  .toolbar input[type=search]{min-width:200px;max-width:260px}
   .chips{display:flex;flex-wrap:wrap;gap:6px}
-  .chips button{font:inherit;font-size:13px;padding:3px 12px;border:1px solid #d9d9d9;border-radius:14px;background:#fff;cursor:pointer}
+  .chips button{font-size:13px;padding:3px 12px;border-radius:14px}
   .chips button.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .chips button .n{margin-left:2px;font-weight:600;color:var(--primary);font-variant-numeric:tabular-nums}
+  .chips button.on .n{color:#fff}
   .tablewrap{overflow-x:auto}
+  .tablewrap>table{min-width:1080px}
   table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
   th{background:#fafafa;font-weight:600;white-space:nowrap}
   td.act{white-space:nowrap;text-align:right}
-  .pbar{display:flex;align-items:center;gap:8px;min-width:150px}
+  th.chk,td.chk{width:36px;padding-right:0}
+  td.chk input,th.chk input{width:16px;height:16px;padding:0}
+  tr.sel td{background:#e6f4ff}
+  .purpose{display:block;color:var(--sub);font-size:12px;margin-top:2px;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pbar{display:flex;align-items:center;gap:8px;min-width:130px}
   .pbar div{flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
   .pbar i{display:block;height:100%}
   .pbar span{width:40px;text-align:right;font-variant-numeric:tabular-nums}
@@ -68,38 +64,124 @@
   .empty{text-align:center;color:var(--sub);padding:28px}
   .notice{border-radius:8px;padding:10px 16px;font-size:14px}
   .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
   .notice[hidden]{display:none}
-  @media(max-width:640px){aside{display:none}.content{padding:16px}}
+  /* 사이트관리자 전용 (엑셀 저장·올리기, 선택 삭제). 실제 차단은 서버가 한다 */
+  html:not([data-role=admin]) .admin-only{display:none!important}
+  /* 창(신규작성 · 엑셀 올리기) */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
+  .overlay[hidden]{display:none}
+  .modal{background:#fff;border-radius:8px;width:100%;max-width:560px;max-height:100%;display:flex;flex-direction:column;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+  .modal.wide{max-width:860px}
+  .modal h2{margin:0;padding:16px 24px;font-size:16px;border-bottom:1px solid var(--border)}
+  .modal form,.modal .body{padding:16px 24px;overflow-y:auto}
+  .modal .body table{min-width:0}
+  .modal .body th,.modal .body td{padding:6px 8px;font-size:13px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:14px;margin-bottom:4px}
+  .field label i{color:#ff4d4f;font-style:normal;margin-right:2px}
+  .field input,.field select{width:100%}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field.invalid input,.field.invalid select,.field.invalid textarea{border-color:#ff4d4f}
+  .msg{color:#ff4d4f;font-size:12px;margin-top:2px;display:none}
+  .field.invalid .msg{display:block}
+  .foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+  .radios{display:flex;gap:16px;flex-wrap:wrap}
+  .radios label{display:flex;align-items:center;gap:4px;margin:0}
+  .radios input{width:auto}
+  .errlist{margin:0 0 12px;padding:10px 16px 10px 32px;background:#fff2f0;border:1px solid #ffccc7;border-radius:8px;font-size:13px;max-height:180px;overflow:auto}
+  .hint{color:var(--sub);font-size:12px}
+  @media(max-width:640px){aside{display:none}.content{padding:16px}.row2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
   <header><a href="dashboard.html">← 대시보드</a>세부 진행 현황<small id="mode"></small></header>
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 보여줍니다. 팀 전체 과제를 보려면 서버(<code>python server.py</code>)로 실행한 주소에서 열어 주세요.</div>
+    <div class="notice err" id="err" hidden></div>
+    <div class="notice ok" id="ok" hidden></div>
     <div class="card">
       <h2>과제별 진행 현황 <em id="cnt"></em></h2>
-      <p class="desc">다른 담당자의 과제는 과제명이나 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동해 진행률을 관리합니다.</p>
+      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 다른 담당자의 과제는 '세부'를 누르면 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)에서 볼 수 있고, <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
       <div class="toolbar">
-        <input type="search" id="q" placeholder="과제명·담당자 검색">
-        <div class="chips" id="chips"></div>
+        <select id="fCategory" title="분류"></select>
+        <select id="fStage" title="AI 과제 단계"></select>
+        <input type="search" id="q" placeholder="명칭·목적·책임자·부서 검색">
+        <span class="grow"></span>
+        <button class="admin-only danger" id="btnBulkDel" type="button" disabled title="체크한 과제를 한 번에 삭제">선택 삭제</button>
+        <button class="admin-only" id="btnExport" type="button" title="지금 목록 전체를 엑셀(.xlsx)로 내려받기">엑셀로 저장</button>
+        <button class="admin-only" id="btnImport" type="button" title="엑셀(.xlsx)로 여러 건을 한 번에 등록">엑셀 올리기</button>
+        <button class="admin-only" id="btnTemplate" type="button" title="엑셀 올리기용 빈 양식">양식 내려받기</button>
+        <input type="file" id="fileXlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <button class="p w-only" id="btnNew" type="button">신규작성</button>
       </div>
+      <div class="toolbar"><div class="chips" id="chips"></div></div>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>담당자</th><th>상태</th><th>진행률</th><th>마감일</th><th>첨부</th><th></th></tr></thead>
+        <thead><tr><th class="chk admin-only"><input type="checkbox" id="chkAll" title="보이는 과제 전체 선택"></th><th>과제 / 목적</th><th>분류</th><th>단계</th><th>과제책임자</th><th>접근권한</th><th>상태</th><th>진행률</th><th>마감일</th><th>첨부</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </div>
   </div>
 </div>
+
+<!-- 신규작성 -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h2 id="mTitle">과제 신규작성</h2>
+    <form id="form" novalidate>
+      <div class="field"><label for="title"><i>*</i>명칭</label>
+        <input id="title" maxlength="200" placeholder="과제의 타이틀"><div class="msg">명칭을 입력하세요.</div></div>
+      <div class="field"><label for="purpose"><i>*</i>목적</label>
+        <textarea id="purpose" rows="4" maxlength="2000" placeholder="과제를 만든 목적이나 활용하고 싶은 이유를 설명해 주세요."></textarea><div class="msg">목적을 입력하세요.</div></div>
+      <div class="row2">
+        <div class="field"><label for="category"><i>*</i>분류</label><select id="category"></select><div class="msg">분류를 선택하세요.</div></div>
+        <div class="field"><label for="stage"><i>*</i>단계</label><select id="stage"></select><div class="msg">단계를 선택하세요.</div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="ownerName"><i>*</i>과제책임자 이름</label><input id="ownerName" maxlength="50"><div class="msg">과제책임자 이름을 입력하세요.</div></div>
+        <div class="field"><label for="ownerDept"><i>*</i>과제책임자 소속부서</label><input id="ownerDept" maxlength="100"><div class="msg">소속부서를 입력하세요.</div></div>
+      </div>
+      <div class="field" id="accessField"><label><i>*</i>접근권한범위</label>
+        <div class="radios" id="access"></div><div class="msg">접근권한범위를 선택하세요.</div></div>
+      <div class="notice err" id="mErr" hidden></div>
+      <div class="foot"><button type="button" id="btnCancel">취소</button><button type="submit" class="p" id="btnSave">등록</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- 엑셀 올리기: 검사 결과 확인 후 등록 -->
+<div class="overlay" id="impOverlay" hidden>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <h2 id="impTitle">엑셀로 과제 올리기</h2>
+    <div class="body">
+      <p id="impSum" style="margin-top:0"></p>
+      <ol class="errlist" id="impErr" hidden></ol>
+      <div class="tablewrap"><table><thead><tr><th>행</th><th>명칭</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>접근권한범위</th></tr></thead><tbody id="impRows"></tbody></table></div>
+      <p class="hint" id="impMore"></p>
+      <p class="hint">명칭과 과제책임자가 같은 과제는 중복으로 보고 등록하지 않습니다. 올린 내용은 '사이트 설정 → 작업 기록'에 남습니다.</p>
+      <div class="foot"><button type="button" id="impCancel">취소</button><button type="button" class="p" id="impOk">등록</button></div>
+    </div>
+  </div>
+</div>
+
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script src="storage.js"></script>
+<script src="ai-storage.js"></script>
 <script src="file-storage.js"></script>
 <script>
+// 이 화면은 예전 'AI 과제 목록'의 기능(신규작성 · 분류/단계 · 엑셀 · 선택 삭제)을 합친 과제 관리 화면이다.
+// 한 줄 = 과제 진행 1건 + 그와 연결된 AI 과제(명칭·목적·분류·단계·책임자·소속부서·접근권한범위). 서버가 둘을 1:1 로 맞춘다.
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
+const showError=msg=>{const el=$('err');el.textContent=msg||'';el.hidden=!msg;if(msg)$('ok').hidden=true};
+let okTimer;const showOk=msg=>{$('ok').textContent=msg;$('ok').hidden=false;$('err').hidden=true;clearTimeout(okTimer);okTimer=setTimeout(()=>$('ok').hidden=true,4000)};
+const serverOnly=what=>{showError(`${what} 기능은 서버(server.py)로 실행한 주소에서 사이트관리자로 로그인해야 쓸 수 있습니다.`)};
+const opts=(list,sel)=>list.map(v=>`<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`).join('');
 // 로그인한 사람의 과제인가 (담당자 이름이 같을 때). 서버 없는 미리보기에서는 모두 '다른 사람 과제'로 보고 상세 페이지로 보낸다.
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 const isMine=t=>!!myName()&&(t.assignee||'').trim()===myName();
@@ -113,6 +195,11 @@ function statusOf(t){
 }
 const STATES=[['검토','var(--review)'],['진행 중','var(--doing)'],['게시 대기','var(--wait)'],['게시 완료','var(--pub)'],['종료','var(--end)']];
 const COLOR=Object.fromEntries(STATES);
+// AI 과제 쪽 항목
+let CATEGORIES=['개발','법률','노사','IT'];   // 서버로 열면 사이트 설정 → 분류 관리의 목록으로 바뀜
+const STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+const ACCESS=['전사','소속부서','사용자별 지정'];
+const STAGE_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
 function dueTag(t){
   if(!t.due)return '<span class="sub">-</span>';
@@ -123,44 +210,212 @@ function dueTag(t){
   return `<span class="tag due-ok">${t.due}</span>`;
 }
 
-let tasks=[],fileMap={};
+let tasks=[],aiItems=[],fileMap={},selected=new Set(),saving=false,impFile=null,impBusy=false;
 const state={status:'',q:''};
 // 대시보드 카드에서 넘어온 상태 (예: overall.html?status=게시 대기)
 {const qs=new URLSearchParams(location.search).get('status');if(STATES.some(([s])=>s===qs))state.status=qs}
 
-function matches(t){
-  if(state.status&&statusOf(t)!==state.status)return false;
-  const q=state.q.trim().toLowerCase();
-  return !q||(t.title||'').toLowerCase().includes(q)||(t.assignee||'').toLowerCase().includes(q);
+// 과제 진행 ↔ AI 과제 연결: projectId, 없으면 같은 명칭 + 담당자(=과제책임자)
+const sameKey=s=>String(s||'').trim();
+const aiOf=t=>aiItems.find(p=>t.projectId!=null&&p.id===t.projectId)||aiItems.find(p=>sameKey(p.title)===sameKey(t.title)&&sameKey(p.ownerName)===sameKey(t.assignee))||null;
+
+async function loadCategories(){
+  if(TaskStorage.mode==='server'){
+    try{const r=await fetch('api/categories',{cache:'no-store'});if(r.ok)CATEGORIES=(await r.json()).items.map(x=>x.name)}catch(e){}
+  }
+  aiItems.forEach(p=>{if(p.category&&!CATEGORIES.includes(p.category))CATEGORIES.push(p.category)});   // 목록에 없는 예전 분류도 걸러 볼 수 있게
+  const cur=$('fCategory').value;
+  $('fCategory').innerHTML='<option value="">분류 전체</option>'+opts(CATEGORIES,cur);
+}
+
+// status: 상태 칩까지 적용할지 (칩 옆 건수는 분류·단계·검색만 적용한 결과에서 센다)
+function visible(status=true){
+  const q=state.q.trim().toLowerCase(),c=$('fCategory').value,s=$('fStage').value;
+  return tasks.map(t=>({t,a:aiOf(t)})).filter(({t,a})=>{
+    if(status&&state.status&&statusOf(t)!==state.status)return false;
+    if(c&&(!a||a.category!==c))return false;
+    if(s&&(!a||a.stage!==s))return false;
+    return !q||[t.title,t.assignee,a&&a.purpose,a&&a.ownerDept].some(v=>String(v||'').toLowerCase().includes(q));
+  }).sort((x,y)=>prog(y.t)-prog(x.t)||String(y.t.id).localeCompare(String(x.t.id)));
 }
 
 function render(){
   const n=tasks.length;
-  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button data-v="${v}" class="${state.status===v?'on':''}">${l}</button>`).join('');
+  // 상태 칩: 이름 옆에 건수 (분류·단계·검색으로 좁힌 결과 기준)
+  const base=visible(false),cntOf=v=>v?base.filter(({t})=>statusOf(t)===v).length:base.length;
+  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button type="button" data-v="${v}" class="${state.status===v?'on':''}">${l} <b class="n">${cntOf(v)}</b></button>`).join('');
   $('chips').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{state.status=b.dataset.v;render()});
 
-  const rows=tasks.filter(matches).sort((a,b)=>prog(b)-prog(a)||String(b.id).localeCompare(String(a.id)));
-  $('cnt').textContent=rows.length+'건';
-  $('rows').innerHTML=rows.length?rows.map(t=>{
+  const rows=visible();
+  $('cnt').textContent=rows.length===n?`전체 ${n}건`:`${rows.length}건 / 전체 ${n}건`;
+  const ids=new Set(tasks.map(t=>String(t.id)));selected.forEach(id=>{if(!ids.has(id))selected.delete(id)});
+  $('rows').innerHTML=rows.length?rows.map(({t,a})=>{
     // 내 과제는 '내 과제 진행률'(진행률 관리)로, 다른 담당자의 과제는 조회용 과제 상세 페이지로 이동
     const mineTask=isMine(t),s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,
-      href=mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`;
-    return `<tr><td><a class="tlink" href="${href}">${esc(t.title)}</a>${mineTask?' <span class="tag mine">내 과제</span>':''}</td><td>${esc(t.assignee)||'-'}</td>
+      href=mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`,on=selected.has(String(t.id));
+    return `<tr${on?' class="sel"':''}>
+      <td class="chk admin-only"><input type="checkbox" data-chk="${t.id}"${on?' checked':''} aria-label="선택"></td>
+      <td><a class="tlink" href="${href}">${esc(t.title)}</a>${mineTask?' <span class="tag mine">내 과제</span>':''}${a&&a.purpose?`<span class="purpose" title="${esc(a.purpose)}">${esc(a.purpose)}</span>`:''}</td>
+      <td>${a?esc(a.category):'<span class="sub">-</span>'}</td>
+      <td>${a?`<span class="tag" style="background:${STAGE_COLOR[a.stage]||'#8c8c8c'}">${esc(a.stage)}</span>`:'<span class="sub">-</span>'}</td>
+      <td>${esc(t.assignee)||'-'}${a&&a.ownerDept?`<div class="sub">${esc(a.ownerDept)}</div>`:''}</td>
+      <td>${a?esc(a.access):'<span class="sub">-</span>'}</td>
       <td><span class="tag" style="background:${COLOR[s]}">${s}</span></td>
       <td><div class="pbar"><div><i style="width:${p}%;background:${COLOR[s]}"></i></div><span>${p}%</span></div></td>
       <td>${dueTag(t)}</td>
       <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
       <td class="act"><a class="btnlink" href="${href}" title="${mineTask?'내 과제 진행률로 이동':'과제 세부 보기'}">${mineTask?'내 진행률':'세부'}</a></td></tr>`}).join('')
-    :`<tr><td colspan="7" class="empty">${n?'조건에 맞는 과제가 없습니다.':'등록된 과제가 없습니다.'}</td></tr>`;
+    :`<tr><td colspan="11" class="empty">${n?'조건에 맞는 과제가 없습니다.':'등록된 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
+  updateSel(rows);
 }
+function updateSel(rows=visible()){
+  const vis=rows.map(({t})=>String(t.id)),k=vis.filter(id=>selected.has(id)).length;
+  $('chkAll').checked=!!vis.length&&k===vis.length;$('chkAll').indeterminate=k>0&&k<vis.length;
+  $('btnBulkDel').disabled=!selected.size;$('btnBulkDel').textContent=selected.size?`선택 삭제 (${selected.size})`:'선택 삭제';
+}
+async function reload(){
+  try{aiItems=await AIStorage.list();tasks=await TaskStorage.list();fileMap=await FileStorage.listMany(tasks)}
+  catch(e){showError('목록을 불러오지 못했습니다: '+e.message)}
+  await loadCategories();
+  render();
+}
+
+// ---------- 신규작성 (수정·삭제는 과제 세부 페이지에서) ----------
+// AI 과제로 등록하면 서버(서버 없는 화면은 ai-storage.js)가 과제 진행 1건을 함께 만든다.
+const FIELDS=['title','purpose','category','stage','ownerName','ownerDept'];
+const radioVal=()=>{const r=document.querySelector('input[name=access]:checked');return r?r.value:''};
+function clearInvalid(){document.querySelectorAll('.field.invalid').forEach(f=>f.classList.remove('invalid'));$('mErr').hidden=true}
+function openModal(){
+  $('title').value='';$('purpose').value='';
+  $('category').innerHTML='<option value="">선택</option>'+opts(CATEGORIES);
+  $('stage').innerHTML=opts(STAGES,STAGES[0]);
+  // 로그인한 사람을 과제책임자로 미리 채운다 → 등록하면 바로 '내 과제'가 된다
+  const me=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+  $('ownerName').value=me?me.name:'';
+  $('ownerDept').value=me?me.dept||'':'';
+  $('access').innerHTML=ACCESS.map(a=>`<label><input type="radio" name="access" value="${a}"${a===ACCESS[0]?' checked':''}>${a}</label>`).join('');
+  clearInvalid();
+  $('overlay').hidden=false;
+  $('title').focus();
+}
+function closeModal(){if(saving)return;$('overlay').hidden=true}
+$('form').onsubmit=async e=>{
+  e.preventDefault();
+  if(saving)return;
+  const f={};FIELDS.forEach(k=>f[k]=$(k).value.trim());f.access=radioVal();
+  clearInvalid();
+  let ok=true;
+  [...FIELDS,'access'].forEach(k=>{
+    if(!f[k]){ok=false;(k==='access'?$('accessField'):$(k).closest('.field')).classList.add('invalid')}
+  });
+  if(!ok)return;
+  saving=true;$('btnSave').disabled=true;
+  try{
+    await AIStorage.create(f);
+    saving=false;$('overlay').hidden=true;
+    await reload();
+    showOk(`'${f.title}' 과제를 등록했습니다.`);
+  }catch(err){$('mErr').textContent='저장하지 못했습니다: '+err.message;$('mErr').hidden=false}
+  finally{saving=false;$('btnSave').disabled=false}
+};
+$('btnNew').onclick=openModal;
+$('btnCancel').onclick=closeModal;
+$('overlay').addEventListener('mousedown',e=>{if(e.target===$('overlay'))closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('overlay').hidden)closeModal()});
+
+document.addEventListener('change',e=>{
+  const d=e.target.dataset;
+  if(d.chk){e.target.checked?selected.add(d.chk):selected.delete(d.chk);e.target.closest('tr').classList.toggle('sel',e.target.checked);updateSel()}
+  if(e.target.id==='chkAll'){const on=e.target.checked;visible().forEach(({t})=>on?selected.add(String(t.id)):selected.delete(String(t.id)));render()}
+});
+
+// ---------- 사이트관리자: 선택 삭제 · 엑셀 저장 · 엑셀 올리기 ----------
+async function req(method,url,body,headers){
+  const res=await fetch(url,{method,headers,body,cache:'no-store'});
+  if(res.status===401){location.replace('login.html');return new Promise(()=>{})}
+  return res;
+}
+async function errorOf(res){const d=await res.json().catch(()=>({}));return d.error||`요청 실패 (${res.status})`}
+async function download(url,fallbackName){
+  if(TaskStorage.mode!=='server')return serverOnly('엑셀 내려받기');
+  const res=await req('GET',url);
+  if(!res.ok)return showError('내려받지 못했습니다: '+await errorOf(res));
+  const cd=res.headers.get('Content-Disposition')||'',m=/filename\*=UTF-8''([^;]+)/.exec(cd);
+  const a=document.createElement('a');a.href=URL.createObjectURL(await res.blob());a.download=m?decodeURIComponent(m[1]):fallbackName;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  showOk(`${a.download} 파일을 내려받았습니다.`);
+}
+$('btnExport').onclick=()=>download('api/ai-projects/export','AI과제목록.xlsx');
+$('btnTemplate').onclick=()=>download('api/ai-projects/template','AI과제_올리기_양식.xlsx');
+
+// 선택 삭제: AI 과제를 지우면 서버가 연결된 과제 진행(첨부·이력 포함)도 함께 정리한다. 연결이 없는 과제 진행은 그 기록만 지운다.
+$('btnBulkDel').onclick=async()=>{
+  const picked=tasks.filter(t=>selected.has(String(t.id)));if(!picked.length)return;
+  const names=picked.map(t=>t.title);
+  if(!confirm(`선택한 과제 ${picked.length}건을 삭제할까요? 첨부 파일·변경 이력도 함께 삭제되며 되돌릴 수 없습니다.\n\n`+names.slice(0,10).map(x=>'· '+x).join('\n')+(names.length>10?`\n… 외 ${names.length-10}건`:'')))return;
+  $('btnBulkDel').disabled=true;
+  try{
+    const aiIds=[],loose=[];
+    picked.forEach(t=>{const a=aiOf(t);a?aiIds.push(a.id):loose.push(t.id)});
+    if(aiIds.length){
+      if(TaskStorage.mode==='server'){
+        const res=await req('POST','api/ai-projects/bulk-delete',JSON.stringify({ids:aiIds}),{'Content-Type':'application/json'});
+        if(!res.ok)throw new Error(await errorOf(res));
+      }else{for(const id of aiIds)await AIStorage.remove(id)}
+    }
+    for(const id of loose)await TaskStorage.remove(id);
+    selected.clear();showOk(`과제 ${picked.length}건을 삭제했습니다.`);
+  }catch(err){showError('삭제하지 못했습니다: '+err.message)}
+  reload();
+};
+
+$('btnImport').onclick=()=>{if(TaskStorage.mode!=='server')return serverOnly('엑셀 올리기');$('fileXlsx').value='';$('fileXlsx').click()};
+$('fileXlsx').onchange=async()=>{
+  const f=$('fileXlsx').files[0];if(!f)return;
+  if(!/\.xlsx$/i.test(f.name))return showError('엑셀(.xlsx) 파일만 올릴 수 있습니다. (.xls 는 엑셀에서 .xlsx 로 다시 저장해 주세요)');
+  if(f.size>5*1024*1024)return showError('엑셀 파일은 5MB 이하만 올릴 수 있습니다.');
+  showError('');
+  const res=await req('POST','api/ai-projects/import?dry=1',f,{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  if(!res.ok)return showError('엑셀을 읽지 못했습니다: '+await errorOf(res));
+  const r=await res.json();impFile=f;
+  $('impTitle').textContent='엑셀로 과제 올리기 — '+f.name;
+  $('impSum').innerHTML=r.errors.length
+    ?`등록할 수 있는 행 <b>${r.count}건</b>, 고쳐야 할 행 <b style="color:#ff4d4f">${r.errors.length}건</b>입니다. 틀린 행을 엑셀에서 고친 뒤 다시 올려 주세요. (한 행이라도 틀리면 아무것도 등록하지 않습니다)`
+    :`<b>${r.count}건</b>을 새로 등록합니다. 아래 내용을 확인한 뒤 '등록'을 누르세요. (기존 과제는 그대로 두고 추가만 합니다)`;
+  $('impErr').hidden=!r.errors.length;
+  $('impErr').innerHTML=r.errors.slice(0,100).map(x=>`<li>${x.row}행: ${esc(x.error)}</li>`).join('')+(r.errors.length>100?`<li>… 외 ${r.errors.length-100}건</li>`:'');
+  $('impRows').innerHTML=r.rows.slice(0,50).map(x=>`<tr><td>${x.row}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${esc(x.stage)}</td><td>${esc(x.ownerName)}</td><td>${esc(x.ownerDept)}</td><td>${esc(x.access)}</td></tr>`).join('')
+    ||'<tr><td colspan="7" class="empty">등록할 수 있는 행이 없습니다.</td></tr>';
+  $('impMore').textContent=r.count>50?`처음 50건만 보여 줍니다. (전체 ${r.count}건)`:'';
+  $('impOk').disabled=!!r.errors.length||!r.count;$('impOk').textContent=`${r.count}건 등록`;
+  $('impOverlay').hidden=false;
+};
+const closeImp=()=>{if(impBusy)return;$('impOverlay').hidden=true;impFile=null};
+$('impCancel').onclick=closeImp;
+$('impOverlay').addEventListener('mousedown',e=>{if(e.target===$('impOverlay'))closeImp()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('impOverlay').hidden)closeImp()});
+$('impOk').onclick=async()=>{
+  if(!impFile||impBusy)return;
+  impBusy=true;$('impOk').disabled=true;
+  try{
+    const res=await req('POST','api/ai-projects/import?name='+encodeURIComponent(impFile.name),impFile,{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    if(!res.ok)throw new Error(await errorOf(res));
+    const r=await res.json();impBusy=false;closeImp();showOk(`엑셀에서 과제 ${r.created}건을 등록했습니다.`);reload();
+  }catch(err){impBusy=false;$('impOk').disabled=false;$('impSum').innerHTML=`<span style="color:#ff4d4f">등록하지 못했습니다: ${esc(err.message)}</span>`}
+};
+
 $('q').addEventListener('input',e=>{state.q=e.target.value;render()});
+$('fCategory').onchange=$('fStage').onchange=render;
 
 (async()=>{
+  $('fStage').innerHTML='<option value="">단계 전체</option>'+opts(STAGES);
   try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
+  try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}
   const server=TaskStorage.mode==='server';
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}
+  await loadCategories();
   render();
 })();
 </script>

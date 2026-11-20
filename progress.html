@@ -91,7 +91,7 @@
 </style>
 </head>
 <body>
-<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child on" href="progress.html">└ 내 과제 진행률</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
   <header>내 과제 진행률<small id="mode"></small></header>
   <div class="content">
@@ -117,8 +117,8 @@
     <div class="stats" id="stats"></div>
 
     <div class="card">
-      <h2>내 AI 과제 <em id="cntAI"></em><a class="goai" href="ai-projects.html">AI 과제 목록에서 관리 →</a></h2>
-      <p class="desc">AI 과제 목록에 <b>과제책임자</b>로 등록한 과제입니다. 단계는 AI 과제 목록에서 바꿉니다.</p>
+      <h2>내 AI 과제 <em id="cntAI"></em><a class="goai" href="overall.html">세부 진행 현황에서 관리 →</a></h2>
+      <p class="desc">세부 진행 현황에 <b>과제책임자</b>로 등록한 과제입니다. 단계는 과제 상세의 '수정'에서 바꿉니다.</p>
       <div class="tablewrap"><table>
         <thead><tr><th>명칭</th><th>분류</th><th>진행 단계</th><th>소속부서</th><th>접근권한</th><th>최종 수정</th><th></th></tr></thead>
         <tbody id="rowsAI"></tbody>
@@ -187,7 +187,7 @@ function dday(t){
 }
 const dueTag=t=>{const d=dday(t);return d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'};
 let tasks=[],selected=new Set(),fileMap={},aiItems=[];
-// AI 과제 목록(ai-projects.html)의 단계와 색상 — 단계가 뒤로 갈수록 진행이 많이 된 것
+// 세부 진행 현황(overall.html)의 단계와 색상 — 단계가 뒤로 갈수록 진행이 많이 된 것
 const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
 const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
 async function loadFiles(){try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}}
@@ -198,11 +198,11 @@ const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user
 // 선택 상자의 사람 목록: 과제 담당자 + AI 과제 책임자
 const assignees=()=>[...new Set([...tasks.map(t=>(t.assignee||'').trim()),...aiItems.map(p=>(p.ownerName||'').trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
 const mine=t=>!who||(t.assignee||'').trim()===who;
-// AI 과제 목록에도 같은 명칭·같은 책임자로 등록된 과제인지 (진행률 과제와 AI 과제의 연결 기준)
+// 세부 진행 현황에도 같은 명칭·같은 책임자로 등록된 과제인지 (진행률 과제와 AI 과제의 연결 기준)
 const sameKey=s=>String(s||'').trim();
 const detailHref=t=>`task-detail.html?id=${encodeURIComponent(t.id)}&from=progress`;
 const aiLinked=t=>aiItems.some(p=>sameKey(p.title)===sameKey(t.title)&&sameKey(p.ownerName)===sameKey(t.assignee));
-const aiBadge=t=>aiLinked(t)?'<a class="tag ai" href="ai-projects.html" title="AI 과제 목록에도 등록된 과제입니다">AI 과제</a>':'';
+const aiBadge=t=>aiLinked(t)?'<a class="tag ai" href="overall.html" title="세부 진행 현황에 등록된 과제입니다">AI 과제</a>':'';
 const mineAI=p=>!who||(p.ownerName||'').trim()===who;
 const focusId=new URLSearchParams(location.search).get('task'); // '세부 진행 현황'에서 넘어온 과제
 function pickWho(){
@@ -270,7 +270,7 @@ function render(){
       <td>${esc(p.ownerDept)||'-'}</td><td>${esc(p.access)||'-'}</td>
       <td class="sub">${esc(String(p.updatedAt||p.createdAt||'').slice(0,10))||'-'}</td>
       <td class="act"><a class="btnlink" href="${href}">상세</a></td></tr>`}).join('')
-    :`<tr><td colspan="7" class="empty">${who?`${esc(who)} 님이 과제책임자로 등록한 AI 과제가 없습니다.`:'등록된 AI 과제가 없습니다.'} <a class="tlink" href="ai-projects.html">AI 과제 목록</a>에서 등록하세요.</td></tr>`;
+    :`<tr><td colspan="7" class="empty">${who?`${esc(who)} 님이 과제책임자로 등록한 AI 과제가 없습니다.`:'등록된 AI 과제가 없습니다.'} <a class="tlink" href="overall.html">세부 진행 현황</a>에서 등록하세요.</td></tr>`;
 
   $('rowsA').innerHTML=A.length?A.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
     // 진행률은 여기서 바꾸지 않고 표시만 한다. 변경은 과제 상세에서.
@@ -355,7 +355,7 @@ $('regForm').addEventListener('submit',e=>{
   $('mode').textContent=server?'● 서버 파일에 저장 중':'● 브라우저 임시 저장';
   $('warn').hidden=server;
   await loadFiles();
-  try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}   // AI 과제 목록 (내가 과제책임자로 등록한 과제를 보여 주기 위해)
+  try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}   // 세부 진행 현황 (내가 과제책임자로 등록한 과제를 보여 주기 위해)
   pickWho();
   render();
   focusRow();

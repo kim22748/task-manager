@@ -120,7 +120,7 @@
 </style>
 </head>
 <body>
-<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child on" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
   <header><a href="overall.html">← 세부 진행 현황</a>과제 상세<small id="mode"></small></header>
   <div class="content" id="app">
@@ -155,6 +155,12 @@
       <select id="eCat"></select>
       <label for="eStage">AI 과제 단계 <i>*</i></label>
       <select id="eStage"></select>
+      <label for="eOwner">과제책임자 이름 <i>*</i></label>
+      <input type="text" id="eOwner" maxlength="50">
+      <label for="eDept">과제책임자 소속부서 <i>*</i></label>
+      <input type="text" id="eDept" maxlength="100">
+      <label for="eAccess">접근권한범위 <i>*</i></label>
+      <select id="eAccess"></select>
     </div>
     <label for="eDue">마감일 <span class="sub">(선택)</span></label>
     <input type="date" id="eDue">
@@ -180,8 +186,9 @@ const taskId=new URLSearchParams(location.search).get('id');
 const aiId=new URLSearchParams(location.search).get('ai');   // '내 AI 과제'에서 넘어오면 AI 과제 id
 let task=null,ai=null,aiItems=[],files=[],busy=false;
 const sameKey=s=>String(s||'').trim();
-// AI 과제 목록의 단계 (뒤로 갈수록 진행이 많이 된 것)
+// 세부 진행 현황의 단계 (뒤로 갈수록 진행이 많이 된 것)
 const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+const AI_ACCESS=['전사','소속부서','사용자별 지정'];
 const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
 
 const size=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
@@ -226,12 +233,12 @@ function ownerTag(t){
   return `<span class="tag other">${esc(t.assignee||'담당자 없음')} 님의 과제${canEdit(t)?'':' · 조회 전용'}</span>`;
 }
 
-// AI 과제 정보 카드: AI 과제 목록에 등록된 내용 (목적·분류·단계·책임자·소속부서·접근권한)
+// AI 과제 정보 카드: 세부 진행 현황에 등록된 내용 (목적·분류·단계·책임자·소속부서·접근권한)
 function aiCard(a){
   const idx=Math.max(0,AI_STAGES.indexOf(a.stage)),col=AI_COLOR[a.stage]||'#8c8c8c';
   const day=s=>esc(String(s||'').slice(0,10))||'-';
   return `<div class="card">
-    <h2>AI 과제 정보 <em>AI 과제 목록에 등록된 내용</em><a class="goai" href="ai-projects.html">AI 과제 목록 →</a></h2>
+    <h2>AI 과제 정보 <em>세부 진행 현황에 등록된 내용</em><a class="goai" href="overall.html">세부 진행 현황 →</a></h2>
     <div class="aistage"><span class="tag" style="background:${col}">${esc(a.stage)}</span><span class="sub">${idx+1}/${AI_STAGES.length} 단계</span>
       <div class="seg" style="--c:${col}" title="${AI_STAGES.map((s,i)=>(i===idx?'● ':'')+s).join(' → ')}">${AI_STAGES.map((s,i)=>`<i class="${i<=idx?'on':''}"></i>`).join('')}</div></div>
     <dl>
@@ -461,12 +468,15 @@ async function openEdit(){
   const t=task,a=ai;
   if(!t||!canEdit(t))return;
   $('aiFields').hidden=!a;
-  $('editNote').textContent=a?'명칭·목적·분류·단계는 AI 과제 목록의 같은 과제에도 반영됩니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
+  $('editNote').textContent=a?'과제책임자 이름을 바꾸면 이 과제의 담당자도 함께 바뀝니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
   if(a){
     $('eTitle').value=a.title||'';$('ePurpose').value=a.purpose||'';
     const cats=await loadCategories(a.category);
     $('eCat').innerHTML=cats.map(c=>`<option${c===a.category?' selected':''}>${esc(c)}</option>`).join('');
     $('eStage').innerHTML=AI_STAGES.map(s=>`<option${s===a.stage?' selected':''}>${s}</option>`).join('');
+    $('eOwner').value=a.ownerName||'';$('eDept').value=a.ownerDept||'';
+    const acc=AI_ACCESS.includes(a.access)||!a.access?AI_ACCESS:[...AI_ACCESS,a.access];
+    $('eAccess').innerHTML=acc.map(s=>`<option${s===a.access?' selected':''}>${esc(s)}</option>`).join('');
   }
   $('eDue').value=t.due||'';$('ePri').value=t.priority||'mid';$('eMemo').value=t.memo||'';
   $('eErr').textContent='';$('eSave').disabled=false;
@@ -480,8 +490,8 @@ $('editForm').addEventListener('submit',async e=>{
   const f={due:$('eDue').value,priority:$('ePri').value,memo:$('eMemo').value.trim()};
   let af=null;
   if(a){
-    af={title:$('eTitle').value.trim(),purpose:$('ePurpose').value.trim(),category:$('eCat').value,stage:$('eStage').value,ownerName:a.ownerName,ownerDept:a.ownerDept,access:a.access};
-    for(const [k,l] of [['title','명칭'],['purpose','목적'],['category','분류'],['stage','단계']]){
+    af={title:$('eTitle').value.trim(),purpose:$('ePurpose').value.trim(),category:$('eCat').value,stage:$('eStage').value,ownerName:$('eOwner').value.trim(),ownerDept:$('eDept').value.trim(),access:$('eAccess').value};
+    for(const [k,l] of [['title','명칭'],['purpose','목적'],['category','분류'],['stage','단계'],['ownerName','과제책임자 이름'],['ownerDept','소속부서'],['access','접근권한범위']]){
       if(!af[k]){$('eErr').textContent=`${l}을(를) 입력하세요.`;return}
     }
   }
@@ -503,7 +513,7 @@ $('editForm').addEventListener('submit',async e=>{
 async function deleteTask(){
   const t=task,a=ai;
   if(!t||!canEdit(t)||busy)return;
-  const msg=a?`'${t.title}' 과제를 삭제할까요?\n\nAI 과제 목록의 같은 과제와, 이 과제의 첨부 파일·변경 이력도 함께 삭제됩니다. 되돌릴 수 없습니다.`
+  const msg=a?`'${t.title}' 과제를 삭제할까요?\n\n이 과제의 등록 정보(명칭·목적·분류 등)와 첨부 파일·변경 이력이 모두 삭제됩니다. 되돌릴 수 없습니다.`
              :`'${t.title}' 과제를 삭제할까요?\n\n첨부 파일·변경 이력도 함께 삭제되며 되돌릴 수 없습니다.`;
   if(!confirm(msg))return;
   busy=true;showError('');

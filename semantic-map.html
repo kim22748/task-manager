@@ -100,7 +100,7 @@
 </style>
 </head>
 <body>
-<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a href="similar.html">유사과제 탐색</a><a class="child on" href="semantic-map.html">└ 의미 지도</a></aside>
+<aside><h1>TaskFlow</h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="similar.html">유사과제 탐색</a><a class="child on" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
   <header>의미 지도<small id="mode"></small></header>
   <div class="content">
@@ -133,7 +133,7 @@
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-// 비교 대상은 'AI 과제 목록'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
+// 비교 대상은 '세부 진행 현황'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
 const norm=p=>({id:p.id,title:p.title||'',memo:p.purpose||'',category:p.category||'',stage:p.stage||'',owner:p.ownerName||'',dept:p.ownerDept||''});
 const SKEY='similar-settings-v4',CKEY='similar-confirmed-v2';
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};

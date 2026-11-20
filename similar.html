@@ -80,14 +80,14 @@
 </style>
 </head>
 <body>
-<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="ai-projects.html">AI 과제 목록</a><a class="on" href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a class="on" href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
   <header>유사과제 탐색<small id="mode"></small></header>
   <div class="content">
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 AI 과제를 비교합니다. 서버에 저장된 AI 과제를 보려면 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="okmsg" hidden></div>
-    <div class="notice info"><b>AI 과제 목록</b>에 등록된 AI 과제를 불러와 비교합니다. 기본은 <b>AI(LLM) 비교</b>로, LLM이 <b>AI 과제의 명칭과 목적을 함께 읽고 뜻이 비슷한 과제</b>를 묶은 뒤 그룹명과 묶은 이유를 씁니다. AI를 쓸 수 없을 때(서버 없이 열었거나 AI 연결이 설정되지 않았을 때)는 단어가 겹치는 정도를 계산하는 <b>키워드 방식</b>으로 대신 보여 줍니다. <span class="sub">(기획서 본문은 아직 저장된 데이터가 없어 비교에 쓰지 않습니다.)</span></div>
+    <div class="notice info"><b>세부 진행 현황</b>에 등록된 AI 과제를 불러와 비교합니다. 기본은 <b>AI(LLM) 비교</b>로, LLM이 <b>AI 과제의 명칭과 목적을 함께 읽고 뜻이 비슷한 과제</b>를 묶은 뒤 그룹명과 묶은 이유를 씁니다. AI를 쓸 수 없을 때(서버 없이 열었거나 AI 연결이 설정되지 않았을 때)는 단어가 겹치는 정도를 계산하는 <b>키워드 방식</b>으로 대신 보여 줍니다. <span class="sub">(기획서 본문은 아직 저장된 데이터가 없어 비교에 쓰지 않습니다.)</span></div>
 
     <div class="card" id="aiCard">
       <h2>AI로 유사과제 찾기 <span class="chip auto" id="aiState">확인 중…</span></h2>
@@ -104,7 +104,7 @@
 
     <div class="card">
       <h2>비교 설정</h2>
-      <p class="desc">비교 대상은 'AI 과제 목록'의 모든 AI 과제입니다. '목적' 체크는 AI·키워드 방식 모두에 적용됩니다(목적을 끄면 AI에도 목적을 보내지 않습니다). '명칭' 체크와 '유사도 기준'은 키워드 방식에서만 쓰입니다(AI에는 명칭을 항상 보냅니다). 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
+      <p class="desc">비교 대상은 '세부 진행 현황'의 모든 AI 과제입니다. '목적' 체크는 AI·키워드 방식 모두에 적용됩니다(목적을 끄면 AI에도 목적을 보내지 않습니다). '명칭' 체크와 '유사도 기준'은 키워드 방식에서만 쓰입니다(AI에는 명칭을 항상 보냅니다). 확정한 그룹은 설정과 상관없이 유지됩니다.</p>
       <div class="opts">
         <div class="opt"><b>비교 항목</b>
           <div style="display:flex;gap:16px"><label><input type="checkbox" id="fTitle" checked>명칭</label><label><input type="checkbox" id="fMemo" checked>목적</label></div></div>
@@ -138,7 +138,7 @@
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-// 비교 대상은 'AI 과제 목록'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
+// 비교 대상은 '세부 진행 현황'(AIStorage)의 AI 과제. 화면에서 쓰기 쉽게 title(명칭)·memo(목적)로 맞춰 둔다.
 const norm=p=>({id:p.id,title:p.title||'',memo:p.purpose||'',category:p.category||'',stage:p.stage||'',owner:p.ownerName||'',dept:p.ownerDept||''});
 const SKEY='similar-settings-v4',CKEY='similar-confirmed-v2';
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
@@ -296,8 +296,8 @@ function render(){
     `<div class="card stat"><span>확정한 그룹</span><b style="color:var(--done)">${conf.length}</b></div>`;
   $('cntG').textContent=pend&&!conf.length?'':groups.length+'개';$('cntS').textContent=pend?'':singles.length+'건';
   let empty='';
-  if(!docs.length)empty='<div class="empty">비교할 AI 과제가 없습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 AI 과제를 먼저 등록하세요.</div>';
-  else if(docs.length<2)empty='<div class="empty">AI 과제가 2건 이상이어야 서로 비교할 수 있습니다. <a href="ai-projects.html">AI 과제 목록</a>에서 더 등록하세요.</div>';
+  if(!docs.length)empty='<div class="empty">비교할 AI 과제가 없습니다. 에서 AI 과제를 먼저 등록하세요.</div>';
+  else if(docs.length<2)empty='<div class="empty">AI 과제가 2건 이상이어야 서로 비교할 수 있습니다. 에서 더 등록하세요.</div>';
   else if(!groups.length)empty=R.haveAI?'<div class="empty">AI가 비슷한 과제를 찾지 못했습니다.</div>':'<div class="empty">기준 이상으로 비슷한 과제가 없습니다. 유사도 기준을 낮춰 보세요.</div>';
   let html=groups.length?groups.map(groupCard).join(''):'';
   if(pend)html+=llm===null?'<div class="empty">AI 연결 상태를 확인하는 중입니다…</div>':'<div class="empty">아직 AI가 묶은 결과가 없습니다. 위의 <b>AI로 유사과제 묶기</b>를 누르면 LLM이 AI 과제의 명칭과 목적을 읽고 비슷한 과제를 묶습니다.</div>';
