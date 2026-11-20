@@ -468,7 +468,7 @@ async function openEdit(){
   const t=task,a=ai;
   if(!t||!canEdit(t))return;
   $('aiFields').hidden=!a;
-  $('editNote').textContent=a?'과제책임자 이름을 바꾸면 '내 과제' 표시와 수정 권한도 그 사람 기준으로 바뀝니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
+  $('editNote').textContent=a?'과제책임자 이름을 바꾸면 내 과제 표시와 수정 권한도 그 사람 기준으로 바뀝니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
   if(a){
     $('eTitle').value=a.title||'';$('ePurpose').value=a.purpose||'';
     const cats=await loadCategories(a.category);
