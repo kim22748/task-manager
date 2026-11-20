@@ -46,12 +46,16 @@ const FileStorage = (() => {
   }
   const strip = f => ({ id: f.id, name: f.name, size: f.size, kind: f.kind, uploadedAt: f.uploadedAt, ...(f.note ? { note: f.note } : {}) });
   // 임시 저장 모드에서도 과제 변경 이력에 남긴다 (storage.js 와 같은 localStorage 키)
-  function localHistory(taskId, text) {
+  function localHistory(taskId, text, file) {
     try {
       const tasks = JSON.parse(localStorage.getItem('tasks-v1')) || [];
       const t = tasks.find(x => x.id == taskId);
       if (!t) return;
-      t.history = [...(t.history || []), { at: new Date().toISOString(), text }].slice(-100);
+      const rec = { at: new Date().toISOString(), text };
+      const by = (typeof Auth !== 'undefined' && Auth.user && Auth.user.name) || '';
+      if (by) rec.by = by;                       // 누가 했는지
+      if (file) rec.file = strip(file);          // 어떤 파일인지 (이름·종류·크기·세부 설명)
+      t.history = [...(t.history || []), rec].slice(-100);
       localStorage.setItem('tasks-v1', JSON.stringify(tasks));
     } catch (e) {}
   }
@@ -98,7 +102,7 @@ const FileStorage = (() => {
         uploadedAt: new Date().toISOString().slice(0, 19), blob: file, ...(note ? { note } : {}),
       };
       await tx('readwrite', s => s.put(rec));
-      localHistory(taskId, `파일 첨부: ${file.name}`);
+      localHistory(taskId, `파일 첨부: ${file.name}`, rec);
       return strip(rec);
     },
 
@@ -125,7 +129,7 @@ const FileStorage = (() => {
         return;
       }
       await tx('readwrite', s => s.delete(meta.id));
-      localHistory(taskId, `파일 삭제: ${meta.name}`);
+      localHistory(taskId, `파일 삭제: ${meta.name}`, meta);
     },
 
     /** PRD 필수 첨부 3종 확인 결과: [{label, ok}] */

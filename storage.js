@@ -41,7 +41,9 @@ const TaskStorage = (() => {
       .map(([k, label, f]) => `${label}: ${f(norm(before, k))} → ${f(norm(fields, k))}`)
       .join(' / ');
   }
-  const stamp = text => ({ at: new Date().toISOString(), text });
+  // 작업한 사람: 로그인한 사용자 이름 (서버 없는 화면은 '미리보기')
+  const actor = () => (typeof Auth !== 'undefined' && Auth.user && Auth.user.name) || '';
+  const stamp = text => { const by = actor(); return by ? { at: new Date().toISOString(), text, by } : { at: new Date().toISOString(), text }; };
 
   // ---- 서버 API ----
   async function request(method, url, body) {

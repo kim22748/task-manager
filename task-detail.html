@@ -99,6 +99,14 @@
   .timeline li::after{content:'';position:absolute;left:7px;top:16px;bottom:0;width:2px;background:var(--border)}
   .timeline li:last-child::after{display:none}
   .timeline time{display:block;font-size:12px;color:var(--sub)}
+  .timeline time b{color:rgba(0,0,0,.75);font-weight:600}
+  .timeline li.hrow{cursor:pointer}
+  .timeline li.hrow:hover{background:#fafafa}
+  .timeline li.hrow.open::before{background:var(--warn)}
+  .hdetail{margin:8px 0 0;padding:10px 12px;background:#fafafa;border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:default}
+  .hdetail>div{display:flex;gap:8px;padding:2px 0;word-break:break-word}
+  .hdetail .k{flex:0 0 64px;color:var(--sub)}
+  .hdetail .hnote{white-space:pre-wrap}
   @media(max-width:900px){.grid2{grid-template-columns:1fr}}
   @media(max-width:640px){aside{display:none}.content{padding:16px}}
 </style>
@@ -235,6 +243,34 @@ function renderAIOnly(){
   </div>`;
 }
 
+// ---------- 변경 이력: 누가 했는지 표시, 줄을 누르면 자세히(올린 파일·세부 설명) ----------
+let openHist=null;      // 펼쳐 둔 이력의 순번(history 배열 기준)
+const histWhen=h=>when(h.at&&new Date(h.at).toLocaleString('sv-SE'));
+// 이력이 가리키는 파일: 새 이력은 file 정보가 들어 있고, 예전 이력은 '파일 첨부: 이름' 문구에서 이름을 읽는다
+function histFile(h){
+  if(h.file)return h.file;
+  const m=/^파일 (첨부|삭제): (.+)$/.exec(h.text||'');
+  return m?{name:m[2]}:null;
+}
+function histItem(h,idx){
+  const f=histFile(h),open=openHist===idx;
+  let detail='';
+  if(open){
+    // 지금도 남아 있는 파일인지: id 가 같거나(새 이력), 예전 이력이면 이름이 같은 파일
+    const cur=f?(files.find(x=>f.id&&x.id===f.id)||(!f.id?files.find(x=>x.name===f.name):null)):null;
+    const note=f?(f.note||(cur&&cur.note)||''):'';
+    detail=`<div class="hdetail">
+      <div><span class="k">작업자</span>${h.by?esc(h.by):'<span class="sub" style="display:inline">기록 없음 (이전 기록이거나 자동 처리)</span>'}</div>
+      <div><span class="k">일시</span>${esc(histWhen(h))}</div>
+      <div><span class="k">내용</span>${esc(h.text)}</div>
+      ${f?`<div><span class="k">파일</span>${esc(f.name)}${f.kind||f.size!=null?` <span class="sub" style="display:inline">${[f.kind,f.size!=null?size(f.size):''].filter(Boolean).map(esc).join(' · ')}</span>`:''}</div>
+      <div><span class="k">세부 설명</span>${note?`<span class="hnote">${esc(note)}</span>`:'<span class="sub" style="display:inline">적은 설명이 없습니다.</span>'}</div>
+      <div><span class="k"></span>${cur?`<button type="button" data-dl="${esc(cur.id)}">내려받기</button>`:'<span class="sub" style="display:inline">지금은 삭제되어 내려받을 수 없습니다.</span>'}</div>`:''}
+    </div>`;
+  }
+  return `<li class="hrow${open?' open':''}" data-hist="${idx}" title="누르면 자세히 봅니다"><time>${esc(histWhen(h))}${h.by?` · <b>${esc(h.by)}</b>`:''}</time>${esc(h.text)}${f?' <span class="hclip">📎</span>':''}${detail}</li>`;
+}
+
 function render(){
   if(!task){renderAIOnly();return}
   const t=task,p=Math.min(100,Math.max(0,+t.progress||0)),edit=canEdit(t);
@@ -289,8 +325,8 @@ function render(){
       </div>
       <div class="card">
         <h2>변경 이력 <em>${hist.length}건</em></h2>
-        <p class="desc">최근 순</p>
-        ${hist.length?`<ul class="timeline">${hist.map(h=>`<li><time>${when(h.at&&new Date(h.at).toLocaleString('sv-SE'))}</time>${esc(h.text)}</li>`).join('')}</ul>`:'<div class="empty">기록된 이력이 없습니다.</div>'}
+        <p class="desc">최근 순 · 줄을 누르면 작업한 사람과 올린 파일·세부 설명을 볼 수 있습니다.</p>
+        ${hist.length?`<ul class="timeline">${hist.map((h,i)=>histItem(h,hist.length-1-i)).join('')}</ul>`:'<div class="empty">기록된 이력이 없습니다.</div>'}
       </div>
     </div>
   </div>`;
@@ -424,6 +460,8 @@ $('picker').onchange=e=>{upload([...e.target.files]);e.target.value=''};
 document.addEventListener('click',async e=>{
   const d=e.target.dataset;
   const meta=id=>files.find(f=>f.id===id);
+  const hrow=e.target.closest('li[data-hist]');
+  if(hrow&&!e.target.closest('button,a')){const i=+hrow.dataset.hist;openHist=openHist===i?null:i;render();return}
   if(e.target.id==='pgSave')saveProgress(+$('pgRange').value);
   if(e.target.id==='pgFull')saveProgress(100);
   if(e.target.id==='btnEdit')openEdit();

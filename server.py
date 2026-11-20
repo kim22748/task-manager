@@ -132,8 +132,14 @@ def describe_changes(before, fields):
     return " / ".join(parts)
 
 
-def stamp(text):
-    return {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "text": text}
+def stamp(text, by=None, file=None):
+    """변경 이력 한 줄. by = 작업한 사람 이름, file = 첨부 파일 이력이면 그 파일 정보(이름·종류·크기·세부 설명)."""
+    rec = {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "text": text}
+    if by:
+        rec["by"] = by
+    if file:
+        rec["file"] = {k: file[k] for k in ("id", "name", "kind", "size", "note") if file.get(k) not in (None, "")}
+    return rec
 
 
 def demo_items():
@@ -246,7 +252,7 @@ class TaskStore:
             self._write(tasks)
             return task
 
-    def update(self, task_id, fields):
+    def update(self, task_id, fields, by=None):
         with self.lock:
             tasks = self._read()
             for t in tasks:
@@ -254,7 +260,7 @@ class TaskStore:
                     text = describe_changes(t, fields)
                     t.update(fields)
                     if text:
-                        t["history"] = (t.get("history") or []) + [stamp(text)]
+                        t["history"] = (t.get("history") or []) + [stamp(text, by)]
                         t["history"] = t["history"][-MAX_HISTORY:]
                     self._write(tasks)
                     return t
@@ -274,18 +280,18 @@ class TaskStore:
         with self.lock:
             return next((t for t in self._read() if t["id"] == task_id), None)
 
-    def add_file(self, task_id, meta):
+    def add_file(self, task_id, meta, by=None):
         with self.lock:
             tasks = self._read()
             for t in tasks:
                 if t["id"] == task_id:
                     t["files"] = (t.get("files") or []) + [meta]
-                    t["history"] = ((t.get("history") or []) + [stamp(f"파일 첨부: {meta['name']}")])[-MAX_HISTORY:]
+                    t["history"] = ((t.get("history") or []) + [stamp(f"파일 첨부: {meta['name']}", by, meta)])[-MAX_HISTORY:]
                     self._write(tasks)
                     return meta
             return None
 
-    def remove_file(self, task_id, file_id):
+    def remove_file(self, task_id, file_id, by=None):
         with self.lock:
             tasks = self._read()
             for t in tasks:
@@ -295,7 +301,7 @@ class TaskStore:
                     if meta is None:
                         return None
                     t["files"] = [f for f in files if f["id"] != file_id]
-                    t["history"] = ((t.get("history") or []) + [stamp(f"파일 삭제: {meta['name']}")])[-MAX_HISTORY:]
+                    t["history"] = ((t.get("history") or []) + [stamp(f"파일 삭제: {meta['name']}", by, meta)])[-MAX_HISTORY:]
                     self._write(tasks)
                     return meta
             return None
@@ -810,7 +816,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
                 "uploadedAt": datetime.now().isoformat(timespec="seconds")}
         if note:
             meta["note"] = note
-        if store.add_file(task_id, meta) is None:
+        if store.add_file(task_id, meta, by=self._actor()) is None:
             path.unlink(missing_ok=True)
             return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
         self._json(HTTPStatus.CREATED, meta)
@@ -834,12 +840,17 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             shutil.copyfileobj(f, self.wfile)
 
     def _file_delete(self, task_id, file_id):
-        if store.remove_file(task_id, file_id) is None:
+        if store.remove_file(task_id, file_id, by=self._actor()) is None:
             return self._json(HTTPStatus.NOT_FOUND, {"error": "파일을 찾을 수 없습니다."})
         (FILES_DIR / str(task_id) / file_id).unlink(missing_ok=True)
         self._json(HTTPStatus.NO_CONTENT)
 
     # ---- 로그인·권한 검사를 거쳐 실행 ----
+    def _actor(self):
+        """변경 이력에 남길 작업자 이름 (로그인한 사용자)."""
+        u = self._user()
+        return (u or {}).get("name") or None
+
     def _handle_read(self, fn):
         """조회: 로그인한 사용자면 누구나."""
         def run():
@@ -1114,7 +1125,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
                     raise ValidationError("진행률 100%인 과제만 서비스 게시할 수 있습니다.")
             if not fields:
                 raise ValidationError("수정할 항목이 없습니다.")
-            task = store.update(task_id, fields)
+            task = store.update(task_id, fields, by=self._actor())
             if task is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
             self._json(HTTPStatus.OK, task)
