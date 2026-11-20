@@ -112,9 +112,17 @@
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>된 과제를 보여줍니다. 팀 전체 과제를 보려면 서버(<code>python server.py</code>)로 실행한 주소에서 열어 주세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="ok" hidden></div>
+    <div class="card" id="reqCard" hidden>
+      <h2 id="reqTitle">신규 과제 등록 신청</h2>
+      <p class="desc" id="reqDesc"></p>
+      <div class="tablewrap"><table style="min-width:820px">
+        <thead><tr><th>명칭 / 목적</th><th>분류</th><th>단계</th><th>신청자</th><th>공개 여부</th><th>신청일</th><th>상태</th><th></th></tr></thead>
+        <tbody id="reqRows"></tbody>
+      </table></div>
+    </div>
     <div class="card">
       <h2>과제별 진행 현황 <em id="cnt"></em></h2>
-      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)는 내가 <b>과제책임자</b>이거나 <b>과제참여자</b>인 과제만 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
+      <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 누구나 '신규작성'으로 등록을 신청할 수 있고, <b>사이트관리자가 승인하면</b> 과제로 등록됩니다. 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)는 내가 <b>과제책임자</b>이거나 <b>과제참여자</b>인 과제만 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
       <div class="toolbar">
         <select id="fCategory" title="분류"></select>
         <select id="fStage" title="AI 과제 단계"></select>
@@ -166,6 +174,7 @@
         <div class="radios" id="access"></div>
         <div class="sub" style="margin-top:4px"><b>공개</b>: 로그인한 모든 사용자가 세부사항을 볼 수 있습니다. <b>비공개</b>: 과제책임자와 과제참여자만 볼 수 있습니다.</div>
         <div class="msg">공개 여부를 선택하세요.</div></div>
+      <div class="notice warn" id="reqHint" hidden style="margin-bottom:10px">등록을 신청하면 <b>사이트관리자가 승인한 뒤</b> 과제로 등록됩니다. 승인 전에는 이 화면 위쪽 '내 신규 과제 등록 신청'에서 상태를 볼 수 있습니다.</div>
       <div class="notice err" id="mErr" hidden></div>
       <div class="foot"><button type="button" id="btnCancel">취소</button><button type="submit" class="p" id="btnSave">등록</button></div>
     </form>
@@ -303,8 +312,64 @@ async function reload(){
   try{aiItems=await AIStorage.list();tasks=await TaskStorage.list();fileMap=await FileStorage.listMany(tasks)}
   catch(e){showError('목록을 불러오지 못했습니다: '+e.message)}
   await loadCategories();
-  render();
+  await loadRequests();
+  render();renderRequests();
 }
+
+// ---------- 신규 과제 등록 신청 · 승인 (서버로 열었을 때만) ----------
+// 일반회원이 신규작성하면 신청으로 쌓이고, 사이트관리자가 승인해야 과제로 등록된다. (서버: approval.py)
+let requests=[];
+const isAdmin=()=>{const u=me();return !!u&&u.role==='admin'};
+async function reqApi(method,url,body){
+  const res=await fetch(url,{method,cache:'no-store',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined});
+  if(res.status===204)return null;
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.error||`요청 실패 (${res.status})`);
+  return data;
+}
+async function loadRequests(){
+  if(TaskStorage.mode!=='server'||!me()){requests=[];return}
+  try{requests=await reqApi('GET','api/project-requests')}catch(e){requests=[]}
+}
+function renderRequests(){
+  const admin=isAdmin(),list=admin?requests.filter(r=>r.status==='pending'):requests;
+  $('reqCard').hidden=!list.length;
+  if(!list.length)return;
+  $('reqTitle').innerHTML=admin?`승인 대기 중인 신규 과제 <em>${list.length}건</em>`:`내 신규 과제 등록 신청 <em>${list.length}건</em>`;
+  $('reqDesc').textContent=admin?'일반회원이 신청한 신규 과제입니다. 승인하면 과제로 등록되어 아래 목록에 나타나고, 반려하면 신청자에게 사유가 보입니다.':'사이트관리자가 승인하면 과제로 등록되어 아래 목록에 나타납니다. 반려된 신청은 사유를 확인한 뒤 지우고 다시 신청할 수 있습니다.';
+  $('reqRows').innerHTML=list.map(r=>{const f=r.fields||{},pend=r.status==='pending';
+    return `<tr>
+      <td><b>${esc(f.title)}</b><span class="purpose" title="${esc(f.purpose)}">${esc(f.purpose)}</span></td>
+      <td>${esc(f.category)}</td>
+      <td><span class="tag" style="background:${STAGE_COLOR[f.stage]||'#8c8c8c'}">${esc(f.stage)}</span></td>
+      <td>${esc(r.requesterName)}<div class="sub">${esc(r.requesterDept||f.ownerDept||'')}</div></td>
+      <td><span class="tag acc${f.access==='공개'?' pub':''}">${esc(f.access)}</span></td>
+      <td style="white-space:nowrap">${esc(String(r.requestedAt||'').slice(0,10))}</td>
+      <td>${pend?'<span class="tag" style="background:var(--wait)">승인 대기</span>':`<span class="tag" style="background:var(--danger)">반려</span><div class="sub" style="max-width:220px;white-space:normal">사유: ${esc(r.reason||'')}</div>`}</td>
+      <td class="act">${admin?`<button type="button" class="p" data-req-ok="${r.id}">승인</button> <button type="button" class="danger" data-req-no="${r.id}">반려</button>`:`<button type="button" data-req-del="${r.id}">${pend?'신청 취소':'지우기'}</button>`}</td></tr>`}).join('');
+}
+$('reqRows').addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b||b.disabled)return;
+  const id=b.dataset.reqOk||b.dataset.reqNo||b.dataset.reqDel,r=requests.find(x=>String(x.id)===id);if(!r)return;
+  const title=(r.fields||{}).title;
+  try{
+    if(b.dataset.reqOk){
+      if(!confirm(`'${title}' 과제 등록을 승인할까요? 승인하면 바로 과제로 등록됩니다.`))return;
+      b.disabled=true;await reqApi('POST',`api/project-requests/${id}/approve`);
+      await reload();showOk(`'${title}' 과제 등록을 승인했습니다.`);
+    }else if(b.dataset.reqNo){
+      const reason=prompt(`'${title}' 등록 신청을 반려합니다. 신청자에게 보여 줄 사유를 적어 주세요.`);
+      if(reason===null)return;
+      if(!reason.trim()){showError('반려 사유를 입력해야 합니다.');return}
+      b.disabled=true;await reqApi('POST',`api/project-requests/${id}/reject`,{reason:reason.trim()});
+      await reload();showOk(`'${title}' 등록 신청을 반려했습니다.`);
+    }else{
+      if(!confirm(`'${title}' 등록 신청을 ${r.status==='pending'?'취소':'목록에서 지울'}까요?`))return;
+      b.disabled=true;await reqApi('DELETE',`api/project-requests/${id}`);
+      await reload();showOk(r.status==='pending'?'등록 신청을 취소했습니다.':'반려된 신청을 지웠습니다.');
+    }
+  }catch(err){b.disabled=false;showError(err.message)}
+});
 
 // ---------- 신규작성 (수정·삭제는 과제 세부 페이지에서) ----------
 // AI 과제로 등록하면 서버(서버 없는 화면은 ai-storage.js)가 과제 진행 1건을 함께 만든다.
@@ -321,6 +386,10 @@ function openModal(){
   $('ownerName').readOnly=!!me&&me.role!=='admin';   // 일반회원이 등록하면 본인이 과제책임자 (서버도 본인 이름으로 저장). 사이트관리자만 다른 사람을 지정할 수 있다
   $('ownerDept').value=me?me.dept||'':'';
   $('access').innerHTML=ACCESS.map(a=>`<label><input type="radio" name="access" value="${a}"${a===ACCESS[0]?' checked':''}>${a}</label>`).join('');
+  // 일반회원은 '등록 신청' → 사이트관리자 승인 후 등록 (서버로 열었을 때)
+  const needOk=!!me&&me.role!=='admin'&&TaskStorage.mode==='server';
+  $('btnSave').textContent=needOk?'등록 신청':'등록';
+  $('reqHint').hidden=!needOk;
   clearInvalid();
   $('overlay').hidden=false;
   $('title').focus();
@@ -338,10 +407,10 @@ $('form').onsubmit=async e=>{
   if(!ok)return;
   saving=true;$('btnSave').disabled=true;
   try{
-    await AIStorage.create(f);
+    const made=await AIStorage.create(f);
     saving=false;$('overlay').hidden=true;
     await reload();
-    showOk(`'${f.title}' 과제를 등록했습니다.`);
+    showOk(made&&made.pending?`'${f.title}' 과제 등록을 신청했습니다. 사이트관리자가 승인하면 과제로 등록됩니다.`:`'${f.title}' 과제를 등록했습니다.`);
   }catch(err){$('mErr').textContent='저장하지 못했습니다: '+err.message;$('mErr').hidden=false}
   finally{saving=false;$('btnSave').disabled=false}
 };
@@ -456,7 +525,8 @@ $('fCategory').onchange=$('fStage').onchange=render;
   $('warn').hidden=server;
   try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}
   await loadCategories();
-  render();
+  await loadRequests();
+  render();renderRequests();
 })();
 </script>
 </body>

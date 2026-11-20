@@ -46,6 +46,7 @@ API:
     AI 과제를 등록·올리면 진행 기록이 생기고, 지우면 함께 지워지며, 명칭·과제책임자 변경은 진행 기록에도 반영됩니다.
                                    AI 과제는 명칭+과제책임자가 같으면 중복으로 보고 등록·수정·올리기를 막습니다 (409)
 
+    /api/project-requests*           신규 과제 등록 신청·승인 (일반회원의 신규작성은 사이트관리자 승인 후 등록) — approval.py 참고
     /api/board*                      공유 게시판 (게시 완료 과제 소개 글·첨부) — board.py 맨 위 설명 참고
     /api/llm/*, /api/similar/group   유사과제 탐색 AI(LLM) 창구 — similar_llm.py 맨 위 설명 참고
 """
@@ -65,6 +66,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
+import approval  # 신규 과제 등록 신청·승인 (data/project_requests.json)
 import board  # 공유 게시판 (data/board.json, data/board_files/)
 import similar_llm  # 유사과제 탐색 AI(LLM) 창구 (A04)
 import work_log  # AI 과제 삭제·엑셀 올리기 작업 기록 (data/work_log.jsonl)
@@ -778,6 +780,7 @@ def reset_demo():
     users_store.reset_demo()
     shutil.rmtree(FILES_DIR, ignore_errors=True)
     board.reset()
+    approval.reset()
     cat_store._write(list(AI_CATEGORIES))
     sync_tasks_with_projects()
 
@@ -1093,7 +1096,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
     # ---- 정적 파일: data/ 폴더·서버 코드·숨김 파일은 직접 노출하지 않음 ----
     def do_GET(self):
         route = self._route()
-        if self.auth_get(route) or similar_llm.handle(self, "GET", route) or board.handle(self, "GET", route, store):
+        if self.auth_get(route) or similar_llm.handle(self, "GET", route) or board.handle(self, "GET", route, store) or approval.handle(self, "GET", route, ai_store, sync_tasks_with_projects):
             return
         m = FILE_ROUTE.match(route)
         if m:
@@ -1141,7 +1144,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             ]
             self._json(HTTPStatus.CREATED, store.import_many(cleaned))
 
-        if self.auth_post(route) or similar_llm.handle(self, "POST", route) or board.handle(self, "POST", route, store):
+        if self.auth_post(route) or similar_llm.handle(self, "POST", route) or board.handle(self, "POST", route, store) or approval.handle(self, "POST", route, ai_store, sync_tasks_with_projects):
             return
         m = FILE_ROUTE.match(route)
         if m and not m.group(2):
@@ -1154,6 +1157,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
                 me = self._user()
                 if me["role"] != "admin":   # 일반회원이 등록하면 본인이 그 과제의 과제책임자
                     fields["ownerName"] = me["name"]
+                    # 일반회원의 신규작성은 바로 등록하지 않고 신청으로 쌓는다 → 사이트관리자가 승인해야 등록된다
+                    return approval.submit(self, me, fields, ai_store)
                 item = ai_store.create(fields)
                 sync_tasks_with_projects()
                 self._json(HTTPStatus.CREATED, item)
@@ -1223,7 +1228,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         route = self._route()
-        if similar_llm.handle(self, "DELETE", route) or board.handle(self, "DELETE", route, store):
+        if similar_llm.handle(self, "DELETE", route) or board.handle(self, "DELETE", route, store) or approval.handle(self, "DELETE", route, ai_store, sync_tasks_with_projects):
             return
         if route == "/api/categories":
             return self._handle(lambda: self._categories("DELETE"))
