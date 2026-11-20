@@ -67,6 +67,16 @@
   button{font:inherit;font-size:13px;padding:4px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;cursor:pointer}
   button:hover{border-color:var(--primary);color:var(--primary)}
   button.del:hover{border-color:var(--danger);color:var(--danger)}
+  .title .actions{margin-left:auto;display:flex;gap:8px}
+  dialog{border:0;border-radius:8px;padding:24px;width:min(480px,92vw);max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  dialog h3{margin:0 0 8px;font-size:16px}
+  dialog label{display:block;font-size:14px;margin:12px 0 4px;font-weight:600}
+  dialog label i{color:#ff4d4f;font-style:normal}
+  dialog input[type=text],dialog input[type=date],dialog select,dialog textarea{width:100%;font:inherit;padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  dialog textarea{min-height:72px;resize:vertical}
+  dialog .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  dialog .dlgerr{color:#ff4d4f;font-size:13px;margin-top:8px;min-height:18px}
   button:disabled{opacity:.45;cursor:not-allowed}
   .sub{color:var(--sub);font-size:12px}
   .empty{text-align:center;color:var(--sub);padding:24px}
@@ -97,6 +107,30 @@
   </div>
 </div>
 <input type="file" id="picker" multiple hidden>
+<dialog id="editDlg">
+  <form id="editForm" method="dialog" novalidate>
+    <h3>과제 수정</h3>
+    <div class="sub" id="editNote"></div>
+    <div id="aiFields">
+      <label for="eTitle">명칭 <i>*</i></label>
+      <input type="text" id="eTitle" maxlength="200">
+      <label for="ePurpose">목적 <i>*</i></label>
+      <textarea id="ePurpose" maxlength="2000"></textarea>
+      <label for="eCat">분류 <i>*</i></label>
+      <select id="eCat"></select>
+      <label for="eStage">AI 과제 단계 <i>*</i></label>
+      <select id="eStage"></select>
+    </div>
+    <label for="eDue">마감일 <span class="sub">(선택)</span></label>
+    <input type="date" id="eDue">
+    <label for="ePri">우선순위</label>
+    <select id="ePri"><option value="high">높음</option><option value="mid">보통</option><option value="low">낮음</option></select>
+    <label for="eMemo">메모 <span class="sub">(선택)</span></label>
+    <textarea id="eMemo" maxlength="500"></textarea>
+    <div class="dlgerr" id="eErr"></div>
+    <div class="btns"><button type="button" id="eCancel">취소</button><button type="submit" class="p" id="eSave">저장</button></div>
+  </form>
+</dialog>
 <script src="demo-data.js"></script>
 <script src="auth.js"></script>
 <script src="storage.js"></script>
@@ -205,7 +239,8 @@ function render(){
   $('body').innerHTML=`
   <div style="display:grid;gap:16px">
     <div class="card">
-      <div class="title"><h2>${esc(t.title)}</h2>${statusTag(t)}${ownerTag(t)}</div>
+      <div class="title"><h2>${esc(t.title)}</h2>${statusTag(t)}${ownerTag(t)}
+        ${edit?`<span class="actions"><button type="button" id="btnEdit">수정</button><button type="button" class="del" id="btnDelete">삭제</button></span>`:''}</div>
       <dl>
         <div><dt>담당자</dt><dd>${esc(t.assignee)||'-'}</dd></div>
         <div><dt>단계</dt><dd>${STAGE[t.s]||esc(t.s)||'-'}</dd></div>
@@ -279,6 +314,73 @@ async function upload(list){
   if(done.length)showOk(`${done.length}개 파일을 올렸습니다.`);
 }
 
+// ---------- 과제 수정·삭제 (사이트관리자 · 이 과제의 과제책임자) ----------
+// AI 과제가 기준이고 서버가 과제 진행을 AI 과제에 맞춰 동기화하므로 이렇게 처리한다.
+//  · 수정: 명칭·목적·분류·AI 과제 단계는 AI 과제에, 마감일·우선순위·메모는 과제 진행에 저장한다 (과제명은 서버가 진행 기록에도 맞춤).
+//  · 삭제: AI 과제를 지운다 → 서버가 연결된 과제 진행(첨부 파일·이력 포함)도 정리한다. (진행 기록만 지우면 서버가 다시 만들어 버림)
+async function loadCategories(cur){
+  let cats=['개발','법률','노사','IT'];
+  if(TaskStorage.mode==='server'){try{const r=await fetch('api/categories',{cache:'no-store'});if(r.ok)cats=(await r.json()).items.map(x=>x.name)}catch(e){}}
+  else aiItems.forEach(p=>{if(p.category&&!cats.includes(p.category))cats.push(p.category)});
+  if(cur&&!cats.includes(cur))cats=[...cats,cur];
+  return cats;
+}
+async function openEdit(){
+  const t=task,a=ai;
+  if(!t||!canEdit(t))return;
+  $('aiFields').hidden=!a;
+  $('editNote').textContent=a?'명칭·목적·분류·단계는 AI 과제 목록의 같은 과제에도 반영됩니다.':'연결된 AI 과제가 없어 마감일·우선순위·메모만 수정합니다.';
+  if(a){
+    $('eTitle').value=a.title||'';$('ePurpose').value=a.purpose||'';
+    const cats=await loadCategories(a.category);
+    $('eCat').innerHTML=cats.map(c=>`<option${c===a.category?' selected':''}>${esc(c)}</option>`).join('');
+    $('eStage').innerHTML=AI_STAGES.map(s=>`<option${s===a.stage?' selected':''}>${s}</option>`).join('');
+  }
+  $('eDue').value=t.due||'';$('ePri').value=t.priority||'mid';$('eMemo').value=t.memo||'';
+  $('eErr').textContent='';$('eSave').disabled=false;
+  $('editDlg').showModal();
+  (a?$('eTitle'):$('eDue')).focus();
+}
+$('editForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const t=task,a=ai;
+  if(!t||!canEdit(t))return;
+  const f={due:$('eDue').value,priority:$('ePri').value,memo:$('eMemo').value.trim()};
+  let af=null;
+  if(a){
+    af={title:$('eTitle').value.trim(),purpose:$('ePurpose').value.trim(),category:$('eCat').value,stage:$('eStage').value,ownerName:a.ownerName,ownerDept:a.ownerDept,access:a.access};
+    for(const [k,l] of [['title','명칭'],['purpose','목적'],['category','분류'],['stage','단계']]){
+      if(!af[k]){$('eErr').textContent=`${l}을(를) 입력하세요.`;return}
+    }
+  }
+  $('eSave').disabled=true;
+  try{
+    // 서버 없는 화면: 진행 기록이 아직 '이름+책임자'로만 AI 과제와 맞물려 있으면, 이름을 바꾸기 전에 연결(projectId)을 저장해 둔다.
+    // (안 그러면 이름이 바뀌는 순간 연결이 끊겨 옛 기록이 지워지고 새 기록이 만들어져 첨부·이력이 사라진다)
+    if(af&&TaskStorage.mode==='local'&&!t.projectId)await TaskStorage.update(t.id,{projectId:a.id});
+    if(af)await AIStorage.update(a.id,af);      // 서버가 과제 진행의 과제명도 따라 바꾼다
+    await TaskStorage.update(t.id,f);
+    $('editDlg').close();
+    await reload();render();
+    showOk('과제를 수정했습니다.');
+  }catch(err){
+    $('eErr').textContent='저장하지 못했습니다: '+err.message;$('eSave').disabled=false;
+    try{await reload()}catch(_){}
+  }
+});
+async function deleteTask(){
+  const t=task,a=ai;
+  if(!t||!canEdit(t)||busy)return;
+  const msg=a?`'${t.title}' 과제를 삭제할까요?\n\nAI 과제 목록의 같은 과제와, 이 과제의 첨부 파일·변경 이력도 함께 삭제됩니다. 되돌릴 수 없습니다.`
+             :`'${t.title}' 과제를 삭제할까요?\n\n첨부 파일·변경 이력도 함께 삭제되며 되돌릴 수 없습니다.`;
+  if(!confirm(msg))return;
+  busy=true;showError('');
+  try{
+    if(a)await AIStorage.remove(a.id);else await TaskStorage.remove(t.id);
+    location.href=FROM[from][0];                // 지운 과제의 상세는 더 볼 수 없으니 왔던 목록으로 돌아간다
+  }catch(err){busy=false;showError('삭제하지 못했습니다: '+err.message)}
+}
+
 // 진행률 저장 (슬라이더 값 또는 100% 완료). 서버도 역할에 따라 쓰기를 한 번 더 검사한다.
 async function saveProgress(v){
   if(!task||!canEdit(task)||busy)return;
@@ -299,6 +401,9 @@ document.addEventListener('click',async e=>{
   const meta=id=>files.find(f=>f.id===id);
   if(e.target.id==='pgSave')saveProgress(+$('pgRange').value);
   if(e.target.id==='pgFull')saveProgress(100);
+  if(e.target.id==='btnEdit')openEdit();
+  if(e.target.id==='btnDelete')deleteTask();
+  if(e.target.id==='eCancel')$('editDlg').close();
   if(d.dl){try{await FileStorage.download(task.id,meta(d.dl))}catch(err){showError(err.message)}}
   if(d.rm){
     const f=meta(d.rm);if(!f||!canEdit(task)||!confirm(`'${f.name}' 파일을 삭제할까요? 되돌릴 수 없습니다.`))return;
