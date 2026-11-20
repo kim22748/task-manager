@@ -113,6 +113,7 @@ TRACKED = [
     ("priority", "우선순위", lambda v: PRIORITY_LABEL.get(v, v)),
     ("title", "과제명", lambda v: v),
     ("memo", "메모", lambda v: v or "없음"),
+    ("participants", "과제참여자", lambda v: v or "없음"),
 ]
 
 
@@ -121,6 +122,8 @@ def _norm(d, key):
         return d.get(key, 0)
     if key == "registered":
         return bool(d.get(key, False))
+    if key == "participants":      # 비교·표시는 이름 목록으로
+        return ", ".join(p.get("name", "") for p in (d.get(key) or []))
     return d.get(key, "")
 
 
@@ -454,6 +457,26 @@ def clean_status(value):
     if value not in STATUSES:
         raise ValidationError("상태 값이 올바르지 않습니다.")
     return value
+
+
+MAX_PARTICIPANTS = 30
+
+
+def clean_participants(value):
+    """과제참여자: 사번 목록(또는 {"empNo": ...} 목록)을 받아, 사용 중인 사용자만 골라 [{empNo, name, dept}] 로 돌려줍니다."""
+    if not isinstance(value, list) or len(value) > MAX_PARTICIPANTS:
+        raise ValidationError(f"과제참여자는 {MAX_PARTICIPANTS}명까지 지정할 수 있습니다.")
+    users = {u["empNo"]: u for u in users_store.all() if u.get("status") == "active"}
+    out, seen = [], set()
+    for v in value:
+        emp = v.get("empNo") if isinstance(v, dict) else v
+        if not isinstance(emp, str) or emp not in users:
+            raise ValidationError("과제참여자로 지정할 수 없는 사용자가 있습니다. (사용 중인 사용자만 지정할 수 있습니다)")
+        if emp not in seen:
+            seen.add(emp)
+            u = users[emp]
+            out.append({"empNo": emp, "name": u.get("name", ""), "dept": u.get("dept", "")})
+    return out
 
 
 def clean_extra(body):
@@ -1117,6 +1140,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             if "s" in body:
                 fields["s"] = clean_status(body["s"])
             fields.update(clean_extra(body))
+            if "participants" in body:
+                fields["participants"] = clean_participants(body["participants"])
             if "registered" in fields and self._user()["role"] != "admin":
                 raise ValidationError("서비스 게시·해제는 사이트관리자만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
             if fields.get("registered"):

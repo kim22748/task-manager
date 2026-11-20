@@ -68,6 +68,14 @@
   button:hover{border-color:var(--primary);color:var(--primary)}
   button.del:hover{border-color:var(--danger);color:var(--danger)}
   .title .actions{margin-left:auto;display:flex;gap:8px}
+  .parts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;white-space:normal}
+  .pchip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;background:#f6ffed;border:1px solid #b7eb8f;font-size:13px}
+  .pchip em{font-style:normal;color:var(--sub);font-size:12px}
+  .plist{margin-top:8px;max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:6px}
+  dialog label.prow{display:flex;align-items:center;gap:10px;margin:0;padding:8px 12px;font-weight:400;border-bottom:1px solid var(--border);cursor:pointer}
+  dialog label.prow:last-child{border-bottom:0}
+  dialog label.prow:hover{background:#fafafa}
+  dialog label.prow input{width:16px;height:16px;flex-shrink:0}
   .fnote{margin-top:2px;font-size:12px;color:rgba(0,0,0,.65);white-space:pre-wrap;word-break:break-word;max-width:420px}
   .uploader{margin-bottom:16px}
   .uploader label{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
@@ -123,6 +131,17 @@
   </div>
 </div>
 <input type="file" id="picker" multiple hidden>
+<dialog id="partDlg">
+  <form id="partForm" method="dialog" novalidate>
+    <h3>과제참여자 선택</h3>
+    <div class="sub">이 과제에 참여하는 사람을 고르세요. 과제책임자(담당자)는 목록에서 빠져 있습니다.</div>
+    <input type="text" id="pSearch" placeholder="이름·부서·사번 검색" style="margin-top:12px">
+    <div class="plist" id="pList"></div>
+    <div class="sub" id="pCount" style="margin-top:8px"></div>
+    <div class="dlgerr" id="pErr"></div>
+    <div class="btns"><button type="button" id="pCancel">취소</button><button type="submit" class="p" id="pSave">저장</button></div>
+  </form>
+</dialog>
 <dialog id="editDlg">
   <form id="editForm" method="dialog" novalidate>
     <h3>과제 수정</h3>
@@ -243,6 +262,56 @@ function renderAIOnly(){
   </div>`;
 }
 
+// ---------- 과제참여자 선택 (사이트관리자 · 이 과제의 과제책임자) ----------
+const ROLE_LABEL={admin:'사이트관리자',owner:'과제책임자',member:'과제참여자'};
+let allUsers=[],picked=new Set();
+// 지정할 수 있는 사람: 사용 중인 사용자 (서버: /api/users/directory, 서버 없는 화면: 더미데이터의 사용자)
+async function loadUsers(){
+  if(TaskStorage.mode==='server'){
+    const r=await fetch('api/users/directory',{cache:'no-store'});
+    if(!r.ok)throw new Error('사용자 목록을 불러오지 못했습니다.');
+    return r.json();
+  }
+  if(typeof DemoData==='undefined')return [];
+  return (await DemoData.load()).users.filter(u=>u.status==='active');
+}
+function renderPartList(){
+  const q=$('pSearch').value.trim().toLowerCase();
+  const list=allUsers.filter(u=>!q||[u.name,u.dept,u.empNo].some(v=>String(v||'').toLowerCase().includes(q)));
+  $('pList').innerHTML=list.length?list.map(u=>`<label class="prow"><input type="checkbox" data-emp="${esc(u.empNo)}"${picked.has(u.empNo)?' checked':''}>
+      <span><b>${esc(u.name)}</b> <span class="sub" style="display:inline">${esc(u.dept||'')} · ${esc(ROLE_LABEL[u.role]||u.role||'')} · 사번 ${esc(u.empNo)}</span></span></label>`).join('')
+    :'<div class="empty">조건에 맞는 사용자가 없습니다.</div>';
+  $('pCount').textContent=`선택 ${picked.size}명`;
+}
+async function openParts(){
+  if(!task||!canEdit(task))return;
+  $('pErr').textContent='';$('pSearch').value='';$('pSave').disabled=false;
+  try{allUsers=(await loadUsers()).filter(u=>(u.name||'').trim()!==(task.assignee||'').trim())}   // 과제책임자 본인은 뺀다
+  catch(err){showError(err.message);return}
+  const known=new Set(allUsers.map(u=>u.empNo));
+  picked=new Set((task.participants||[]).map(u=>u.empNo).filter(e=>known.has(e)));
+  renderPartList();
+  $('partDlg').showModal();$('pSearch').focus();
+}
+$('pSearch').addEventListener('input',renderPartList);
+$('pList').addEventListener('change',e=>{
+  const emp=e.target.dataset.emp;if(!emp)return;
+  e.target.checked?picked.add(emp):picked.delete(emp);
+  $('pCount').textContent=`선택 ${picked.size}명`;
+});
+$('partForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(!task||!canEdit(task))return;
+  const list=allUsers.filter(u=>picked.has(u.empNo)).map(u=>({empNo:u.empNo,name:u.name,dept:u.dept||''}));
+  $('pSave').disabled=true;
+  try{
+    await TaskStorage.update(task.id,{participants:list});
+    $('partDlg').close();
+    await reload();render();
+    showOk(list.length?`과제참여자 ${list.length}명을 저장했습니다.`:'과제참여자를 모두 뺐습니다.');
+  }catch(err){$('pErr').textContent='저장하지 못했습니다: '+err.message;$('pSave').disabled=false}
+});
+
 // ---------- 변경 이력: 누가 했는지 표시, 줄을 누르면 자세히(올린 파일·세부 설명) ----------
 let openHist=null;      // 펼쳐 둔 이력의 순번(history 배열 기준)
 const histWhen=h=>when(h.at&&new Date(h.at).toLocaleString('sv-SE'));
@@ -294,6 +363,9 @@ function render(){
         <div><dt>마감일</dt><dd>${esc(t.due)||'-'}</dd></div>
         <div><dt>서비스 게시일</dt><dd>${esc(t.registeredAt)||'-'}</dd></div>
         <div><dt>승인자</dt><dd>${esc(t.approver)||'-'}</dd></div>
+        <div style="grid-column:1/-1"><dt>과제참여자 <span class="sub" style="display:inline">${(t.participants||[]).length}명</span></dt>
+          <dd class="parts">${(t.participants||[]).length?t.participants.map(u=>`<span class="pchip" title="${esc(u.dept||'')} · 사번 ${esc(u.empNo||'')}">${esc(u.name)}${u.dept?` <em>${esc(u.dept)}</em>`:''}</span>`).join(''):'<span class="sub" style="display:inline">지정된 과제참여자가 없습니다.</span>'}
+            ${edit?'<button type="button" id="btnParts">참여자 선택</button>':''}</dd></div>
         <div style="grid-column:1/-1"><dt>게시 사유</dt><dd>${esc(t.regReason)||'-'}</dd></div>
         ${t.memo?`<div style="grid-column:1/-1"><dt>메모</dt><dd>${esc(t.memo)}</dd></div>`:''}
       </dl>
@@ -464,6 +536,8 @@ document.addEventListener('click',async e=>{
   if(hrow&&!e.target.closest('button,a')){const i=+hrow.dataset.hist;openHist=openHist===i?null:i;render();return}
   if(e.target.id==='pgSave')saveProgress(+$('pgRange').value);
   if(e.target.id==='pgFull')saveProgress(100);
+  if(e.target.id==='btnParts')openParts();
+  if(e.target.id==='pCancel')$('partDlg').close();
   if(e.target.id==='btnEdit')openEdit();
   if(e.target.id==='btnDelete')deleteTask();
   if(e.target.id==='eCancel')$('editDlg').close();

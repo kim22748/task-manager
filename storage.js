@@ -33,8 +33,11 @@ const TaskStorage = (() => {
     ['priority', '우선순위', v => PRI_L[v] || v],
     ['title', '과제명', v => v],
     ['memo', '메모', v => v || '없음'],
+    ['participants', '과제참여자', v => v || '없음'],
   ];
-  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : k === 'registered' ? !!o[k] : (o[k] ?? ''));
+  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : k === 'registered' ? !!o[k]
+    : k === 'participants' ? (o[k] || []).map(p => p.name).join(', ')   // 비교·표시는 이름 목록으로
+    : (o[k] ?? ''));
   function describe(before, fields) {
     return TRACK
       .filter(([k]) => k in fields && norm(before, k) !== norm(fields, k))
