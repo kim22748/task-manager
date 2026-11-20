@@ -18,6 +18,12 @@
   .main{flex:1;min-width:0}
   header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
   header small{margin-left:12px;font-weight:400;font-size:13px;color:var(--sub)}
+  /* 사이트관리자에게만: 승인 대기 중인 신규 과제 건수 (누르면 세부 진행 현황의 승인 목록으로) */
+  header a.pend{margin-left:16px;display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:14px;font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0;text-decoration:none;background:#fff7e6;border:1px solid #ffd591;color:#d46b08}
+  header a.pend b{display:inline-block;min-width:20px;padding:0 6px;border-radius:10px;background:#fa8c16;color:#fff;text-align:center;font-variant-numeric:tabular-nums}
+  header a.pend.none{background:#fafafa;border-color:#d9d9d9;color:var(--sub);font-weight:400}
+  header a.pend.none b{background:#bfbfbf}
+  header a.pend[hidden]{display:none}
   .content{padding:16px 20px;display:grid;gap:12px}
 
   /* 상단 요약: 한 줄 */
@@ -95,7 +101,7 @@
 <body>
 <aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a class="on" href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="board.html">공유 게시판</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
 <div class="main">
-  <header>대시보드<small id="asof"></small></header>
+  <header>대시보드<small id="asof"></small><a id="pendBadge" class="pend" href="overall.html" hidden></a></header>
   <div class="content" id="app"></div>
 </div>
 <script src="demo-data.js"></script>
@@ -226,7 +232,19 @@ function render(tasks){
   document.getElementById('asof').textContent=`${today.getMonth()+1}월 ${today.getDate()}일 기준 · 카드를 누르면 세부 진행 현황으로 이동합니다`;
 }
 // 저장 모듈(storage.js)에서 과제를 불러온다: 서버로 열면 data/tasks.json, 파일로 열면 localStorage
-TaskStorage.init().then(async tasks=>{try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}render(tasks)}).catch(()=>render([]));
+TaskStorage.init().then(async tasks=>{try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}render(tasks);showPending()}).catch(()=>render([]));
+// 사이트관리자가 접속하면 승인 대기 중인 신규 과제 등록 신청 건수를 보여 준다 (서버로 열었을 때만. 서버: approval.py)
+async function showPending(){
+  const u=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+  if(!u||u.role!=='admin'||TaskStorage.mode!=='server')return;
+  try{
+    const res=await fetch('api/project-requests',{cache:'no-store'});if(!res.ok)return;
+    const n=(await res.json()).filter(r=>r.status==='pending').length,el=document.getElementById('pendBadge');
+    el.innerHTML=n?`승인 대기 <b>${n}</b>건 →`:'승인 대기 <b>0</b>건';
+    el.title=n?'세부 진행 현황에서 승인·반려하기':'승인을 기다리는 신규 과제 등록 신청이 없습니다';
+    el.classList.toggle('none',!n);el.hidden=false;
+  }catch(e){}
+}
 </script>
 </body>
 </html>
