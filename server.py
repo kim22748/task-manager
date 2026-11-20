@@ -779,6 +779,10 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
         query = parse_qs(urlsplit(self.path).query)
         name = clean_filename((query.get("name") or [""])[0])
+        # 세부사항(선택): 파일을 올리면서 적는 설명. 줄바꿈·탭을 뺀 제어문자는 지우고 500자까지.
+        note = "".join(ch for ch in (query.get("note") or [""])[0] if (ord(ch) >= 32 and ord(ch) != 127) or ord(ch) in (9, 10)).strip()
+        if len(note) > 500:
+            raise ValidationError("세부사항은 500자 이하로 입력하세요.")
         try:
             length = int(self.headers.get("Content-Length") or -1)
         except ValueError:
@@ -804,6 +808,8 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             raise ValidationError("파일을 끝까지 받지 못했습니다. 다시 올려 주세요.")
         meta = {"id": file_id, "name": name, "size": length, "kind": file_kind(name),
                 "uploadedAt": datetime.now().isoformat(timespec="seconds")}
+        if note:
+            meta["note"] = note
         if store.add_file(task_id, meta) is None:
             path.unlink(missing_ok=True)
             return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})

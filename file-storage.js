@@ -44,7 +44,7 @@ const FileStorage = (() => {
       t.onabort = () => reject(t.error || new Error('파일 저장이 취소되었습니다. (브라우저 저장 공간 부족일 수 있습니다)'));
     });
   }
-  const strip = f => ({ id: f.id, name: f.name, size: f.size, kind: f.kind, uploadedAt: f.uploadedAt });
+  const strip = f => ({ id: f.id, name: f.name, size: f.size, kind: f.kind, uploadedAt: f.uploadedAt, ...(f.note ? { note: f.note } : {}) });
   // 임시 저장 모드에서도 과제 변경 이력에 남긴다 (storage.js 와 같은 localStorage 키)
   function localHistory(taskId, text) {
     try {
@@ -84,17 +84,18 @@ const FileStorage = (() => {
       return out;
     },
 
-    async upload(taskId, file) {
+    async upload(taskId, file, note) {
+      note = String(note || '').trim().slice(0, 500);   // 세부사항(선택)
       if (file.size > MAX_FILE) throw new Error(`'${file.name}'은(는) 20MB를 넘어 올릴 수 없습니다.`);
       if (isServer()) {
-        const res = await fetch(`${api(taskId)}?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+        const res = await fetch(`${api(taskId)}?name=${encodeURIComponent(file.name)}${note ? '&note=' + encodeURIComponent(note) : ''}`, { method: 'POST', body: file });
         if (!res.ok) throw await errorOf(res);
         return res.json();
       }
       const rec = {
         id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/-/g, ''),
         taskId: String(taskId), name: file.name, size: file.size, kind: kindOf(file.name),
-        uploadedAt: new Date().toISOString().slice(0, 19), blob: file,
+        uploadedAt: new Date().toISOString().slice(0, 19), blob: file, ...(note ? { note } : {}),
       };
       await tx('readwrite', s => s.put(rec));
       localHistory(taskId, `파일 첨부: ${file.name}`);
