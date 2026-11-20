@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow · 공유 게시판</title>
+<style>
+  :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--pub:#52c41a}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
+  aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
+  aside a.on{background:var(--primary);color:#fff}
+  aside a.child{padding:10px 24px 10px 40px;font-size:14px;color:rgba(255,255,255,.92);background:rgba(255,255,255,.08)}
+  .main{flex:1;min-width:0}
+  header{height:64px;background:#fff;padding:0 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,21,41,.08);font-weight:600}
+  header small{margin-left:auto;font-weight:400;font-size:13px;color:var(--sub)}
+  .content{padding:24px;display:grid;gap:16px}
+  .card{background:#fff;border-radius:8px;padding:20px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03);min-width:0}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub);margin-left:6px}
+  .desc{margin:0 0 14px;font-size:13px;color:var(--sub);line-height:1.6}
+  input,select,textarea,button{font:inherit;font-size:14px;padding:6px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff}
+  textarea{width:100%;resize:vertical;line-height:1.6}
+  button{cursor:pointer}
+  button.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.danger{color:#ff4d4f;border-color:#ff4d4f}
+  button.sm{font-size:13px;padding:3px 12px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .toolbar .grow{flex:1}
+  .toolbar input[type=search]{min-width:240px;max-width:340px;flex:1}
+  .tablewrap{overflow-x:auto}
+  .tablewrap>table{min-width:560px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+  th{background:#fafafa;font-weight:600;white-space:nowrap}
+  td.no{width:56px;color:var(--sub);font-variant-numeric:tabular-nums}
+  td.nw{white-space:nowrap}
+  tr.item{cursor:pointer}
+  tr.item:hover td{background:#fafcff}
+  tr.item.open td{background:#f0f7ff;border-bottom-color:transparent}
+  tr.item .ttl{font-weight:600;color:var(--primary)}
+  tr.view td{background:#f8fbff;padding:8px 24px 20px 64px}
+  .taskname{display:block;color:var(--sub);font-size:12px;margin-top:2px}
+  .body{white-space:pre-wrap;line-height:1.7;font-size:14px;margin:4px 0 14px;word-break:break-word}
+  .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:20px;white-space:nowrap}
+  .tag.mine{background:#e6f4ff;color:#0958d9;border:1px solid #91caff}
+  .tag.clip{background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f}
+  .flist{list-style:none;margin:0 0 12px;padding:0;border-top:1px dashed #e6e6e6}
+  .flist li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed #e6e6e6;font-size:13px}
+  .flist .fname{flex:1;min-width:0;word-break:break-all;font-weight:600}
+  .viewfoot{display:flex;gap:8px;align-items:center}
+  .viewfoot .grow{flex:1}
+  .sub{color:var(--sub);font-size:12px}
+  .empty{text-align:center;color:var(--sub);padding:28px}
+  .notice{border-radius:8px;padding:10px 16px;font-size:14px}
+  .notice.warn{background:#fffbe6;border:1px solid #ffe58f}
+  .notice.err{background:#fff2f0;border:1px solid #ffccc7}
+  .notice.ok{background:#f6ffed;border:1px solid #b7eb8f}
+  .notice[hidden]{display:none}
+  dialog{border:0;border-radius:8px;padding:24px;width:min(600px,94vw);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  dialog h3{margin:0 0 14px;font-size:16px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:14px;margin-bottom:4px}
+  .field label i{color:#ff4d4f;font-style:normal;margin-right:2px}
+  .field input[type=text],.field select{width:100%}
+  .dlgerr{color:#ff4d4f;font-size:13px;min-height:18px}
+  .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  .pend{list-style:none;margin:8px 0 0;padding:0}
+  .pend li{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0}
+  .pend li span{flex:1;min-width:0;word-break:break-all}
+  /* 과제참여자에게는 글쓰기 버튼을 숨긴다 (실제 차단은 서버가 한다) */
+  html[data-role=member] .w-only{display:none!important}
+</style>
+</head>
+<body>
+<aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a class="on" href="board.html">공유 게시판</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
+<div class="main">
+  <header>공유 게시판<small id="mode"></small></header>
+  <div class="content">
+    <div class="notice warn" id="warn" hidden>공유 게시판은 서버(<code>python server.py</code>)로 실행한 주소에서 로그인해야 쓸 수 있습니다. 지금 화면에서는 글이 보이지 않습니다.</div>
+    <div class="notice err" id="err" hidden></div>
+    <div class="notice ok" id="ok" hidden></div>
+    <div class="card">
+      <h2>서비스 게시 완료 과제 공유 <em id="cnt"></em></h2>
+      <p class="desc">서비스 게시가 끝난 과제를 과제책임자가 간단한 설명과 파일을 붙여 소개하는 게시판입니다. 로그인한 사람은 누구나 읽고 파일을 내려받을 수 있습니다. 글은 <b>과제책임자</b>가 <b>서비스 게시 완료된 자기 과제</b>에 대해서만 올릴 수 있습니다.</p>
+      <div class="toolbar">
+        <input type="search" id="q" placeholder="제목·과제명·설명·글쓴이·파일 이름 검색">
+        <span class="grow"></span>
+        <button class="p w-only" id="btnNew" type="button">글쓰기</button>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>번호</th><th>제목 / 과제</th><th>글쓴이</th><th>작성일</th><th>첨부</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+<input type="file" id="picker" multiple hidden>
+<dialog id="postDlg">
+  <form id="postForm" method="dialog" novalidate>
+    <h3 id="dlgTitle">글쓰기</h3>
+    <div class="field" id="taskField"><label for="pTask"><i>*</i>과제 <span class="sub">서비스 게시 완료된 내 과제</span></label><select id="pTask"></select></div>
+    <div class="field"><label for="pTitle"><i>*</i>제목</label><input type="text" id="pTitle" maxlength="200" placeholder="예: 공시지가 검증 자동화, 이렇게 쓰세요"></div>
+    <div class="field"><label for="pBody"><i>*</i>설명 <span class="sub" id="pLen"></span></label><textarea id="pBody" rows="7" maxlength="3000" placeholder="무엇을 하는 과제인지, 누가 어떻게 쓰면 좋은지 간단히 적어 주세요."></textarea></div>
+    <div class="field"><label>첨부 파일 <span class="sub">선택 · 파일당 20MB 이하 · 글 하나에 10개까지</span></label>
+      <ul class="pend" id="pOld"></ul>
+      <button type="button" class="sm" id="pPick">파일 고르기</button>
+      <ul class="pend" id="pPend"></ul></div>
+    <div class="dlgerr" id="pErr"></div>
+    <div class="btns"><button type="button" id="pCancel">취소</button><button type="submit" class="p" id="pSave">올리기</button></div>
+  </form>
+</dialog>
+<script src="demo-data.js"></script>
+<script src="auth.js"></script>
+<script src="storage.js"></script>
+<script>
+// 공유 게시판: 서비스 게시 완료 과제를 과제책임자가 설명·파일과 함께 소개한다. (서버 API: board.py)
+// 세부 진행 현황·과제 상세와는 연결하지 않는다 — 글에는 과제명만 적혀 있고 그쪽으로 가는 링크는 없다.
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const size=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':(n||0)+' B';
+const MAX_FILE=20*1024*1024,MAX_FILES=10;
+let posts=[],tasks=[],openId=null,editing=null,pending=[],removing=new Set(),busy=false,server=false;
+
+const me=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+const canWrite=()=>{const u=me();return !!u&&(u.role==='admin'||u.role==='owner')};
+const canEdit=p=>{const u=me();return !!u&&(u.role==='admin'||p.authorEmpNo===u.empNo)};
+// 글을 올릴 수 있는 과제: 서비스 게시 완료 + (사이트관리자는 전부, 과제책임자는 자기 과제)
+const myPublished=()=>{const u=me();return tasks.filter(t=>t.registered&&u&&(u.role==='admin'||String(t.assignee||'').trim()===String(u.name||'').trim()))};
+const showError=m=>{$('err').textContent=m;$('err').hidden=false;$('ok').hidden=true};
+const showOk=m=>{$('ok').textContent=m;$('ok').hidden=false;$('err').hidden=true;clearTimeout(showOk.t);showOk.t=setTimeout(()=>$('ok').hidden=true,4000)};
+
+async function api(method,url,body){
+  const opt={method,cache:'no-store'};
+  if(body&&typeof body.arrayBuffer==='function')opt.body=body;   // 파일(Blob)은 그대로 보낸다
+  else if(body!==undefined){opt.headers={'Content-Type':'application/json'};opt.body=JSON.stringify(body)}
+  const res=await fetch(url,opt);
+  if(res.status===401){location.replace('login.html?next=board.html');return new Promise(()=>{})}
+  if(res.status===204)return null;
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.error||`요청 실패 (${res.status})`);
+  return data;
+}
+async function load(){posts=server?await api('GET','api/board'):[]}
+
+function visible(){
+  const q=$('q').value.trim().toLowerCase();
+  if(!q)return posts;
+  return posts.filter(p=>[p.title,p.taskTitle,p.body,p.authorName,p.authorDept,...(p.files||[]).map(f=>f.name)].some(v=>String(v||'').toLowerCase().includes(q)));
+}
+function viewOf(p){
+  const fs=p.files||[];
+  return `<tr class="view"><td colspan="5">
+    <div class="body">${esc(p.body)}</div>
+    ${fs.length?`<ul class="flist">${fs.map(f=>`<li><span class="fname">${esc(f.name)}</span><span class="sub">${size(f.size)}</span><a class="dl" href="api/board/${p.id}/files/${esc(f.id)}"><button type="button" class="sm">내려받기</button></a></li>`).join('')}</ul>`:''}
+    <div class="viewfoot"><span class="sub">과제: ${esc(p.taskTitle)} · 작성 ${esc(String(p.createdAt||'').replace('T',' ').slice(0,16))}${p.updatedAt&&p.updatedAt!==p.createdAt?` · 수정 ${esc(String(p.updatedAt).replace('T',' ').slice(0,16))}`:''}</span><span class="grow"></span>
+      ${canEdit(p)?`<button type="button" class="sm" data-edit="${p.id}">수정</button><button type="button" class="sm danger" data-del="${p.id}">삭제</button>`:''}</div>
+  </td></tr>`;
+}
+function render(){
+  const list=visible();
+  $('cnt').textContent=list.length===posts.length?`전체 ${posts.length}건`:`${list.length}건 / 전체 ${posts.length}건`;
+  $('rows').innerHTML=list.length?list.map((p,i)=>{
+    const open=openId===p.id,n=(p.files||[]).length;
+    return `<tr class="item${open?' open':''}" data-id="${p.id}">
+      <td class="no">${list.length-i}</td>
+      <td><span class="ttl">${esc(p.title)}</span>${canEdit(p)&&me()&&p.authorEmpNo===me().empNo?' <span class="tag mine">내 글</span>':''}<span class="taskname">과제: ${esc(p.taskTitle)}</span></td>
+      <td class="nw">${esc(p.authorName)}${p.authorDept?`<div class="sub">${esc(p.authorDept)}</div>`:''}</td>
+      <td class="nw">${esc(String(p.createdAt||'').slice(0,10))}</td>
+      <td class="nw">${n?`<span class="tag clip">파일 ${n}개</span>`:'<span class="sub">-</span>'}</td></tr>`+(open?viewOf(p):'');
+  }).join(''):`<tr><td colspan="5" class="empty">${posts.length?'조건에 맞는 글이 없습니다.':'아직 올라온 글이 없습니다.'}</td></tr>`;
+}
+
+// ---------- 글쓰기 · 수정 ----------
+function renderFiles(){
+  const olds=editing?(editing.files||[]).filter(f=>!removing.has(f.id)):[];
+  $('pOld').innerHTML=olds.map(f=>`<li><span>${esc(f.name)} <span class="sub">${size(f.size)} · 올라가 있음</span></span><button type="button" class="sm" data-rm-old="${esc(f.id)}">빼기</button></li>`).join('');
+  $('pPend').innerHTML=pending.map((f,i)=>`<li><span>${esc(f.name)} <span class="sub">${size(f.size)}</span></span><button type="button" class="sm" data-rm="${i}">빼기</button></li>`).join('');
+}
+function openDlg(p){
+  editing=p||null;pending=[];removing=new Set();$('pErr').textContent='';$('pSave').disabled=false;
+  if(!editing){
+    const mine=myPublished();
+    if(!mine.length){showError(me()&&me().role==='admin'?'서비스 게시 완료된 과제가 아직 없습니다.':'서비스 게시 완료된 내 과제가 없어 글을 올릴 수 없습니다. 과제가 서비스 게시된 뒤에 올려 주세요.');return}
+    $('pTask').innerHTML=mine.map(t=>`<option value="${esc(t.id)}">${esc(t.title)}${me().role==='admin'&&t.assignee?` (${esc(t.assignee)})`:''}</option>`).join('');
+  }
+  $('dlgTitle').textContent=editing?'글 수정':'글쓰기';
+  $('taskField').hidden=!!editing;
+  $('pTitle').value=editing?editing.title:'';
+  $('pBody').value=editing?editing.body:'';
+  $('pSave').textContent=editing?'저장':'올리기';
+  $('pLen').textContent=`${$('pBody').value.length} / 3000자`;
+  renderFiles();
+  $('postDlg').showModal();$('pTitle').focus();
+}
+$('btnNew').onclick=()=>{if(!server)return showError('공유 게시판은 서버로 실행한 주소에서 로그인해야 쓸 수 있습니다.');openDlg(null)};
+$('pCancel').onclick=()=>$('postDlg').close();
+$('pBody').addEventListener('input',()=>$('pLen').textContent=`${$('pBody').value.length} / 3000자`);
+$('pPick').onclick=()=>$('picker').click();
+$('picker').onchange=e=>{
+  $('pErr').textContent='';
+  for(const f of e.target.files){
+    if(f.size>MAX_FILE){$('pErr').textContent=`'${f.name}'은(는) 20MB를 넘어 올릴 수 없습니다.`;continue}
+    const kept=editing?(editing.files||[]).filter(x=>!removing.has(x.id)).length:0;
+    if(kept+pending.length>=MAX_FILES){$('pErr').textContent=`첨부 파일은 글 하나에 ${MAX_FILES}개까지 올릴 수 있습니다.`;break}
+    pending.push(f);
+  }
+  e.target.value='';renderFiles();
+};
+$('postForm').addEventListener('click',e=>{
+  const rm=e.target.closest('[data-rm]'),old=e.target.closest('[data-rm-old]');
+  if(rm){pending.splice(+rm.dataset.rm,1);renderFiles()}
+  if(old){removing.add(old.dataset.rmOld);renderFiles()}
+});
+$('postForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(busy)return;
+  const title=$('pTitle').value.trim(),body=$('pBody').value.trim();
+  if(!title){$('pErr').textContent='제목을 입력하세요.';return}
+  if(!body){$('pErr').textContent='설명을 입력하세요.';return}
+  busy=true;$('pSave').disabled=true;$('pErr').textContent='';
+  let post=editing,failed=[];
+  try{
+    post=editing?await api('PATCH','api/board/'+editing.id,{title,body}):await api('POST','api/board',{taskId:+$('pTask').value,title,body});
+    for(const id of removing){try{await api('DELETE',`api/board/${post.id}/files/${id}`)}catch(err){failed.push(err.message)}}
+    for(const f of pending){try{await api('POST',`api/board/${post.id}/files?name=${encodeURIComponent(f.name)}`,f)}catch(err){failed.push(`${f.name}: ${err.message}`)}}
+    $('postDlg').close();
+    openId=post.id;
+    await load();render();
+    failed.length?showError('글은 저장했지만 일부 파일은 처리하지 못했습니다: '+failed.join(' / ')):showOk(editing?'글을 수정했습니다.':'글을 올렸습니다.');
+  }catch(err){$('pErr').textContent='저장하지 못했습니다: '+err.message;$('pSave').disabled=false}
+  busy=false;
+});
+
+$('rows').addEventListener('click',async e=>{
+  if(e.target.closest('a.dl'))return;                 // 내려받기는 링크 그대로
+  const ed=e.target.closest('[data-edit]'),del=e.target.closest('[data-del]');
+  if(ed){const p=posts.find(x=>x.id===+ed.dataset.edit);if(p)openDlg(p);return}
+  if(del){
+    const p=posts.find(x=>x.id===+del.dataset.del);
+    if(!p||!confirm(`'${p.title}' 글을 삭제할까요? 첨부 파일도 함께 지워지며 되돌릴 수 없습니다.`))return;
+    try{await api('DELETE','api/board/'+p.id);openId=null;await load();render();showOk('글을 삭제했습니다.')}catch(err){showError('삭제하지 못했습니다: '+err.message)}
+    return;
+  }
+  const tr=e.target.closest('tr.item');if(!tr)return;
+  const id=+tr.dataset.id;openId=openId===id?null:id;render();   // 줄을 누르면 글 펼치기/접기
+});
+$('q').addEventListener('input',render);
+
+(async()=>{
+  try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
+  server=TaskStorage.mode==='server';
+  $('mode').textContent=server?'● 서버 파일에 저장 중':'● 서버 없음';
+  $('warn').hidden=server;
+  if(!canWrite())$('btnNew').hidden=true;
+  try{await load()}catch(e){showError('불러오지 못했습니다: '+e.message)}
+  render();
+})();
+</script>
+</body>
+</html>

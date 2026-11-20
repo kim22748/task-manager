@@ -46,6 +46,7 @@ API:
     AI 과제를 등록·올리면 진행 기록이 생기고, 지우면 함께 지워지며, 명칭·과제책임자 변경은 진행 기록에도 반영됩니다.
                                    AI 과제는 명칭+과제책임자가 같으면 중복으로 보고 등록·수정·올리기를 막습니다 (409)
 
+    /api/board*                      공유 게시판 (게시 완료 과제 소개 글·첨부) — board.py 맨 위 설명 참고
     /api/llm/*, /api/similar/group   유사과제 탐색 AI(LLM) 창구 — similar_llm.py 맨 위 설명 참고
 """
 
@@ -64,6 +65,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
+import board  # 공유 게시판 (data/board.json, data/board_files/)
 import similar_llm  # 유사과제 탐색 AI(LLM) 창구 (A04)
 import work_log  # AI 과제 삭제·엑셀 올리기 작업 기록 (data/work_log.jsonl)
 import xlsx_util  # 엑셀(.xlsx) 쓰기·읽기 (표준 라이브러리만)
@@ -775,6 +777,7 @@ def reset_demo():
     ai_store.replace_all(ai)
     users_store.reset_demo()
     shutil.rmtree(FILES_DIR, ignore_errors=True)
+    board.reset()
     cat_store._write(list(AI_CATEGORIES))
     sync_tasks_with_projects()
 
@@ -1090,7 +1093,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
     # ---- 정적 파일: data/ 폴더·서버 코드·숨김 파일은 직접 노출하지 않음 ----
     def do_GET(self):
         route = self._route()
-        if self.auth_get(route) or similar_llm.handle(self, "GET", route):
+        if self.auth_get(route) or similar_llm.handle(self, "GET", route) or board.handle(self, "GET", route, store):
             return
         m = FILE_ROUTE.match(route)
         if m:
@@ -1138,7 +1141,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
             ]
             self._json(HTTPStatus.CREATED, store.import_many(cleaned))
 
-        if self.auth_post(route) or similar_llm.handle(self, "POST", route):
+        if self.auth_post(route) or similar_llm.handle(self, "POST", route) or board.handle(self, "POST", route, store):
             return
         m = FILE_ROUTE.match(route)
         if m and not m.group(2):
@@ -1185,7 +1188,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
         self._handle_write(update)
 
     def do_PATCH(self):
-        if self.auth_patch(self._route()):
+        if self.auth_patch(self._route()) or board.handle(self, "PATCH", self._route(), store):
             return
         if not self._route().startswith("/api/tasks/"):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -1220,7 +1223,7 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         route = self._route()
-        if similar_llm.handle(self, "DELETE", route):
+        if similar_llm.handle(self, "DELETE", route) or board.handle(self, "DELETE", route, store):
             return
         if route == "/api/categories":
             return self._handle(lambda: self._categories("DELETE"))
