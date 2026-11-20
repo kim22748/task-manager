@@ -3,10 +3,18 @@
 <title>TaskFlow · 사용자 관리</title><link rel="stylesheet" href="common.css">
 <style>
   /* 요약 카드를 누르면 그 상태로 목록이 걸러진다 (대시보드의 카드와 같은 동작) */
-  .stats button.stat{border:2px solid transparent;font:inherit;text-align:left;cursor:pointer;color:var(--text)}
-  .stats button.stat:hover{border-color:#d9d9d9}
-  .stats button.stat.on{border-color:var(--primary)}
-  .stats button.stat:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  /* 작은 색상 버튼: 상태 색(--c)으로 점·숫자를 칠하고, 적용 중인 버튼은 그 색으로 채운다 */
+  .stats{display:flex;flex-wrap:wrap;gap:8px}
+  .stats button.stat{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border:1px solid color-mix(in srgb,var(--c) 35%,#fff);border-radius:18px;
+    background:color-mix(in srgb,var(--c) 8%,#fff);box-shadow:none;font:inherit;font-size:14px;cursor:pointer;color:var(--text)}
+  .stats button.stat::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--c)}
+  .stats button.stat span{color:inherit;font-size:14px}
+  .stats button.stat b{display:inline;margin:0;font-size:16px;color:var(--c);font-variant-numeric:tabular-nums}
+  .stats button.stat:hover{border-color:var(--c);background:color-mix(in srgb,var(--c) 16%,#fff)}
+  .stats button.stat.on{background:var(--c);border-color:var(--c);color:#fff}
+  .stats button.stat.on b{color:#fff}
+  .stats button.stat.on::before{background:#fff}
+  .stats button.stat:focus-visible{outline:2px solid var(--c);outline-offset:2px}
 </style></head>
 <body>
 <aside><h1><a href="index.html" title="처음 화면으로" style="display:inline;padding:0;color:inherit;background:none;text-decoration:none">TaskFlow</a></h1><a href="dashboard.html">대시보드</a><a class="child" href="overall.html">└ 세부 진행 현황</a><a class="child" href="progress.html">└ 내 과제 진행률</a><a href="board.html">공유 게시판</a><a href="similar.html">유사과제 탐색</a><a class="child" href="semantic-map.html">└ 의미 지도</a></aside>
@@ -44,8 +52,9 @@ function filtered(){
 }
 function render(){
   const cnt=s=>users.filter(u=>u.status===s).length;
+  // 버튼 색은 목록의 상태 태그 색(Auth.STATUS)과 같게 한다. '전체'는 기본 파란색.
   stats.innerHTML=[['','전체',users.length],['pending','승인 대기',cnt('pending')],['active','사용 중',cnt('active')],['inactive','비활성',cnt('inactive')],['rejected','반려',cnt('rejected')]]
-    .map(([s,l,n])=>`<button type="button" class="card stat${fStatus.value===s?' on':''}" data-s="${s}" aria-pressed="${fStatus.value===s}" title="${l} 사용자만 보기"><span>${l}</span><b>${n}</b></button>`).join('');
+    .map(([s,l,n])=>`<button type="button" class="card stat${fStatus.value===s?' on':''}" style="--c:${s?Auth.STATUS[s][1]:'#1677ff'}" data-s="${s}" aria-pressed="${fStatus.value===s}" title="${l} 사용자만 보기"><span>${l}</span><b>${n}</b></button>`).join('');
   const list=filtered(), pages=Math.max(1,Math.ceil(list.length/PAGE)); page=Math.min(page,pages);
   count.textContent=`${list.length}명`; pageInfo.textContent=`${page} / ${pages}`; prev.disabled=page<=1; next.disabled=page>=pages;
   rows.innerHTML=list.slice((page-1)*PAGE,page*PAGE).map(u=>{

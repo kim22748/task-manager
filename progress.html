@@ -221,9 +221,22 @@ function focusRow(){
   tr.scrollIntoView({block:'center'});
   setTimeout(()=>tr.classList.remove('flash'),4000);
 }
+// 이름 → 사번 (선택 상자에서 이름 오른쪽에 보여 준다). 과제에는 책임자 이름만 저장돼 있어 사용자 목록에서 찾는다.
+// 같은 이름이 여러 명이면 사번을 모두 보여 주고, 사용자 목록에 없는 이름(사용 중이 아닌 계정 등)은 이름만 보여 준다.
+let empNos={};
+async function loadEmpNos(){
+  try{
+    let list=[];
+    if(TaskStorage.mode==='server'){const r=await fetch('api/users/directory',{cache:'no-store'});if(r.ok)list=await r.json()}
+    else if(typeof DemoData!=='undefined')list=(await DemoData.load()).users.filter(u=>u.status==='active');
+    empNos={};
+    list.forEach(u=>{const n=(u.name||'').trim();if(n&&u.empNo)(empNos[n]=empNos[n]||[]).push(String(u.empNo))});
+  }catch(e){empNos={}}
+}
+const withEmp=n=>empNos[n]?`${n} (${empNos[n].join(', ')})`:n;
 function renderWho(){
   const me=myName(),names=assignees().filter(n=>n!==me);
-  $('who').innerHTML=(me?`<option value="${esc(me)}">내 과제 (${esc(me)})</option>`:'')+'<option value="">전체</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('who').innerHTML=(me?`<option value="${esc(me)}">내 과제 · ${esc(withEmp(me))}</option>`:'')+'<option value="">전체</option>'+names.map(n=>`<option value="${esc(n)}">${esc(withEmp(n))}</option>`).join('');
   $('who').value=who;
 }
 const inA=t=>t.s==='doing'&&prog(t)<100&&!t.registered;
@@ -356,6 +369,7 @@ $('regForm').addEventListener('submit',e=>{
   $('warn').hidden=server;
   await loadFiles();
   try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}   // 세부 진행 현황 (내가 과제책임자로 등록한 과제를 보여 주기 위해)
+  await loadEmpNos();
   pickWho();
   render();
   focusRow();

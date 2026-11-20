@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaskFlow · 로그인</title><link rel="stylesheet" href="common.css"></head>
+<title>TaskFlow · 로그인</title><link rel="stylesheet" href="common.css">
+<style>
+  /* 시연용 계정 버튼: 발표·운영 전에 아래 #demo 안내와 함께 삭제 */
+  .demo{margin-top:16px;text-align:center}
+  .demobtns{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
+  .demobtns button{display:flex;flex-direction:column;align-items:center;padding:6px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;font:inherit;font-size:12px;color:var(--text);cursor:pointer}
+  .demobtns button small{color:var(--sub);font-size:11px}
+  .demobtns button:hover,.demobtns button.on{border-color:var(--primary);color:var(--primary);background:#e6f4ff}
+</style></head>
 <body class="auth">
 <div class="authbox">
   <h1>TaskFlow</h1><p class="sub">LH 현안해결형 AI교육과제 관리 홈페이지</p>
@@ -13,7 +21,13 @@
   </form>
   <div class="links">계정이 없으신가요? <a href="signup.html">회원가입</a></div>
   <!-- 시연용 안내: 발표·운영 전에 삭제 -->
-  <div class="hint" style="margin-top:16px;text-align:center">시연용: 100001 김하늘(사이트관리자) · 100002 이도윤 · 100007 오세훈(일반회원) / 비밀번호 Lh!2026pw</div>
+  <div class="hint demo" id="demo">시연용 계정 — 누르면 사번·비밀번호가 자동으로 입력됩니다
+    <div class="demobtns">
+      <button type="button" data-emp="100001" data-pw="Lh!2026pw">100001 김하늘<small>사이트관리자</small></button>
+      <button type="button" data-emp="100002" data-pw="Lh!2026pw">100002 이도윤<small>일반회원</small></button>
+      <button type="button" data-emp="100007" data-pw="Lh!2026pw">100007 오세훈<small>일반회원</small></button>
+    </div>
+  </div>
 </div>
 <script src="auth.js" data-guard="off"></script>
 <script>
@@ -22,6 +36,13 @@ Auth.probe().then(r=>{
   if(r.user) location.replace(Auth.nextPage());   // 이미 로그인됨
   else if(r.preview){ isPreview=true; pv.hidden=false; }
 });
+// 시연용 계정 버튼: 누르면 사번·비밀번호를 채운다 (로그인은 '로그인' 버튼으로)
+demo.onclick=e=>{
+  const b=e.target.closest('button[data-emp]'); if(!b) return;
+  empNo.value=b.dataset.emp; pw.value=b.dataset.pw; err.hidden=true;
+  demo.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  btn.focus();
+};
 form.onsubmit=async e=>{
   e.preventDefault(); err.hidden=true;
   if(isPreview){ err.textContent='디자인 미리보기에서는 로그인할 수 없습니다.'; err.hidden=false; return; }
