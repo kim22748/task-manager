@@ -56,6 +56,8 @@
   .col em{font-style:normal;color:var(--text);margin-bottom:2px;font-size:12px}
   .col div{width:100%;max-width:34px;background:var(--primary);border-radius:3px 3px 0 0;min-height:2px}
   .col span{margin-top:4px;white-space:nowrap}
+  /* 진행률 분포: 같은 파란색을 진행률이 낮은 구간은 옅게, 100% 는 진하게 (--k = 파란색 비율) */
+  .col.shade div{background:color-mix(in srgb,var(--primary) var(--k),#fff)}
   /* 꺾은선 그래프 (최근 7일 등록): 선·면은 SVG, 점·숫자·날짜는 HTML 로 같은 위치(--x, --y %)에 올린다 */
   .line{height:112px;padding-top:6px;display:flex;flex-direction:column;font-size:11px;color:var(--sub)}
   .line .plot{position:relative;flex:1;min-height:0;margin-top:16px;border-bottom:1px solid var(--border)}
@@ -223,7 +225,7 @@ function render(tasks){
       </div>
     </div>
     <div class="card"><h2>진행률 분포<em>과제 수</em></h2>
-      <div class="chart">${bc.map((x,i)=>`<div class="col" style="--i:${i}"><em>${x.n||''}</em><div style="height:${x.n/bmax*100}%"></div><span>${x.l}</span></div>`).join('')}</div>
+      <div class="chart">${bc.map((x,i)=>`<div class="col shade" style="--i:${i};--k:${Math.round(28+72*i/(bc.length-1))}%"><em>${x.n||''}</em><div style="height:${x.n/bmax*100}%"></div><span>${x.l}</span></div>`).join('')}</div>
     </div>
     <div class="card"><h2>최근 7일 등록<em>건</em></h2>
       <div class="line">
