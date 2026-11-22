@@ -1,4 +1,7 @@
-"""과제 관리 서버 — 과제를 data/tasks.json 파일에 영구 저장합니다.
+"""과제 관리 서버 — 모든 데이터를 SQLite DB(data/taskflow.db)에 저장합니다. (저장 계층: db.py)
+
+예전에는 data/*.json 파일에 저장했습니다. 그 파일이 남아 있으면 처음 켤 때 한 번 DB 로 옮기고 data/legacy_json/ 으로 치워 둡니다.
+여러 사용자가 동시에 써도 되도록 WAL·트랜잭션을 씁니다(db.py 맨 위 설명). 백업: python3 server.py --backup 백업파일.db
 
 외부 라이브러리 없이 Python 표준 라이브러리만 사용합니다.
 
@@ -59,6 +62,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import threading
 import time
@@ -69,6 +73,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
+import db  # 저장 계층 (SQLite)
 import approval  # 신규 과제 등록 신청·승인 (data/project_requests.json)
 import board  # 공유 게시판 (data/board.json, data/board_files/)
 import similar_llm  # 유사과제 탐색 AI(LLM) 창구 (A04)
@@ -228,39 +233,31 @@ def demo_items():
 
 
 class TaskStore:
-    """JSON 파일 기반 과제 저장소. 쓰기는 임시 파일 → rename 으로 원자적으로 처리합니다."""
+    """과제 진행 저장소 (SQLite: tasks · task_history · task_files · task_participants 표, db.py).
+
+    `with self.lock:` 한 묶음이 DB 트랜잭션 하나입니다: 읽고 → 고치고 → 저장하는 사이에 다른 요청이 끼어들지 못하고,
+    도중에 오류가 나면 그 묶음에서 바꾼 것이 모두 취소됩니다. 저장할 때는 바뀐 과제의 행만 다시 씁니다.
+    """
+
+    ENTITY, NAME = db.TASKS, "tasks"
 
     def __init__(self, path: Path, seed=None):
-        self.path = path
-        self.lock = threading.Lock()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.path.exists():
-            self._write(seed or [])   # 처음 실행이면 더미데이터로 채움
+        self.path = path                # 예전 JSON 파일. 남아 있으면 처음 한 번 DB 로 옮긴다
+        self.lock = db.tx
+        # 처음 실행: 예전 JSON 파일이 있으면 그 내용을, 없으면 더미데이터를 넣는다
+        db.adopt(self.NAME, path, self._write, default=lambda: seed or [])
 
     def replace_all(self, items):
         with self.lock:
             self._write(items)
 
     def _read(self):
-        try:
-            with self.path.open(encoding="utf-8") as f:
-                data = json.load(f)
-            return data if isinstance(data, list) else []
-        except (FileNotFoundError, json.JSONDecodeError):
-            return []
+        with db.read():
+            return self.ENTITY.load()
 
     def _write(self, tasks):
-        fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(tasks, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, self.path)
-        except BaseException:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+        with db.tx:
+            self.ENTITY.save(tasks)
 
     def _new_id(self, tasks):
         used = {t["id"] for t in tasks}
@@ -270,8 +267,7 @@ class TaskStore:
         return nid
 
     def list(self):
-        with self.lock:
-            return self._read()
+        return self._read()             # 읽기만 하는 요청은 쓰기 차례를 기다리지 않는다
 
     def create(self, title, status="todo", created=None, extra=None):
         with self.lock:
@@ -314,8 +310,7 @@ class TaskStore:
             return True
 
     def get(self, task_id):
-        with self.lock:
-            return next((t for t in self._read() if t["id"] == task_id), None)
+        return next((t for t in self._read() if t["id"] == task_id), None)
 
     def add_file(self, task_id, meta, by=None):
         with self.lock:
@@ -367,8 +362,9 @@ class TaskStore:
 
 
 class AIProjectStore:
-    """AI 과제(등록 게시판) 저장소. TaskStore 와 같은 방식(임시 파일 → rename)으로 저장합니다."""
+    """AI 과제 저장소 (SQLite: ai_projects 표). TaskStore 와 같은 방식(트랜잭션)으로 저장합니다."""
 
+    ENTITY, NAME = db.AI_PROJECTS, "ai_projects"
     __init__ = TaskStore.__init__
     replace_all = TaskStore.replace_all
     _read = TaskStore._read
@@ -376,8 +372,7 @@ class AIProjectStore:
     _new_id = TaskStore._new_id
 
     def list(self):
-        with self.lock:
-            return self._read()
+        return self._read()
 
     def create(self, fields):
         with self.lock:
@@ -633,33 +628,33 @@ migrate_access()
 
 
 class CategoryStore:
-    """AI 과제 분류 목록 (data/categories.json). 사이트 설정 → 분류 관리에서 추가·이름 변경·삭제한다."""
+    """AI 과제 분류 목록 (SQLite: categories 표). 사이트 설정 → 분류 관리에서 추가·이름 변경·삭제한다."""
 
     BAD = re.compile(r'[,"\'<>\\\x00-\x1f]')   # 쉼표·따옴표는 엑셀 드롭다운 목록을 깨뜨리므로 막는다
 
     def __init__(self, path, default, items):
-        self.path = path
-        self.lock = threading.Lock()
-        if not path.exists():
+        self.path = path                # 예전 JSON 파일. 남아 있으면 처음 한 번 DB 로 옮긴다
+        self.lock = db.tx
+
+        def first():
             # 처음: 기본 분류 + 이미 저장된 AI 과제에 쓰인 분류(순서 유지)
             names = list(default)
             for it in items:
                 if it.get("category") and it["category"] not in names:
                     names.append(it["category"])
-            self._write(names)
+            return names
+        db.adopt("categories", path, lambda names: self._write([str(x) for x in names]), default=first)
 
-    _write = TaskStore._write
+    def _write(self, names):
+        with db.tx:
+            db.categories_save(names)
 
     def _read(self):
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-            return [str(x) for x in data] if isinstance(data, list) else list(AI_CATEGORIES)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return list(AI_CATEGORIES)
+        with db.read():
+            return db.categories_load() or list(AI_CATEGORIES)
 
     def list(self):
-        with self.lock:
-            return self._read()
+        return self._read()
 
     def clean(self, name):
         name = re.sub(r"\s+", " ", name if isinstance(name, str) else "").strip()
@@ -1329,12 +1324,21 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8885)
     parser.add_argument("--reset-demo", action="store_true", help="과제·AI 과제·사용자를 demo-data.json 더미데이터로 되돌린 뒤 시작")
+    parser.add_argument("--backup", metavar="파일", help="DB 전체를 이 파일로 복사하고 끝낸다 (서버가 켜져 있어도 안전)")
     args = parser.parse_args()
+    for stream in (sys.stdout, sys.stderr):     # 한글 Windows 콘솔(cp949)에서 안내 문구의 특수문자 때문에 서버가 꺼지지 않게
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    if args.backup:
+        print(f"백업했습니다: {db.backup(args.backup)}")
+        return
     if args.reset_demo:
         reset_demo()
         print("더미데이터로 되돌렸습니다: 과제·AI 과제·사용자 (첨부 파일 삭제)")
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"과제 관리 서버: http://{args.host}:{args.port}  (저장 파일: {DATA_FILE})")
+    print(f"과제 관리 서버: http://{args.host}:{args.port}  (저장: {db.DB_FILE})")
     print(f"시연 계정: 100001 김하늘(사이트관리자) / 100002 이도윤·100007 오세훈(일반회원) — 비밀번호 {DEFAULT_SEED_PASSWORD}")
     try:
         server.serve_forever()

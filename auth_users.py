@@ -34,6 +34,8 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from pathlib import Path
 
+import db
+
 BASE_DIR = Path(__file__).resolve().parent
 USERS_FILE = BASE_DIR / "data" / "users.json"
 AUDIT_FILE = BASE_DIR / "data" / "audit.log"
@@ -74,30 +76,18 @@ def verify_password(password, salt, expected):
     return hmac.compare_digest(hash_password(password, salt)[1], expected)
 
 
-_audit_lock = threading.Lock()
-
-
 def audit(actor, action, target="", detail=""):
-    """누가 언제 무엇을 했는지 data/audit.log 에 한 줄(JSON)씩 남긴다. 비밀번호 등은 기록하지 않는다."""
-    rec = {"at": now_iso(), "actor": actor, "action": action, "target": target, "detail": detail}
-    with _audit_lock:
-        AUDIT_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with AUDIT_FILE.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    """누가 언제 무엇을 했는지 DB(audit_log 표)에 남긴다. 비밀번호 등은 기록하지 않는다."""
+    db.audit_add({"at": now_iso(), "actor": actor, "action": action, "target": target, "detail": detail})
 
 
 def read_audit(limit=200):
-    try:
-        lines = AUDIT_FILE.read_text(encoding="utf-8").splitlines()[-limit:]
-    except FileNotFoundError:
-        return []
-    out = []
-    for ln in reversed(lines):
-        try:
-            out.append(json.loads(ln))
-        except json.JSONDecodeError:
-            pass
-    return out
+    """최근 기록부터 limit 건."""
+    return db.audit_read(limit)
+
+
+# 예전 기록 파일(data/audit.log)이 남아 있으면 처음 한 번 DB 로 옮긴다
+db.adopt("audit_log", AUDIT_FILE, lambda recs: [db.audit_add(r) for r in recs if isinstance(r, dict)], load=db.legacy_lines)
 
 
 def make_seed_users():
@@ -118,47 +108,31 @@ def make_seed_users():
 
 
 class UserStore:
-    """JSON 파일 기반 사용자 저장소 (임시 파일 → rename 으로 원자적 쓰기)."""
+    """사용자 저장소 (SQLite: users 표, db.py). `with self.lock:` 한 묶음이 DB 트랜잭션 하나입니다."""
 
     def __init__(self, path):
-        self.path = path
-        self.lock = threading.RLock()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if not path.exists():
-            self._write(make_seed_users())
+        self.path = path                # 예전 JSON 파일. 남아 있으면 처음 한 번 DB 로 옮긴다
+        self.lock = db.tx
+        db.adopt("users", path, self._write, default=make_seed_users)
 
     def reset_demo(self):
         with self.lock:
             self._write(make_seed_users())
 
     def _read(self):
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-            data = data if isinstance(data, list) else []
-            for u in data:   # 예전 계정 역할(owner·member)은 일반회원(user)으로 읽는다
-                if isinstance(u, dict):
-                    u["role"] = account_role(u.get("role"))
-                    u.pop("requestedRole", None)
-            return data
-        except (FileNotFoundError, json.JSONDecodeError):
-            return []
+        with db.read():
+            return db.USERS.load()
 
     def _write(self, users):
-        fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(users, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, self.path)
-        except BaseException:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+        users = [dict(u) for u in users if isinstance(u, dict)]
+        for u in users:      # 예전 계정 역할(owner·member)은 일반회원(user)으로 저장한다
+            u["role"] = account_role(u.get("role"))
+            u.pop("requestedRole", None)
+        with db.tx:
+            db.USERS.save(users)
 
     def all(self):
-        with self.lock:
-            return self._read()
+        return self._read()             # 읽기만 하는 요청은 쓰기 차례를 기다리지 않는다
 
     def find(self, **kw):
         return next((u for u in self.all() if all(u.get(k) == v for k, v in kw.items())), None)
@@ -189,8 +163,8 @@ class UserStore:
 
 users_store = UserStore(USERS_FILE)
 DUMMY_SALT, DUMMY_HASH = hash_password("dummy-password-for-timing")  # 없는 사번도 같은 시간이 걸리게 하는 용도
-sessions = {}   # token -> {"uid", "exp"}
-fails = {}      # "IP|사번" -> (count, lock_until)
+# 로그인 세션은 DB(sessions 표)에 둔다: 서버를 다시 켜도 로그인이 풀리지 않는다 (토큰은 해시로 저장. db.py 의 session_*)
+fails = {}      # "IP|사번" -> (count, lock_until)  — 로그인 실패 횟수는 메모리에만 둔다
 sess_lock = threading.Lock()
 
 
@@ -248,12 +222,12 @@ class AuthMixin:
 
     def _user(self):
         tok = self._token()
-        with sess_lock:
-            s = sessions.get(tok)
-            if not s or s["exp"] < time.time():
-                sessions.pop(tok, None)
-                return None
-            uid = s["uid"]
+        s = db.session_get(tok)
+        if not s or s["exp"] < time.time():
+            if s:
+                db.session_drop(tok)
+            return None
+        uid = s["uid"]
         u = users_store.find(id=uid)
         return u if u and u["status"] == "active" else None
 
@@ -369,14 +343,13 @@ class AuthMixin:
         with sess_lock:
             fails.pop(key, None)
             tok = secrets.token_urlsafe(32)
-            sessions[tok] = {"uid": u["id"], "exp": time.time() + SESSION_TTL}
+        db.session_put(tok, u["id"], time.time() + SESSION_TTL, time.time())
         u = users_store.update(u["id"], lambda x, _: x.update(lastLoginAt=now_iso()))
         self._json(HTTPStatus.OK, public(u), cookie=self._cookie(tok, SESSION_TTL))
 
     def _logout(self):
         self._check_origin()
-        with sess_lock:
-            sessions.pop(self._token(), None)
+        db.session_drop(self._token())
         self._json(HTTPStatus.OK, {"ok": True}, cookie=self._cookie("", 0))
 
     def _change_pw(self):
@@ -389,9 +362,7 @@ class AuthMixin:
         salt, h = hash_password(b["new"])
         users_store.update(u["id"], lambda x, _: (x.update(salt=salt, pwHash=h), x.pop("mustChangePw", None)))
         tok = self._token()
-        with sess_lock:  # 비밀번호를 바꾸면 이 기기를 뺀 다른 로그인은 모두 끊는다
-            for t in [t for t, s in sessions.items() if s["uid"] == u["id"] and t != tok]:
-                sessions.pop(t)
+        db.session_drop_user(u["id"], keep_token=tok)   # 비밀번호를 바꾸면 이 기기를 뺀 다른 로그인은 모두 끊는다
         audit(u["empNo"], "password_change", u["empNo"])
         self._json(HTTPStatus.OK, {"ok": True})
 
@@ -440,7 +411,6 @@ class AuthMixin:
         res = users_store.update(uid, apply)
         audit(me["empNo"], action, target["empNo"], "")
         if action in ("deactivate", "resetPassword"):
-            with sess_lock:  # 상태·권한이 바뀐 사용자는 기존 세션을 끊는다
-                for t in [t for t, s in sessions.items() if s["uid"] == uid and uid != me["id"]]:
-                    sessions.pop(t)
+            if uid != me["id"]:  # 상태·권한이 바뀐 사용자는 기존 세션을 끊는다
+                db.session_drop_user(uid)
         self._json(HTTPStatus.OK, {**public(res), **out})

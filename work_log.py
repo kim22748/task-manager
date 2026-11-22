@@ -1,8 +1,8 @@
-"""AI 과제 작업 기록 — 삭제·엑셀 올리기를 data/work_log.jsonl 에 한 줄(JSON)씩 남긴다.
+"""AI 과제 작업 기록 — 삭제·엑셀 올리기를 DB(work_log 표, db.py)에 한 건씩 남긴다.
 
 server.py 가 불러 쓴다. '사이트 설정 → 작업 기록' 탭에서 사이트관리자가 본다 (GET /api/work-log).
 
-한 줄의 모양:
+기록 한 건의 모양:
     {"at": "2026-11-13T11:20:00+09:00", "actor": "100001", "actorName": "김하늘", "actorRole": "admin",
      "action": "ai_delete" | "ai_bulk_delete" | "ai_import" | "category_add" | "category_rename" | "category_delete",
      "count": 3, "file": "올리기.xlsx"(올리기만), "detail": "분류 이름 변경: 개발 → 개발·SW"(분류 작업만),
@@ -14,12 +14,16 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import db
+
 LOG_FILE = Path(__file__).resolve().parent / "data" / "work_log.jsonl"
 ACTIONS = {"ai_delete": "AI 과제 삭제", "ai_bulk_delete": "AI 과제 선택 삭제", "ai_import": "AI 과제 엑셀 올리기",
            "category_add": "분류 추가", "category_rename": "분류 이름 변경", "category_delete": "분류 삭제",
            "task_cleanup": "과제 진행 정리"}
 MAX_ITEMS = 1000      # 한 기록에 남기는 과제 수 상한 (엑셀 올리기 최대 행 수와 같음)
-_lock = threading.Lock()
+
+# 예전 기록 파일(data/work_log.jsonl)이 남아 있으면 처음 한 번 DB 로 옮긴다
+db.adopt("work_log", LOG_FILE, lambda recs: [db.work_log_add(r) for r in recs if isinstance(r, dict)], load=db.legacy_lines)
 
 
 def record(user, action, items, file_name="", detail=""):
@@ -34,24 +38,10 @@ def record(user, action, items, file_name="", detail=""):
         rec["file"] = str(file_name)[:200]
     if detail:
         rec["detail"] = str(detail)[:300]
-    with _lock:
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with LOG_FILE.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    db.work_log_add(rec)
     return rec
 
 
 def read(limit=500):
     """최근 기록부터 limit 건."""
-    try:
-        with _lock:
-            lines = LOG_FILE.read_text(encoding="utf-8").splitlines()[-limit:]
-    except FileNotFoundError:
-        return []
-    out = []
-    for ln in reversed(lines):
-        try:
-            out.append(json.loads(ln))
-        except json.JSONDecodeError:
-            pass
-    return out
+    return db.work_log_read(limit)

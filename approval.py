@@ -20,6 +20,7 @@ from datetime import datetime
 from http import HTTPStatus
 from pathlib import Path
 
+import db
 import work_log
 from auth_users import ValidationError
 
@@ -28,31 +29,21 @@ ROUTE = re.compile(r"^/api/project-requests(?:/(\d+)(?:/(approve|reject))?)?$")
 MAX_PENDING_PER_USER = 20
 MAX_REASON = 300
 
-_lock = threading.Lock()
+_lock = db.tx      # `with _lock:` 한 묶음이 DB 트랜잭션 하나 (SQLite: project_requests 표, db.py)
 
 
 def _read():
-    try:
-        with REQ_FILE.open(encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else []
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+    with db.read():
+        return db.PROJECT_REQUESTS.load()
 
 
 def _write(items):
-    REQ_FILE.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=REQ_FILE.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(items, f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, REQ_FILE)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
+    with db.tx:
+        db.PROJECT_REQUESTS.save(items)
+
+
+# 예전 JSON 파일(data/project_requests.json)이 남아 있으면 처음 한 번 DB 로 옮긴다
+db.adopt("project_requests", REQ_FILE, _write)
 
 
 def reset():

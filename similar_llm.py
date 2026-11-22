@@ -32,6 +32,7 @@ import urllib.request
 from http import HTTPStatus
 from pathlib import Path
 
+import db
 from auth_users import ValidationError
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -64,32 +65,18 @@ class LLMError(ValidationError):
 
 # ---------------------------------------------------------------- 설정 보관
 
+# AI 서비스 연결 정보(API 키 포함)는 DB 의 settings 표에 둔다 (키 'llm_config'). 화면에는 키의 끝 4자리만 보여 준다.
+# 예전 파일(data/llm_config.json)이 남아 있으면 처음 한 번 DB 로 옮긴다.
+db.adopt("llm_config", CONFIG_FILE, lambda cfg: db.setting_set("llm_config", cfg), load=lambda p: db.legacy_json(p, dict))
+
+
 def _read_config():
-    try:
-        with CONFIG_FILE.open(encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
+    data = db.setting_get("llm_config", {})
+    return data if isinstance(data, dict) else {}
 
 
 def _write_config(cfg):
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=CONFIG_FILE.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-        try:
-            os.chmod(tmp, 0o600)  # 윈도우에서는 효과가 제한적이다
-        except OSError:
-            pass
-        os.replace(tmp, CONFIG_FILE)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
+    db.setting_set("llm_config", cfg)
 
 
 def current():
@@ -567,10 +554,7 @@ def handle(h, method, route):
         def run():
             admin_write()
             with _cfg_lock:
-                try:
-                    CONFIG_FILE.unlink()
-                except FileNotFoundError:
-                    pass
+                db.setting_delete("llm_config")
             h._json(HTTPStatus.OK, public_status(current(), True))
     elif route == "/api/llm/test" and method == "POST":
         def run():
