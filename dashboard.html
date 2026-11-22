@@ -9,7 +9,7 @@
         --review:#bfbfbf;--doing:#1677ff;--wait:#fa8c16;--pub:#52c41a;--end:#722ed1;--danger:#ff4d4f}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
-  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;align-self:flex-start}   /* 스크롤해도 메뉴는 제자리에 */
   aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
   aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
   aside a.on{background:var(--primary);color:#fff}
@@ -27,7 +27,7 @@
   .content{padding:16px 20px;display:grid;gap:12px}
 
   /* 상단 요약: 한 줄 */
-  .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+  .kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px}
   a.kpi{display:block;background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 2px rgba(0,0,0,.03);text-decoration:none;color:inherit;border-top:3px solid var(--c,#d9d9d9);transition:box-shadow .15s}
   a.kpi:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
   .kpi span{display:block;color:var(--sub);font-size:13px}
@@ -80,7 +80,6 @@
   a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
   a.tlink:hover{text-decoration:underline}
   .due-over{background:var(--danger)}.due-soon{background:var(--wait)}
-  .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
   /* 처음 열 때 한 번 재생되는 애니메이션 (카드 등장·도넛 그리기·막대 자라기). 숫자 카운트업은 아래 스크립트 */
   @keyframes rise{from{opacity:0;transform:translateY(14px)}}
   @keyframes arcdraw{from{stroke-dasharray:0 var(--C)}}
@@ -109,6 +108,7 @@
   /* 시스템에서 '동작 줄이기'를 켠 사용자에게는 움직임을 끈다 */
   @media (prefers-reduced-motion:reduce){a.kpi,a.kpi.alert,.row .card,.arc,.col div,.col em,.line svg,.line .pt,.kpi .mini i{animation:none!important}
     .donut .arc,.legend a{transition:none!important}}
+  @media(max-width:1300px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
   @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.row3,.row3b{grid-template-columns:1fr}}
   @media(max-width:640px){aside{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.content{padding:12px}}
 </style>
@@ -127,15 +127,11 @@
 let fileMap={}; // 과제id → 첨부 파일 목록 (서비스 게시 완료 카드의 첨부 현황용)
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
-// 과제 한 건의 진행 상태 ('세부 진행 현황'과 같은 기준): 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
-function statusOf(t){
-  if(t.registered)return '게시 완료';
-  if(prog(t)>=100)return '게시 대기';
-  if(t.s==='doing')return '진행 중';
-  if(t.s==='done')return '종료';
-  return '검토';
-}
-const STATES=[['검토','var(--review)'],['진행 중','var(--doing)'],['게시 대기','var(--wait)'],['게시 완료','var(--pub)'],['종료','var(--end)']];
+// 과제 한 건의 활용상태 (모든 화면이 storage.js 의 TaskState 를 쓴다):
+// 개발진행중(100% 미만) → 신청대기중(100%) → 게시검토중(게시 요청) → 게시활용중(서비스 게시) → 활용종료
+const statusOf=TaskState.useOf;
+const STATES=TaskState.USE;
+const UC=TaskState.USE_COLOR;
 const BUCKETS=[['0%',0,0],['1–49%',1,49],['50–99%',50,99],['100%',100,100]];
 const goStatus=s=>`overall.html?status=${encodeURIComponent(s)}`;
 const detail=t=>`task-detail.html?id=${encodeURIComponent(t.id)}&from=dashboard`;
@@ -184,10 +180,10 @@ function render(tasks){
   const pct=n=>total?Math.round(n/total*100):0;
   const avg=total?Math.round(tasks.reduce((s,t)=>s+prog(t),0)/total):0;
   // 마감: 아직 게시·종료되지 않은 과제 중 마감일이 지났거나 3일 이내인 것
-  const open=tasks.filter(t=>t.due&&!['게시 완료','종료'].includes(statusOf(t))).map(t=>({t,d:Math.round((new Date(t.due+'T00:00:00')-today)/864e5)}));
+  const open=tasks.filter(t=>t.due&&TaskState.isOpen(t)).map(t=>({t,d:Math.round((new Date(t.due+'T00:00:00')-today)/864e5)}));
   const late=open.filter(x=>x.d<0).sort((a,b)=>a.d-b.d),soon=open.filter(x=>x.d>=0&&x.d<=3).sort((a,b)=>a.d-b.d);
   const attention=[...late,...soon];
-  const published=tasks.filter(t=>t.registered).sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
+  const published=tasks.filter(t=>statusOf(t)==='게시활용중').sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
   const feed=tasks.flatMap(t=>(t.history||[]).map(h=>({t,h}))).sort((a,b)=>new Date(b.h.at)-new Date(a.h.at)).slice(0,5);
 
   // 도넛(상태별)
@@ -210,15 +206,16 @@ function render(tasks){
   document.getElementById('app').innerHTML=`
   <div class="kpis">
     ${kpi('전체 과제',total,'#8c8c8c','등록된 모든 과제','overall.html')}
-    ${kpi('진행 중',cnt('진행 중'),'var(--doing)',pct(cnt('진행 중'))+'%',goStatus('진행 중'))}
-    ${kpi('게시 대기',cnt('게시 대기'),'var(--wait)','진행률 100%',goStatus('게시 대기'))}
-    ${kpi('게시 완료',cnt('게시 완료'),'var(--pub)',pct(cnt('게시 완료'))+'%',goStatus('게시 완료'))}
-    ${kpi('마감 지연',late.length,late.length?'var(--danger)':'#d9d9d9','임박(3일) '+soon.length+'건','overall.html','','',late.length?'alert':'')}
+    ${kpi('개발진행중',cnt('개발진행중'),UC['개발진행중'],pct(cnt('개발진행중'))+'%',goStatus('개발진행중'))}
+    ${kpi('신청대기중',cnt('신청대기중'),UC['신청대기중'],'진행률 100%',goStatus('신청대기중'))}
+    ${kpi('게시검토중',cnt('게시검토중'),UC['게시검토중'],'게시 요청됨',goStatus('게시검토중'))}
+    ${kpi('게시활용중',cnt('게시활용중'),UC['게시활용중'],'활용종료 '+cnt('활용종료')+'건',goStatus('게시활용중'))}
+    ${kpi('마감 지연',late.length,late.length?'var(--danger)':'#d9d9d9','임박(3일) '+soon.length+'건','overall.html?due=late','','',late.length?'alert':'')}
     ${kpi('평균 진행률',avg,'var(--primary)','전체 과제 단순평균','overall.html',`<div class="mini"><i style="width:${avg}%"></i></div>`,'%')}
   </div>
 
   <div class="row row3">
-    <div class="card"><h2>상태별 현황<a href="overall.html">세부 진행 현황 →</a></h2>
+    <div class="card"><h2>활용상태별 현황<a href="overall.html">세부 진행 현황 →</a></h2>
       <div class="donutwrap">
         <svg class="donut" width="104" height="104" viewBox="0 0 100 100" style="flex-shrink:0">${arcs}<text x="50" y="56" text-anchor="middle" font-size="20" font-weight="600" data-count="${total}">${total}</text></svg>
         <div class="legend">${STATES.map(([s,c])=>`<a href="${goStatus(s)}" data-s="${s}"><i style="background:${c}"></i>${s}<b>${cnt(s)}건</b></a>`).join('')}</div>
@@ -239,13 +236,13 @@ function render(tasks){
   </div>
 
   <div class="row row3b">
-    <div class="card"><h2>주의 필요<em>마감 지연·임박 ${attention.length}건</em><a href="overall.html">더 보기 →</a></h2>
+    <div class="card"><h2>주의 필요<em>마감 지연·임박 ${attention.length}건</em><a href="overall.html?due=attention">더 보기 →</a></h2>
       ${attention.length?`<ul>${attention.slice(0,4).map(x=>`<li><span><a class="tlink t" href="${detail(x.t)}">${esc(x.t.title)}</a><span class="sub">${esc(x.t.assignee||'과제책임자 없음')} · 마감 ${esc(x.t.due)}</span></span>${dueTag(x)}</li>`).join('')}</ul>`:'<div class="empty">마감이 지났거나 임박한 과제가 없습니다.</div>'}
     </div>
-    <div class="card"><h2>서비스 게시 완료<em>${published.length}건</em><a href="progress.html">내 과제 진행률 →</a></h2>
-      ${published.length?`<ul>${published.slice(0,4).map(t=>{const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length;
-        return `<li><span><a class="tlink t" href="${detail(t)}">${esc(t.title)}</a><span class="sub">${esc(t.assignee||'과제책임자 없음')} · 게시 ${esc(t.registeredAt||'-')}</span></span><span class="tag ${req===3?'att-ok':'att-no'}" title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개">필수 ${req}/3</span></li>`}).join('')}</ul>`
-        :'<div class="empty">서비스 게시된 과제가 아직 없습니다.</div>'}
+    <div class="card"><h2>게시활용중 과제<em>${published.length}건</em><a href="progress.html">내 과제 진행률 →</a></h2>
+      ${published.length?`<ul>${published.slice(0,4).map(t=>{const fs=fileMap[String(t.id)]||[];
+        return `<li><span><a class="tlink t" href="${detail(t)}">${esc(t.title)}</a><span class="sub">${esc(t.assignee||'과제책임자 없음')} · 게시 ${esc(t.registeredAt||'-')}</span></span><span class="sub" title="첨부 파일 ${fs.length}개">첨부 ${fs.length}개</span></li>`}).join('')}</ul>`
+        :'<div class="empty">게시활용중인 과제가 아직 없습니다.</div>'}
     </div>
     <div class="card"><h2>최근 변경 이력</h2>
       ${feed.length?`<ul>${feed.map(({t,h})=>`<li><span><span class="t">${esc(t.title)}</span><span class="sub">${esc(h.text)}</span></span><span class="sub" style="flex-shrink:0">${fmtAt(h.at)}</span></li>`).join('')}</ul>`:'<div class="empty">아직 기록된 변경 이력이 없습니다.</div>'}

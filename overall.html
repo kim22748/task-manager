@@ -9,7 +9,7 @@
         --review:#bfbfbf;--doing:#1677ff;--wait:#fa8c16;--pub:#52c41a;--end:#722ed1;--danger:#ff4d4f}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
-  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;align-self:flex-start}   /* 스크롤해도 메뉴는 제자리에 */
   aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
   aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
   aside a.on{background:var(--primary);color:#fff}
@@ -38,6 +38,19 @@
   .chips button.on{background:var(--primary);border-color:var(--primary);color:#fff}
   .chips button .n{margin-left:2px;font-weight:600;color:var(--primary);font-variant-numeric:tabular-nums}
   .chips button.on .n{color:#fff}
+  /* 마감 필터 칩(지연=빨강, 임박=주황): 상태 칩과 함께 쓸 수 있다 */
+  .chips .sep{width:1px;background:#d9d9d9;margin:2px 6px}
+  .chips button.due{border-color:color-mix(in srgb,var(--c) 45%,#fff);color:var(--c)}
+  .chips button.due .n{color:var(--c)}
+  .chips button.due.on{background:var(--c);border-color:var(--c);color:#fff}
+  .chips button.due.on .n{color:#fff}
+  /* 열 정렬: 머리글을 누르면 오름차순 → 내림차순 → 기본 순서 */
+  th[data-sort]{cursor:pointer;user-select:none}
+  th[data-sort]:hover{background:#f0f0f0}
+  th[data-sort]::after{content:'↕';margin-left:4px;font-size:11px;color:#bfbfbf}
+  th[data-sort].asc::after{content:'▲';color:var(--primary)}
+  th[data-sort].desc::after{content:'▼';color:var(--primary)}
+  th[data-sort]:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
   .tablewrap{overflow-x:auto}
   .tablewrap>table{min-width:1080px}
   table{width:100%;border-collapse:collapse}
@@ -54,7 +67,6 @@
   .pbar span{width:40px;text-align:right;font-variant-numeric:tabular-nums}
   .tag{display:inline-block;padding:0 8px;border-radius:4px;font-size:12px;line-height:22px;color:#fff;white-space:nowrap}
   .due-over{background:var(--danger)}.due-soon{background:var(--wait)}.due-ok{background:#8c8c8c}
-  .att-ok{background:var(--pub)}.att-no{background:var(--wait)}
   .tag.mine{background:#e6f4ff;color:#0958d9;border:1px solid #91caff;line-height:20px}
   .tag.part{background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f;line-height:20px}
   a.tlink.locked{color:var(--text);font-weight:400}
@@ -116,7 +128,7 @@
       <h2 id="reqTitle">신규 과제 등록 신청</h2>
       <p class="desc" id="reqDesc"></p>
       <div class="tablewrap"><table style="min-width:820px">
-        <thead><tr><th>명칭 / 목적</th><th>분류</th><th>단계</th><th>신청자</th><th>공개 여부</th><th>신청일</th><th>상태</th><th></th></tr></thead>
+        <thead><tr><th>명칭 / 목적</th><th>분류</th><th>신청자</th><th>공개 여부</th><th>신청일</th><th>신청 상태</th><th></th></tr></thead>
         <tbody id="reqRows"></tbody>
       </table></div>
     </div>
@@ -125,7 +137,7 @@
       <p class="desc">과제를 새로 등록하고 한눈에 관리하는 화면입니다. 누구나 '신규작성'으로 등록을 신청할 수 있고, <b>사이트관리자가 승인하면</b> 과제로 등록됩니다. 과제 세부 페이지(첨부 파일·상세 현황·변경 이력)는 내가 <b>과제책임자</b>이거나 <b>과제참여자</b>인 과제만 볼 수 있습니다. <b>내 과제</b>는 '내 진행률'을 누르면 <a class="tlink" href="progress.html">내 과제 진행률</a>로 이동합니다. 수정·삭제는 과제 세부 페이지에서 합니다.</p>
       <div class="toolbar">
         <select id="fCategory" title="분류"></select>
-        <select id="fStage" title="AI 과제 단계"></select>
+        <select id="fStage" title="개발단계 (진행률 기준)"></select>
         <input type="search" id="q" placeholder="명칭·목적·책임자·부서 검색">
         <span class="grow"></span>
         <button class="admin-only danger" id="btnBulkDel" type="button" disabled title="체크한 과제를 한 번에 삭제">선택 삭제</button>
@@ -137,7 +149,7 @@
       </div>
       <div class="toolbar"><div class="chips" id="chips"></div></div>
       <div class="tablewrap"><table>
-        <thead><tr><th class="chk admin-only"><input type="checkbox" id="chkAll" title="보이는 과제 전체 선택"></th><th>과제 / 목적</th><th>분류</th><th>단계</th><th>과제책임자</th><th>공개 여부</th><th>상태</th><th>진행률</th><th>마감일</th><th>첨부</th><th></th></tr></thead>
+        <thead><tr><th class="chk admin-only"><input type="checkbox" id="chkAll" title="보이는 과제 전체 선택"></th><th data-sort="title">과제 / 목적</th><th data-sort="category">분류</th><th data-sort="stage">개발단계</th><th data-sort="owner">과제책임자</th><th data-sort="access">공개 여부</th><th data-sort="status">활용상태</th><th data-sort="progress">진행률</th><th data-sort="due">마감일</th><th data-sort="files">첨부</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </div>
@@ -164,7 +176,7 @@
         <textarea id="purpose" rows="4" maxlength="2000" placeholder="과제를 만든 목적이나 활용하고 싶은 이유를 설명해 주세요."></textarea><div class="msg">목적을 입력하세요.</div></div>
       <div class="row2">
         <div class="field"><label for="category"><i>*</i>분류</label><select id="category"></select><div class="msg">분류를 선택하세요.</div></div>
-        <div class="field"><label for="stage"><i>*</i>단계</label><select id="stage"></select><div class="msg">단계를 선택하세요.</div></div>
+        <div class="field"><label>개발단계</label><div class="sub" style="padding-top:6px">등록하면 <b>기획중</b>에서 시작합니다. 개발단계는 진행률에 따라 자동으로 바뀝니다(0% 기획중 · 1~99% 개발중 · 100% 개발완료).</div></div>
       </div>
       <div class="row2">
         <div class="field"><label for="ownerName"><i>*</i>과제책임자 이름</label><input id="ownerName" maxlength="50"><div class="msg">과제책임자 이름을 입력하세요.</div></div>
@@ -188,7 +200,7 @@
     <div class="body">
       <p id="impSum" style="margin-top:0"></p>
       <ol class="errlist" id="impErr" hidden></ol>
-      <div class="tablewrap"><table><thead><tr><th>행</th><th>명칭</th><th>분류</th><th>단계</th><th>과제책임자</th><th>소속부서</th><th>공개 여부</th></tr></thead><tbody id="impRows"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>행</th><th>명칭</th><th>분류</th><th>개발단계</th><th>과제책임자</th><th>소속부서</th><th>공개 여부</th></tr></thead><tbody id="impRows"></tbody></table></div>
       <p class="hint" id="impMore"></p>
       <p class="hint">명칭과 과제책임자가 같은 과제는 중복으로 보고 등록하지 않습니다. 올린 내용은 '사이트 설정 → 작업 기록'에 남습니다.</p>
       <div class="foot"><button type="button" id="impCancel">취소</button><button type="button" class="p" id="impOk">등록</button></div>
@@ -220,35 +232,64 @@ const me=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:nul
 const isPart=t=>{const u=me();return !!u&&(t.participants||[]).some(p=>p.empNo===u.empNo)};
 const isPublic=t=>{const a=aiOf(t);return !!a&&a.access==='공개'};
 const canView=t=>{const u=me();return !u||u.role==='admin'||isPublic(t)||isMine(t)||isPart(t)};
-// 과제 한 건의 진행 상태: 게시 완료 > 게시 대기(100%) > 진행 중 > 종료 > 검토
-function statusOf(t){
-  if(t.registered)return '게시 완료';
-  if(prog(t)>=100)return '게시 대기';
-  if(t.s==='doing')return '진행 중';
-  if(t.s==='done')return '종료';
-  return '검토';
-}
-const STATES=[['검토','var(--review)'],['진행 중','var(--doing)'],['게시 대기','var(--wait)'],['게시 완료','var(--pub)'],['종료','var(--end)']];
-const COLOR=Object.fromEntries(STATES);
+// 활용상태·개발단계는 storage.js 의 TaskState 한 곳에서 정한다 (대시보드·내 과제 진행률·과제 상세와 같은 기준):
+//   활용상태: 개발진행중(100% 미만) → 신청대기중(100%) → 게시검토중(게시 요청) → 게시활용중(서비스 게시) → 활용종료
+//   개발단계: 진행률 0% 기획중 / 1~99% 개발중 / 100% 개발완료 (직접 고르지 않는다)
+const statusOf=TaskState.useOf;
+const STATES=TaskState.USE;
+const COLOR=TaskState.USE_COLOR;
 // AI 과제 쪽 항목
 let CATEGORIES=['개발','법률','노사','IT'];   // 서버로 열면 사이트 설정 → 분류 관리의 목록으로 바뀜
-const STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+const STAGES=TaskState.DEV_NAMES;
 const ACCESS=['공개','비공개'];   // 공개: 로그인한 모든 사용자가 세부사항을 봄 / 비공개: 과제책임자·과제참여자만
-const STAGE_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
+const STAGE_COLOR=TaskState.DEV_COLOR;
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
 function dueTag(t){
   if(!t.due)return '<span class="sub">-</span>';
   const diff=Math.round((new Date(t.due+'T00:00:00')-today())/864e5);
-  const done=statusOf(t)==='게시 완료'||statusOf(t)==='종료';
+  const done=!TaskState.isOpen(t);
   if(!done&&diff<0)return `<span class="tag due-over">${t.due} (D+${-diff} 지연)</span>`;
   if(!done&&diff<=3)return `<span class="tag due-soon">${t.due} (${diff===0?'오늘':'D-'+diff})</span>`;
   return `<span class="tag due-ok">${t.due}</span>`;
 }
 
 let tasks=[],aiItems=[],fileMap={},selected=new Set(),saving=false,impFile=null,impBusy=false;
-const state={status:'',q:''};
-// 대시보드 카드에서 넘어온 상태 (예: overall.html?status=게시 대기)
-{const qs=new URLSearchParams(location.search).get('status');if(STATES.some(([s])=>s===qs))state.status=qs}
+// due: 마감 필터 ''(전체) | 'late'(마감 지연) | 'soon'(3일 이내 임박) | 'attention'(지연+임박).  sort: 열 정렬 {key, dir} (없으면 기본 순서)
+const state={status:'',q:'',due:'',sort:null};
+// 대시보드 카드에서 넘어온 상태 (예: overall.html?status=신청대기중, overall.html?due=late)
+{const sp=new URLSearchParams(location.search),qs=sp.get('status'),qd=sp.get('due');
+ if(STATES.some(([s])=>s===qs))state.status=qs;
+ if(['late','soon','attention'].includes(qd))state.due=qd}
+// 마감 구분 (대시보드와 같은 기준): 게시 완료·종료가 아닌 과제 중 마감일이 지났으면 'late', 오늘~3일 이내면 'soon', 그 외 ''
+function dueKind(t){
+  if(!t.due||!TaskState.isOpen(t))return '';
+  const diff=Math.round((new Date(t.due+'T00:00:00')-today())/864e5);
+  return diff<0?'late':diff<=3?'soon':'';
+}
+const dueMatch=t=>!state.due||(state.due==='attention'?!!dueKind(t):dueKind(t)===state.due);
+// 열 정렬 값: 글자는 가나다순, 단계·상태는 진행 순서, 숫자는 크기. 마감일 없는 과제는 항상 맨 뒤.
+const SORT_VAL={
+  title:({t})=>sameKey(t.title),
+  category:({a})=>a?sameKey(a.category):'',
+  stage:({t})=>STAGES.indexOf(TaskState.devOf(t)),
+  owner:({t})=>sameKey(t.assignee),
+  access:({a})=>a?sameKey(a.access):'',
+  status:({t})=>STATES.findIndex(([s])=>s===statusOf(t)),
+  progress:({t})=>prog(t),
+  due:({t})=>t.due||'',
+  files:({t})=>(fileMap[String(t.id)]||[]).length,
+};
+function sortRows(rows){
+  const base=(x,y)=>prog(y.t)-prog(x.t)||String(y.t.id).localeCompare(String(x.t.id));   // 기본: 진행률 높은 순 → 최근 등록 순
+  if(!state.sort)return rows.sort(base);
+  const {key,dir}=state.sort,val=SORT_VAL[key],sign=dir==='desc'?-1:1;
+  return rows.sort((x,y)=>{
+    const a=val(x),b=val(y);
+    if(key==='due'&&(!a||!b)&&a!==b)return a?-1:1;   // 마감일 없는 과제는 방향과 상관없이 뒤로
+    const c=typeof a==='number'?a-b:String(a).localeCompare(String(b),'ko');
+    return c*sign||base(x,y);
+  });
+}
 
 // 과제 진행 ↔ AI 과제 연결: projectId, 없으면 같은 명칭 + 과제책임자(=과제책임자)
 const sameKey=s=>String(s||'').trim();
@@ -266,39 +307,55 @@ async function loadCategories(){
 // status: 상태 칩까지 적용할지 (칩 옆 건수는 분류·단계·검색만 적용한 결과에서 센다)
 function visible(status=true){
   const q=state.q.trim().toLowerCase(),c=$('fCategory').value,s=$('fStage').value;
-  return tasks.map(t=>({t,a:aiOf(t)})).filter(({t,a})=>{
+  return sortRows(tasks.map(t=>({t,a:aiOf(t)})).filter(({t,a})=>{
     if(status&&state.status&&statusOf(t)!==state.status)return false;
+    if(status&&!dueMatch(t))return false;
     if(c&&(!a||a.category!==c))return false;
-    if(s&&(!a||a.stage!==s))return false;
+    if(s&&TaskState.devOf(t)!==s)return false;
     return !q||[t.title,t.assignee,a&&a.purpose,a&&a.ownerDept].some(v=>String(v||'').toLowerCase().includes(q));
-  }).sort((x,y)=>prog(y.t)-prog(x.t)||String(y.t.id).localeCompare(String(x.t.id)));
+  }));
 }
 
 function render(){
   const n=tasks.length;
   // 상태 칩: 이름 옆에 건수 (분류·단계·검색으로 좁힌 결과 기준)
   const base=visible(false),cntOf=v=>v?base.filter(({t})=>statusOf(t)===v).length:base.length;
-  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button type="button" data-v="${v}" class="${state.status===v?'on':''}">${l} <b class="n">${cntOf(v)}</b></button>`).join('');
+  // 마감 칩: 지금 고른 상태 칩까지 적용한 결과에서 센다. 다시 누르면 풀린다. ('주의 필요'에서 넘어온 attention 은 두 칩이 함께 켜진다)
+  const inStatus=base.filter(({t})=>!state.status||statusOf(t)===state.status),dueCnt=k=>inStatus.filter(({t})=>dueKind(t)===k).length;
+  const dueOn=k=>state.due===k||state.due==='attention';
+  $('chips').innerHTML=[['','전체']].concat(STATES.map(([s])=>[s,s])).map(([v,l])=>`<button type="button" data-v="${v}" class="${state.status===v?'on':''}">${l} <b class="n">${cntOf(v)}</b></button>`).join('')
+    +'<span class="sep"></span>'
+    +[['soon','마감 임박','#fa8c16','마감일이 오늘부터 3일 이내인 과제'],['late','마감 지연','#ff4d4f','마감일이 지났는데 아직 게시되지 않은 과제']]
+      .map(([k,l,c,tip])=>`<button type="button" data-due="${k}" class="due${dueOn(k)?' on':''}" style="--c:${c}" aria-pressed="${dueOn(k)}" title="${tip} (다시 누르면 해제)">${l} <b class="n">${dueCnt(k)}</b></button>`).join('');
   $('chips').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{state.status=b.dataset.v;render()});
+  $('chips').querySelectorAll('[data-due]').forEach(b=>b.onclick=()=>{const k=b.dataset.due;
+    state.due=state.due==='attention'?(k==='late'?'soon':'late'):state.due===k?'':state.due?'attention':k;render()});
+  // 정렬 표시
+  document.querySelectorAll('th[data-sort]').forEach(th=>{
+    const on=state.sort&&state.sort.key===th.dataset.sort;
+    th.classList.toggle('asc',!!on&&state.sort.dir==='asc');th.classList.toggle('desc',!!on&&state.sort.dir==='desc');
+    th.setAttribute('aria-sort',on?(state.sort.dir==='asc'?'ascending':'descending'):'none');
+    th.tabIndex=0;th.title='누르면 이 열로 정렬합니다 (오름차순 → 내림차순 → 기본 순서)';
+  });
 
   const rows=visible();
   $('cnt').textContent=rows.length===n?`전체 ${n}건`:`${rows.length}건 / 전체 ${n}건`;
   const ids=new Set(tasks.map(t=>String(t.id)));selected.forEach(id=>{if(!ids.has(id))selected.delete(id)});
   $('rows').innerHTML=rows.length?rows.map(({t,a})=>{
     // 내 과제는 '내 과제 진행률'(진행률 관리)로, 다른 과제책임자의 과제는 조회용 과제 상세 페이지로 이동
-    const mineTask=isMine(t),ok=canView(t),lock=ok?'':` data-lock="${t.id}"`,s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,
+    const mineTask=isMine(t),ok=canView(t),lock=ok?'':` data-lock="${t.id}"`,s=statusOf(t),p=prog(t),fs=fileMap[String(t.id)]||[],
       href=!ok?'#':mineTask?`progress.html?task=${encodeURIComponent(t.id)}`:`task-detail.html?id=${encodeURIComponent(t.id)}&from=overall`,on=selected.has(String(t.id));
     return `<tr${on?' class="sel"':''}>
       <td class="chk admin-only"><input type="checkbox" data-chk="${t.id}"${on?' checked':''} aria-label="선택"></td>
       <td><a class="tlink${ok?'':' locked'}" href="${href}"${lock}>${esc(t.title)}</a>${mineTask?' <span class="tag mine">내 과제</span>':(isPart(t)?' <span class="tag part">참여 과제</span>':'')}${a&&a.purpose?`<span class="purpose" title="${esc(a.purpose)}">${esc(a.purpose)}</span>`:''}</td>
       <td>${a?esc(a.category):'<span class="sub">-</span>'}</td>
-      <td>${a?`<span class="tag" style="background:${STAGE_COLOR[a.stage]||'#8c8c8c'}">${esc(a.stage)}</span>`:'<span class="sub">-</span>'}</td>
+      <td><span class="tag" style="background:${STAGE_COLOR[TaskState.devOf(t)]}">${TaskState.devOf(t)}</span></td>
       <td>${esc(t.assignee)||'-'}${a&&a.ownerDept?`<div class="sub">${esc(a.ownerDept)}</div>`:''}</td>
       <td>${a?`<span class="tag acc${a.access==='공개'?' pub':''}">${esc(a.access)}</span>`:'<span class="sub">-</span>'}</td>
       <td><span class="tag" style="background:${COLOR[s]}">${s}</span></td>
       <td><div class="pbar"><div><i style="width:${p}%;background:${COLOR[s]}"></i></div><span>${p}%</span></div></td>
       <td>${dueTag(t)}</td>
-      <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
+      <td title="첨부 파일 ${fs.length}개">${fs.length?`${fs.length}개`:'<span class="sub">없음</span>'}</td>
       <td class="act"><a class="btnlink${ok?'':' locked'}" href="${href}"${lock} title="${!ok?'과제책임자·과제참여자만 볼 수 있습니다':mineTask?'내 과제 진행률로 이동':'과제 세부 보기'}">${mineTask?'내 진행률':'세부'}</a></td></tr>`}).join('')
     :`<tr><td colspan="11" class="empty">${n?'조건에 맞는 과제가 없습니다.':'등록된 과제가 없습니다. 오른쪽 위 \'신규작성\' 버튼으로 등록해 보세요.'}</td></tr>`;
   updateSel(rows);
@@ -341,7 +398,6 @@ function renderRequests(){
     return `<tr>
       <td><b>${esc(f.title)}</b><span class="purpose" title="${esc(f.purpose)}">${esc(f.purpose)}</span></td>
       <td>${esc(f.category)}</td>
-      <td><span class="tag" style="background:${STAGE_COLOR[f.stage]||'#8c8c8c'}">${esc(f.stage)}</span></td>
       <td>${esc(r.requesterName)}<div class="sub">${esc(r.requesterDept||f.ownerDept||'')}</div></td>
       <td><span class="tag acc${f.access==='공개'?' pub':''}">${esc(f.access)}</span></td>
       <td style="white-space:nowrap">${esc(String(r.requestedAt||'').slice(0,10))}</td>
@@ -373,13 +429,12 @@ $('reqRows').addEventListener('click',async e=>{
 
 // ---------- 신규작성 (수정·삭제는 과제 세부 페이지에서) ----------
 // AI 과제로 등록하면 서버(서버 없는 화면은 ai-storage.js)가 과제 진행 1건을 함께 만든다.
-const FIELDS=['title','purpose','category','stage','ownerName','ownerDept'];
+const FIELDS=['title','purpose','category','ownerName','ownerDept'];   // 개발단계는 고르지 않는다(기획중에서 시작, 진행률을 따라감)
 const radioVal=()=>{const r=document.querySelector('input[name=access]:checked');return r?r.value:''};
 function clearInvalid(){document.querySelectorAll('.field.invalid').forEach(f=>f.classList.remove('invalid'));$('mErr').hidden=true}
 function openModal(){
   $('title').value='';$('purpose').value='';
   $('category').innerHTML='<option value="">선택</option>'+opts(CATEGORIES);
-  $('stage').innerHTML=opts(STAGES,STAGES[0]);
   // 로그인한 사람을 과제책임자로 미리 채운다 → 등록하면 바로 '내 과제'가 된다
   const me=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
   $('ownerName').value=me?me.name:'';
@@ -514,10 +569,20 @@ document.addEventListener('click',e=>{
 $('lockOk').onclick=()=>$('lockDlg').close();
 
 $('q').addEventListener('input',e=>{state.q=e.target.value;render()});
+// 열 머리글을 누르면 정렬: 오름차순 → 내림차순 → 기본 순서(진행률 높은 순)
+function toggleSort(key){
+  const cur=state.sort&&state.sort.key===key?state.sort.dir:'';
+  state.sort=cur===''?{key,dir:'asc'}:cur==='asc'?{key,dir:'desc'}:null;
+  render();
+}
+document.querySelectorAll('th[data-sort]').forEach(th=>{
+  th.addEventListener('click',()=>toggleSort(th.dataset.sort));
+  th.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleSort(th.dataset.sort)}});
+});
 $('fCategory').onchange=$('fStage').onchange=render;
 
 (async()=>{
-  $('fStage').innerHTML='<option value="">단계 전체</option>'+opts(STAGES);
+  $('fStage').innerHTML='<option value="">개발단계 전체</option>'+opts(STAGES);
   try{tasks=await TaskStorage.init()}catch(e){tasks=[]}
   try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}
   const server=TaskStorage.mode==='server';

@@ -16,7 +16,10 @@
 API:
     GET    /api/tasks          과제 목록
     POST   /api/tasks          과제 생성   {"title": "...", "assignee", "due": "YYYY-MM-DD", "priority": "high|mid|low", "memo"}
-    PATCH  /api/tasks/<id>     과제 수정   {"s": "todo|doing|done", "title", "assignee", "due", "priority", "memo", "progress": 0~100}
+    PATCH  /api/tasks/<id>     과제 수정   {"title", "assignee", "due", "priority", "memo", "progress": 0~100,
+                                            "pubRequested": 게시 요청(과제책임자), "registered": 서비스 게시(사이트관리자), "useEnded": 활용 종료(사이트관리자)}
+                               개발단계는 진행률로 정해진다: 0% 기획중 / 1~99% 개발중 / 100% 개발완료 (AI 과제의 stage 에 서버가 맞춰 적는다)
+                               활용상태: 개발진행중(100% 미만) → 신청대기중(100%) → 게시검토중(과제책임자가 게시 요청) → 게시활용중(사이트관리자가 게시) → 활용종료
                                (변경 내용은 history 에 자동 기록됩니다)
     DELETE /api/tasks/<id>     과제 삭제
     POST   /api/tasks/import   여러 과제 한 번에 가져오기 (localStorage 이전용)
@@ -78,13 +81,23 @@ DATA_FILE = BASE_DIR / "data" / "tasks.json"
 FILES_DIR = BASE_DIR / "data" / "files"
 MAX_FILE = 20 * 1024 * 1024  # 첨부 파일 1개 최대 크기 (20MB)
 FILE_ROUTE = re.compile(r"^/api/tasks/(\d+)/files(?:/([0-9a-f]{32}))?$")
-# PRD 필수 첨부 3종: 확장자로 종류를 정한다 (내용은 보지 않음)
-FILE_KINDS = {".hwpx": "과제기획서", ".html": "과제실행 파일", ".htm": "과제실행 파일", ".csv": "과제활용 데이터"}
 AI_DATA_FILE = BASE_DIR / "data" / "ai_projects.json"
 AI_CATEGORIES = ["개발", "법률", "노사", "IT"]   # 처음 실행할 때의 기본 분류. 이후에는 사이트 설정 → 분류 관리(data/categories.json)
 CAT_FILE = BASE_DIR / "data" / "categories.json"
 MAX_CATEGORY = 20
-AI_STAGES = ["기획중", "개발중", "승인요청", "승인검토중", "활용중", "활용종료"]
+# 개발단계 3종. 직접 고르는 값이 아니라 진행률로 정해진다 (dev_stage). 등록·엑셀 올리기에서 받은 값은 처음 진행률을 정하는 데만 쓴다.
+AI_STAGES = ["기획중", "개발중", "개발완료"]
+# 예전 단계 6종 → 개발단계 3종 (예전 엑셀 파일·데이터도 받아 준다)
+AI_STAGES_OLD = {"승인요청": "기획중", "승인검토중": "개발중", "활용중": "개발완료", "활용종료": "개발완료"}
+norm_stage = lambda v: AI_STAGES_OLD.get(v, v)
+
+
+def dev_stage(progress):
+    """개발단계: 진행률 0% = 기획중, 1~99% = 개발중, 100% = 개발완료."""
+    p = progress if isinstance(progress, int) and not isinstance(progress, bool) else 0
+    return "개발완료" if p >= 100 else "개발중" if p > 0 else "기획중"
+
+
 AI_ACCESS = ["공개", "비공개"]   # 공개: 로그인한 모든 사용자가 세부사항을 봄 / 비공개: 과제책임자·과제참여자만
 # 예전 접근권한범위 3종 → 공개/비공개 (예전 데이터·엑셀도 받아 준다)
 AI_ACCESS_OLD = {"전사": "공개", "소속부서": "비공개", "사용자별 지정": "비공개"}
@@ -94,7 +107,7 @@ AI_COLUMNS = [
     ("title", "명칭", ("과제명", "AI 과제명"), 30),
     ("purpose", "목적", (), 60),
     ("category", "분류", (), 10),
-    ("stage", "단계", (), 12),
+    ("stage", "개발단계", ("단계",), 12),
     ("ownerName", "과제책임자", ("과제책임자 이름", "책임자"), 14),
     ("ownerDept", "소속부서", ("과제책임자 소속부서", "부서"), 16),
     ("access", "공개 여부", ("접근권한범위", "접근권한", "공개여부"), 14),
@@ -112,7 +125,9 @@ PRIORITY_LABEL = {"high": "높음", "mid": "보통", "low": "낮음"}
 TRACKED = [
     ("s", "단계", lambda v: STAGE_LABEL.get(v, v)),
     ("progress", "진행률", lambda v: f"{v}%"),
+    ("pubRequested", "게시 요청", lambda v: "요청" if v else "없음"),
     ("registered", "서비스 게시", lambda v: "게시" if v else "해제"),
+    ("useEnded", "활용 종료", lambda v: "종료" if v else "활용 중"),
     ("approver", "승인자", lambda v: v or "없음"),
     ("regReason", "게시 사유", lambda v: v or "없음"),
     ("assignee", "과제책임자", lambda v: v or "없음"),
@@ -127,7 +142,7 @@ TRACKED = [
 def _norm(d, key):
     if key == "progress":
         return d.get(key, 0)
-    if key == "registered":
+    if key in ("registered", "pubRequested", "useEnded"):
         return bool(d.get(key, False))
     if key == "participants":      # 비교·표시는 이름 목록으로
         return ", ".join(p.get("name", "") for p in (d.get(key) or []))
@@ -175,12 +190,10 @@ def demo_items():
     for i, d in enumerate(demo["tasks"]):
         n, s, prog = d["daysAgo"], d["s"], d.get("progress", 0)
         hist = [{"at": at(n, 10), "text": "과제 등록"}]
-        if s != "todo":
-            hist.append({"at": at(int(n * 0.8), 11), "text": "단계: 검토 → 진행"})
         if prog:
             hist.append({"at": at(int(n * 0.5), 14), "text": f"진행률: 0% → {prog}%"})
-        if s == "done":
-            hist.append({"at": at(int(n * 0.3), 16), "text": "단계: 진행 → 종료"})
+        if d.get("pubRequested"):
+            hist.append({"at": at(int(n * 0.3), 16), "text": "게시 요청: 없음 → 요청", "by": d.get("assignee", "")})
         task = {
             "id": int(day(n).replace(hour=10, minute=0, second=0, microsecond=0).timestamp() * 1000) + i,
             "title": d["title"], "s": s, "date": day(n).date().isoformat(),
@@ -191,6 +204,11 @@ def demo_items():
             r = d.get("registeredDaysAgo", 0)
             hist.append({"at": at(r, 17), "text": f"서비스 게시: 해제 → 게시 / 승인자: 없음 → {d['approver']} / 게시 사유: 없음 → {d['regReason']}"})
             task.update(registered=True, approver=d["approver"], regReason=d["regReason"], registeredAt=day(r).date().isoformat())
+        if d.get("pubRequested"):
+            task["pubRequested"] = True
+        if d.get("useEnded"):
+            hist.append({"at": at(max(0, d.get("registeredDaysAgo", 0) - 1), 9), "text": "활용 종료: 활용 중 → 종료"})
+            task["useEnded"] = True
         if parts.get(d["title"]):
             task["participants"] = parts[d["title"]]
         task["history"] = hist
@@ -202,6 +220,7 @@ def demo_items():
         created = at(d["daysAgo"], 10)
         fields = {k: d[k] for k in ("title", "purpose", "category", "stage", "ownerName", "ownerDept", "access")}
         fields["access"] = norm_access(fields["access"])
+        fields["stage"] = norm_stage(fields["stage"])
         ai.append({"id": int(day(d["daysAgo"]).replace(hour=10, minute=0, second=0, microsecond=0).timestamp() * 1000) + i,
                    **fields, "createdAt": created, "updatedAt": created})
     ai.sort(key=lambda t: t["id"], reverse=True)
@@ -465,7 +484,9 @@ def clean_filename(value):
 
 
 def file_kind(name):
-    return FILE_KINDS.get(os.path.splitext(name)[1].lower(), "기타")
+    """파일 형식 = 확장자 대문자 (없거나 이상하면 '기타'). 필수 첨부 3종 구분은 없앴다 (file-storage.js 의 kindOf 와 같은 규칙)."""
+    m = re.search(r"\.([A-Za-z0-9]{1,10})$", name or "")
+    return m.group(1).upper() if m else "기타"
 
 
 def clean_status(value):
@@ -477,19 +498,24 @@ def clean_status(value):
 MAX_PARTICIPANTS = 30
 
 
-def clean_participants(value):
-    """과제참여자: 사번 목록(또는 {"empNo": ...} 목록)을 받아, 사용 중인 사용자만 골라 [{empNo, name, dept}] 로 돌려줍니다."""
+def clean_participants(value, current=()):
+    """과제참여자: 사번 목록(또는 {"empNo": ...} 목록)을 받아 [{empNo, name, dept}] 로 돌려줍니다.
+
+    새로 초대하는 사람은 사용 중인 사용자여야 합니다. 이미 참여자인 사람(current)은 그사이 비활성 계정이 됐더라도
+    그대로 둘 수 있습니다 — 그래야 다른 참여자를 제외하는 저장이 막히지 않습니다. 목록에서 빠진 사람은 제외됩니다.
+    """
     if not isinstance(value, list) or len(value) > MAX_PARTICIPANTS:
         raise ValidationError(f"과제참여자는 {MAX_PARTICIPANTS}명까지 지정할 수 있습니다.")
     users = {u["empNo"]: u for u in users_store.all() if u.get("status") == "active"}
+    kept = {p.get("empNo"): p for p in current or [] if isinstance(p, dict)}
     out, seen = [], set()
     for v in value:
         emp = v.get("empNo") if isinstance(v, dict) else v
-        if not isinstance(emp, str) or emp not in users:
-            raise ValidationError("과제참여자로 지정할 수 없는 사용자가 있습니다. (사용 중인 사용자만 지정할 수 있습니다)")
+        if not isinstance(emp, str) or (emp not in users and emp not in kept):
+            raise ValidationError("과제참여자로 지정할 수 없는 사용자가 있습니다. (사용 중인 사용자만 초대할 수 있습니다)")
         if emp not in seen:
             seen.add(emp)
-            u = users[emp]
+            u = users.get(emp) or kept[emp]
             out.append({"empNo": emp, "name": u.get("name", ""), "dept": u.get("dept", "")})
     return out
 
@@ -521,6 +547,11 @@ def clean_extra(body):
         if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 100:
             raise ValidationError("진행률은 0~100 사이 정수로 입력하세요.")
         out["progress"] = v
+    for key, label in (("pubRequested", "게시 요청"), ("useEnded", "활용 종료")):
+        if key in body:
+            if not isinstance(body[key], bool):
+                raise ValidationError(f"{label} 값이 올바르지 않습니다.")
+            out[key] = body[key]
     if "registered" in body:
         v = body["registered"]
         if not isinstance(v, bool):
@@ -565,6 +596,8 @@ def clean_ai_project(body):
         v = body.get(key)
         if key == "access":
             v = norm_access(v)
+        if key == "stage":          # 개발단계는 진행률로 정해지므로 안 보내도 된다(기획중에서 시작). 예전 단계 이름도 받는다.
+            v = norm_stage(v) if isinstance(v, str) and v.strip() else AI_STAGES[0]
         if v not in allowed:
             raise ValidationError(f"{label} 값이 올바르지 않습니다.")
         return v
@@ -573,7 +606,7 @@ def clean_ai_project(body):
         "title": text("title", "명칭", MAX_TITLE),
         "purpose": text("purpose", "목적", 2000),
         "category": choice("category", "분류", cat_store.list()),
-        "stage": choice("stage", "단계", AI_STAGES),
+        "stage": choice("stage", "개발단계", AI_STAGES),
         "ownerName": text("ownerName", "과제책임자 이름", 50),
         "ownerDept": text("ownerDept", "과제책임자 소속부서", 100),
         "access": choice("access", "공개 여부", AI_ACCESS),
@@ -698,8 +731,8 @@ cat_store = CategoryStore(CAT_FILE, AI_CATEGORIES, ai_store.list())
 # ---- AI 과제 ↔ 과제 진행 맞추기 ----
 # AI 과제 1건 = 과제 진행 1건. 대시보드·세부 진행 현황·내 과제 진행률(과제 진행)과
 # AI 과제 목록·유사과제 탐색·분류 관리(AI 과제)의 건수가 항상 같도록 서버가 맞춘다.
-STAGE_TO_TASK = {"기획중": ("todo", 0), "승인요청": ("todo", 0), "개발중": ("doing", 30),
-                 "승인검토중": ("doing", 90), "활용중": ("done", 100), "활용종료": ("done", 100)}
+# 새 AI 과제의 진행 기록 시작값: 등록·엑셀에서 받은 개발단계 → (진행 구분, 진행률). 이후 개발단계는 진행률을 따라간다.
+STAGE_TO_TASK = {"기획중": ("todo", 0), "개발중": ("doing", 30), "개발완료": ("done", 100)}
 SYSTEM_USER = {"empNo": "system", "name": "시스템", "role": ""}
 
 
@@ -714,6 +747,9 @@ def sync_tasks_with_projects():
       projectId 가 없는 예전 기록은 같은 명칭 + 담당자(=과제책임자)이면 그 AI 과제에 연결한다.
     - 연결된 AI 과제가 없어진 진행 기록은 지운다 (첨부 파일 포함).
     - AI 과제의 명칭·과제책임자가 바뀌면 진행 기록의 과제명·담당자도 따라 바꾼다.
+    - AI 과제의 개발단계(stage)를 진행 기록의 진행률에 맞춘다 (0% 기획중 / 1~99% 개발중 / 100% 개발완료).
+    - 예전 데이터 옮기기(과제당 한 번): 예전 단계 '승인검토중'이면서 100%·미게시 → 게시 요청됨(게시검토중),
+      예전 단계 '활용종료'이면서 게시됨, 또는 예전 '종료'(게시 전·100% 미만) → 활용 종료.
     """
     with ai_store.lock, store.lock:          # 잠그는 순서: AI 과제 → 과제 진행 (다른 곳은 하나씩만 잠금)
         projects = ai_store._read()
@@ -726,7 +762,7 @@ def sync_tasks_with_projects():
                 by_pid[pid] = t
             else:
                 loose.setdefault(_key(t.get("title"), t.get("assignee")), []).append(t)
-        keep, created, updated, linked = [], 0, 0, 0
+        keep, created, updated, linked, moved, staged = [], 0, 0, 0, 0, 0
         for pr in projects:
             t = by_pid.get(pr["id"])
             if t is None:                          # 예전 기록을 명칭+담당자로 연결
@@ -736,7 +772,7 @@ def sync_tasks_with_projects():
                     t["projectId"] = pr["id"]
                     linked += 1
             if t is None:                          # 새로 만들기
-                s, prog = STAGE_TO_TASK.get(pr.get("stage"), ("todo", 0))
+                s, prog = STAGE_TO_TASK.get(norm_stage(pr.get("stage")), ("todo", 0))
                 t = {"id": store._new_id(tasks + keep), "projectId": pr["id"], "title": pr["title"], "s": s,
                      "date": str(pr.get("createdAt") or date.today().isoformat())[:10],
                      "assignee": pr.get("ownerName", ""), "due": "", "priority": "mid", "memo": "",
@@ -753,14 +789,28 @@ def sync_tasks_with_projects():
                     t.update(change)
                     t["history"] = ((t.get("history") or []) + [stamp(text + " (AI 과제 수정에 따라)")])[-MAX_HISTORY:]
                     updated += 1
+            # 예전 단계 6종에 들어 있던 '게시 검토 중 / 활용 종료' 정보를 활용상태 쪽으로 옮긴다 (키가 없을 때 한 번만)
+            p100, reg = t.get("progress", 0) == 100, bool(t.get("registered"))
+            if "pubRequested" not in t and pr.get("stage") == "승인검토중" and p100 and not reg:
+                t["pubRequested"] = True
+                moved += 1
+            if "useEnded" not in t and ((pr.get("stage") == "활용종료" and reg) or (t.get("s") == "done" and not reg and not p100)):
+                t["useEnded"] = True
+                moved += 1
+            stage = dev_stage(t.get("progress", 0))
+            if pr.get("stage") != stage:
+                pr["stage"] = stage
+                staged += 1
             keep.append(t)
         kept_ids = {id(t) for t in keep}
         removed = [t for t in tasks if id(t) not in kept_ids]
         # 지워진 AI 과제에 딸린 기록(정상 삭제)은 'AI 과제 삭제' 기록에 이미 들어가므로, 연결이 없거나 겹친 기록만 따로 남긴다
         orphans = [t for t in removed if t.get("projectId") is None or t.get("projectId") in pids]
-        if created or updated or linked or removed:
+        if created or updated or linked or removed or moved:
             keep.sort(key=lambda t: t["id"], reverse=True)    # 최신 등록이 위로
             store._write(keep)
+        if staged:
+            ai_store._write(projects)
         for t in removed:
             shutil.rmtree(FILES_DIR / str(t["id"]), ignore_errors=True)
     if orphans:
@@ -1210,18 +1260,34 @@ class Handler(AuthMixin, SimpleHTTPRequestHandler):
                 fields["s"] = clean_status(body["s"])
             fields.update(clean_extra(body))
             if "participants" in body:
-                fields["participants"] = clean_participants(body["participants"])
-            if "registered" in fields and self._user()["role"] != "admin":
-                raise ValidationError("서비스 게시·해제는 사이트관리자만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
+                cur_task = store.get(task_id) or {}
+                fields["participants"] = clean_participants(body["participants"], cur_task.get("participants"))
+            # 활용상태 흐름: 100% → (과제책임자) 게시 요청 → (사이트관리자) 서비스 게시 → (사이트관리자) 활용 종료
+            cur = store.get(task_id) or {}
+            admin = self._user()["role"] == "admin"
+            new_prog = fields.get("progress", cur.get("progress", 0))
+            if ("registered" in fields or "useEnded" in fields) and not admin:
+                raise ValidationError("서비스 게시·해제와 활용 종료는 사이트관리자만 할 수 있습니다.", HTTPStatus.FORBIDDEN)
+            if fields.get("pubRequested") and (cur.get("registered") or new_prog != 100):
+                raise ValidationError("진행률 100%이고 아직 게시되지 않은 과제만 게시 요청할 수 있습니다.")
+            if "progress" in fields and new_prog < 100 and cur.get("pubRequested") and "pubRequested" not in fields:
+                fields["pubRequested"] = False          # 진행률을 100% 아래로 내리면 게시 요청도 풀린다
             if fields.get("registered"):
-                cur = next((t for t in store.list() if t["id"] == task_id), None)
-                if cur is not None and fields.get("progress", cur.get("progress", 0)) != 100:
+                if new_prog != 100:
                     raise ValidationError("진행률 100%인 과제만 서비스 게시할 수 있습니다.")
+                if not fields.get("pubRequested", cur.get("pubRequested")):
+                    raise ValidationError("과제책임자가 게시 요청한 과제(게시검토중)만 서비스 게시할 수 있습니다.")
+            if fields.get("registered") is False and cur.get("useEnded") and "useEnded" not in fields:
+                fields["useEnded"] = False              # 게시를 해제하면 활용 종료 표시도 지운다
+            if fields.get("useEnded") and not fields.get("registered", cur.get("registered")):
+                raise ValidationError("서비스 게시된 과제(게시활용중)만 활용 종료로 바꿀 수 있습니다.")
             if not fields:
                 raise ValidationError("수정할 항목이 없습니다.")
             task = store.update(task_id, fields, by=self._actor())
             if task is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"error": "과제를 찾을 수 없습니다."})
+            if "progress" in fields:
+                sync_tasks_with_projects()              # 진행률이 바뀌면 AI 과제의 개발단계도 맞춘다
             self._json(HTTPStatus.OK, task)
 
         self._handle_write(update)

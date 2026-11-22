@@ -8,6 +8,31 @@
  *
  * 모든 메서드는 Promise 를 돌려줍니다.
  */
+/**
+ * 개발단계 · 활용상태 (TaskState) — 모든 화면이 같은 기준을 쓰도록 여기 한 곳에 둔다. (서버: server.py 의 dev_stage 와 과제 수정 규칙)
+ *
+ *   개발단계 (진행률로 정해짐, 직접 고르지 않음):  0% 기획중 / 1~99% 개발중 / 100% 개발완료
+ *   활용상태:  개발진행중(100% 미만)
+ *            → 신청대기중(100% 달성)
+ *            → 게시검토중(과제책임자가 '게시 요청')
+ *            → 게시활용중(사이트관리자가 '서비스 게시')
+ *            → 활용종료(사이트관리자가 '활용 종료')
+ */
+const TaskState = (() => {
+  const DEV = [['기획중', '#8c8c8c'], ['개발중', '#1677ff'], ['개발완료', '#52c41a']];
+  const USE = [['개발진행중', '#1677ff'], ['신청대기중', '#fa8c16'], ['게시검토중', '#722ed1'], ['게시활용중', '#52c41a'], ['활용종료', '#8c8c8c']];
+  const prog = t => Math.min(100, Math.max(0, +(t && t.progress) || 0));
+  const devOf = t => { const p = prog(t); return p >= 100 ? '개발완료' : p > 0 ? '개발중' : '기획중'; };
+  const useOf = t => t.useEnded ? '활용종료' : t.registered ? '게시활용중' : prog(t) < 100 ? '개발진행중' : t.pubRequested ? '게시검토중' : '신청대기중';
+  return {
+    DEV, USE, devOf, useOf,
+    DEV_NAMES: DEV.map(x => x[0]), USE_NAMES: USE.map(x => x[0]),
+    DEV_COLOR: Object.fromEntries(DEV), USE_COLOR: Object.fromEntries(USE),
+    /** 마감을 따질 과제인가: 게시됐거나 활용이 끝난 과제는 마감 지연·임박에서 뺀다 */
+    isOpen: t => !['게시활용중', '활용종료'].includes(useOf(t)),
+  };
+})();
+
 const TaskStorage = (() => {
   const LOCAL_KEY = 'tasks-v1';
   const MIGRATED_KEY = 'tasks-v1-migrated';
@@ -20,12 +45,12 @@ const TaskStorage = (() => {
   const writeLocal = tasks => { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(tasks)); } catch (e) {} };
 
   // ---- 변경 이력 (임시 저장 모드용. 서버 모드는 server.py 가 같은 형식으로 기록) ----
-  const STAGE = { todo: '검토', doing: '진행', done: '종료' };
   const PRI_L = { high: '높음', mid: '보통', low: '낮음' };
   const TRACK = [
-    ['s', '단계', v => STAGE[v] || v],
     ['progress', '진행률', v => v + '%'],
+    ['pubRequested', '게시 요청', v => v ? '요청' : '없음'],
     ['registered', '서비스 게시', v => v ? '게시' : '해제'],
+    ['useEnded', '활용 종료', v => v ? '종료' : '활용 중'],
     ['approver', '승인자', v => v || '없음'],
     ['regReason', '게시 사유', v => v || '없음'],
     ['assignee', '과제책임자', v => v || '없음'],
@@ -35,7 +60,7 @@ const TaskStorage = (() => {
     ['memo', '메모', v => v || '없음'],
     ['participants', '과제참여자', v => v || '없음'],
   ];
-  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : k === 'registered' ? !!o[k]
+  const norm = (o, k) => (k === 'progress' ? (o[k] ?? 0) : ['registered', 'pubRequested', 'useEnded'].includes(k) ? !!o[k]
     : k === 'participants' ? (o[k] || []).map(p => p.name).join(', ')   // 비교·표시는 이름 목록으로
     : (o[k] ?? ''));
   function describe(before, fields) {
@@ -129,6 +154,10 @@ const TaskStorage = (() => {
       const tasks = readLocal();
       const t = tasks.find(x => x.id == id);
       if (t) {
+        // 서버와 같은 규칙: 진행률을 100% 아래로 내리면 게시 요청이 풀리고, 게시를 해제하면 활용 종료 표시도 지운다
+        fields = { ...fields };
+        if ('progress' in fields && fields.progress < 100 && t.pubRequested && !('pubRequested' in fields)) fields.pubRequested = false;
+        if (fields.registered === false && t.useEnded && !('useEnded' in fields)) fields.useEnded = false;
         const text = describe(t, fields);
         Object.assign(t, fields);
         if ('registered' in fields) {

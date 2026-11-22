@@ -5,19 +5,15 @@
  * - 임시 저장 모드(GitHub Pages·파일 직접 열기): 이 브라우저의 IndexedDB 에만 보관
  *   (다른 PC·다른 브라우저에서는 보이지 않음)
  *
- * PRD 필수 첨부 3종은 확장자로만 확인합니다(내용은 보지 않음).
+ * 파일 형식은 확장자만 보여 줍니다(예: HWPX, CSV). 필수 첨부(기획서·실행 파일·활용 데이터) 확인은 없앴습니다:
+ * 진행률은 첨부와 상관없이 과제책임자가 과제 상세에서 직접 바꿉니다.
  */
 const FileStorage = (() => {
   const MAX_FILE = 20 * 1024 * 1024;
-  const REQUIRED = [
-    { kind: '과제기획서', ext: ['.hwpx'], label: '과제기획서 (hwpx)' },
-    { kind: '과제실행 파일', ext: ['.html', '.htm'], label: '과제실행 파일 (html)' },
-    { kind: '과제활용 데이터', ext: ['.csv'], label: '과제활용 데이터 (csv)' },
-  ];
+  // 파일 형식: 확장자를 대문자로 (없거나 너무 길면 '기타')
   const kindOf = name => {
-    const ext = (String(name).match(/\.[^.]+$/) || [''])[0].toLowerCase();
-    const r = REQUIRED.find(x => x.ext.includes(ext));
-    return r ? r.kind : '기타';
+    const m = String(name == null ? '' : name).match(/\.([A-Za-z0-9]{1,10})$/);
+    return m ? m[1].toUpperCase() : '기타';
   };
   const isServer = () => typeof TaskStorage !== 'undefined' && TaskStorage.mode === 'server';
   const api = id => `api/tasks/${encodeURIComponent(id)}/files`;
@@ -66,7 +62,7 @@ const FileStorage = (() => {
   }
 
   return {
-    REQUIRED, MAX_FILE, kindOf,
+    MAX_FILE, kindOf,
 
     /** 과제 하나의 첨부 파일 목록 [{id,name,size,kind,uploadedAt}] */
     async list(taskId) {
@@ -130,11 +126,6 @@ const FileStorage = (() => {
       }
       await tx('readwrite', s => s.delete(meta.id));
       localHistory(taskId, `파일 삭제: ${meta.name}`, meta);
-    },
-
-    /** PRD 필수 첨부 3종 확인 결과: [{label, ok}] */
-    checkRequired(files) {
-      return REQUIRED.map(r => ({ label: r.label, kind: r.kind, ok: files.some(f => f.kind === r.kind) }));
     },
   };
 })();

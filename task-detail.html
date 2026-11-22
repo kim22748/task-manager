@@ -8,7 +8,7 @@
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a;--warn:#fa8c16;--danger:#ff4d4f}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
-  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;align-self:flex-start}   /* 스크롤해도 메뉴는 제자리에 */
   aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
   aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
   aside a.on{background:var(--primary);color:#fff}
@@ -51,10 +51,6 @@
   .pbar div{flex:1;height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden;max-width:240px}
   .pbar i{display:block;height:100%;background:var(--primary)}
   .grid2{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:16px}
-  .req{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:16px}
-  .req div{border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .req div.ok{background:#f6ffed;border-color:#b7eb8f}
-  .req div.no{background:#fff2f0;border-color:#ffccc7}
   .drop{border:1px dashed #d9d9d9;border-radius:8px;padding:16px;text-align:center;color:var(--sub);font-size:14px;margin-bottom:16px;transition:background .15s}
   .drop.over{background:#e6f4ff;border-color:var(--primary)}
   .drop b{color:var(--primary);cursor:pointer}
@@ -71,6 +67,9 @@
   .parts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;white-space:normal}
   .pchip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;background:#f6ffed;border:1px solid #b7eb8f;font-size:13px}
   .pchip em{font-style:normal;color:var(--sub);font-size:12px}
+  /* 참여자 제외(×): 그 과제의 과제책임자와 사이트관리자에게만 보인다 */
+  .pchip button.px{border:0;background:none;padding:0 2px;margin-left:2px;font-size:14px;line-height:1;color:var(--sub);cursor:pointer;border-radius:50%}
+  .pchip button.px:hover{color:#ff4d4f;background:#fff1f0}
   .plist{margin-top:8px;max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:6px}
   dialog label.prow{display:flex;align-items:center;gap:10px;margin:0;padding:8px 12px;font-weight:400;border-bottom:1px solid var(--border);cursor:pointer}
   dialog label.prow:last-child{border-bottom:0}
@@ -133,8 +132,8 @@
 <input type="file" id="picker" multiple hidden>
 <dialog id="partDlg">
   <form id="partForm" method="dialog" novalidate>
-    <h3>과제참여자 초대</h3>
-    <div class="sub">이 과제에 초대할 사람을 고르세요. 초대된 사람은 이 과제의 세부사항을 볼 수 있습니다. 체크를 풀면 참여자에서 빠집니다.</div>
+    <h3>과제참여자 초대·제외</h3>
+    <div class="sub">이 과제에 초대할 사람을 체크하세요. 초대된 사람은 이 과제의 세부사항을 볼 수 있습니다. <b>체크를 풀고 저장하면 참여자에서 제외</b>됩니다(과제 상세의 이름 옆 ×로도 한 명씩 제외할 수 있습니다).</div>
     <input type="text" id="pSearch" placeholder="이름·부서·사번 검색" style="margin-top:12px">
     <div class="plist" id="pList"></div>
     <div class="sub" id="pCount" style="margin-top:8px"></div>
@@ -153,8 +152,6 @@
       <textarea id="ePurpose" maxlength="2000"></textarea>
       <label for="eCat">분류 <i>*</i></label>
       <select id="eCat"></select>
-      <label for="eStage">AI 과제 단계 <i>*</i></label>
-      <select id="eStage"></select>
       <label for="eOwner">과제책임자 이름 <i>*</i></label>
       <input type="text" id="eOwner" maxlength="50">
       <label for="eDept">과제책임자 소속부서 <i>*</i></label>
@@ -180,26 +177,26 @@
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const STAGE={todo:'검토',doing:'진행',done:'종료'};
 const PRI={high:'높음',mid:'보통',low:'낮음'};
 const taskId=new URLSearchParams(location.search).get('id');
 const aiId=new URLSearchParams(location.search).get('ai');   // '내 AI 과제'에서 넘어오면 AI 과제 id
 let task=null,ai=null,aiItems=[],files=[],busy=false;
 const sameKey=s=>String(s||'').trim();
-// 세부 진행 현황의 단계 (뒤로 갈수록 진행이 많이 된 것)
-const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
+// 개발단계(진행률로 정해짐)와 활용상태는 storage.js 의 TaskState 를 쓴다 (모든 화면 같은 기준)
+const AI_STAGES=TaskState.DEV_NAMES;
 const AI_ACCESS=['공개','비공개'];   // 공개: 로그인한 모든 사용자가 세부사항을 봄 / 비공개: 과제책임자·과제참여자만
-const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
+const AI_COLOR=TaskState.DEV_COLOR;
+const devTag=t=>{const d=TaskState.devOf(t);return `<span class="tag" style="background:${AI_COLOR[d]}">${d}</span>`};
 
 const size=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
 const when=s=>s?String(s).replace('T',' ').slice(0,16):'-';
 function showError(m){$('err').textContent=m||'';$('err').hidden=!m}
 let okTimer;function showOk(m){$('okmsg').textContent=m;$('okmsg').hidden=!m;clearTimeout(okTimer);if(m)okTimer=setTimeout(()=>$('okmsg').hidden=true,4000)}
 
+// 활용상태 태그: 개발진행중 → 신청대기중 → 게시검토중 → 게시활용중 → 활용종료
 function statusTag(t){
-  if(t.registered)return '<span class="tag ok">서비스 게시 완료</span>';
-  if((+t.progress||0)>=100)return '<span class="tag wait">서비스 게시 대기</span>';
-  return `<span class="tag st">${STAGE[t.s]||esc(t.s)}</span>`;
+  const u=TaskState.useOf(t);
+  return `<span class="tag" style="background:${TaskState.USE_COLOR[u]}" title="활용상태">${u}</span>`;
 }
 
 // 누가 본 화면인가: 내 과제인지 / 다른 과제책임자의 과제인지 (로그인했을 때만 구분. 서버 없는 미리보기에서는 모두 수정 가능)
@@ -241,11 +238,13 @@ function ownerTag(t){
 
 // AI 과제 정보 카드: 세부 진행 현황에 등록된 내용 (목적·분류·단계·책임자·소속부서·공개 여부)
 function aiCard(a){
-  const idx=Math.max(0,AI_STAGES.indexOf(a.stage)),col=AI_COLOR[a.stage]||'#8c8c8c';
+  // 개발단계는 연결된 과제의 진행률로 정한다 (연결된 과제가 없으면 저장된 값)
+  const stage=task?TaskState.devOf(task):(a.stage||AI_STAGES[0]);
+  const idx=Math.max(0,AI_STAGES.indexOf(stage)),col=AI_COLOR[stage]||'#8c8c8c';
   const day=s=>esc(String(s||'').slice(0,10))||'-';
   return `<div class="card">
     <h2>AI 과제 정보 <em>세부 진행 현황에 등록된 내용</em><a class="goai" href="overall.html">세부 진행 현황 →</a></h2>
-    <div class="aistage"><span class="tag" style="background:${col}">${esc(a.stage)}</span><span class="sub">${idx+1}/${AI_STAGES.length} 단계</span>
+    <div class="aistage"><span class="tag" style="background:${col}">${esc(stage)}</span><span class="sub">개발단계 ${idx+1}/${AI_STAGES.length} · 진행률에 따라 자동으로 바뀝니다</span>
       <div class="seg" style="--c:${col}" title="${AI_STAGES.map((s,i)=>(i===idx?'● ':'')+s).join(' → ')}">${AI_STAGES.map((s,i)=>`<i class="${i<=idx?'on':''}"></i>`).join('')}</div></div>
     <dl>
       <div style="grid-column:1/-1"><dt>목적</dt><dd>${esc(a.purpose)||'-'}</dd></div>
@@ -311,6 +310,18 @@ $('pList').addEventListener('change',e=>{
   e.target.checked?picked.add(emp):picked.delete(emp);
   $('pCount').textContent=`선택 ${picked.size}명`;
 });
+// 참여자 한 명 제외: 과제 상세의 이름 옆 × (그 과제의 과제책임자·사이트관리자만. 서버도 같은 규칙으로 막는다)
+async function removePart(emp){
+  if(!task||!canEdit(task))return;
+  const cur=task.participants||[],u=cur.find(p=>p.empNo===emp);
+  if(!u)return;
+  if(!confirm(`${u.name}${u.dept?' ('+u.dept+')':''} 님을 이 과제의 과제참여자에서 제외할까요?\n\n제외하면 이 과제에 첨부를 올릴 수 없고, 비공개 과제라면 세부사항도 볼 수 없게 됩니다.`))return;
+  try{
+    await TaskStorage.update(task.id,{participants:cur.filter(p=>p.empNo!==emp)});
+    await reload();render();
+    showOk(`${u.name} 님을 과제참여자에서 제외했습니다.`);
+  }catch(err){showError('제외하지 못했습니다: '+err.message)}
+}
 $('partForm').addEventListener('submit',async e=>{
   e.preventDefault();
   if(!task||!canEdit(task))return;
@@ -344,7 +355,7 @@ function histItem(h,idx){
       <div><span class="k">작업자</span>${h.by?esc(h.by):'<span class="sub" style="display:inline">기록 없음 (이전 기록이거나 자동 처리)</span>'}</div>
       <div><span class="k">일시</span>${esc(histWhen(h))}</div>
       <div><span class="k">내용</span>${esc(h.text)}</div>
-      ${f?`<div><span class="k">파일</span>${esc(f.name)}${f.kind||f.size!=null?` <span class="sub" style="display:inline">${[f.kind,f.size!=null?size(f.size):''].filter(Boolean).map(esc).join(' · ')}</span>`:''}</div>
+      ${f?`<div><span class="k">파일</span>${esc(f.name)}${f.name||f.size!=null?` <span class="sub" style="display:inline">${[f.name?FileStorage.kindOf(f.name):'',f.size!=null?size(f.size):''].filter(Boolean).map(esc).join(' · ')}</span>`:''}</div>
       <div><span class="k">세부 설명</span>${note?`<span class="hnote">${esc(note)}</span>`:'<span class="sub" style="display:inline">적은 설명이 없습니다.</span>'}</div>
       <div><span class="k"></span>${cur?`<button type="button" data-dl="${esc(cur.id)}">내려받기</button>`:'<span class="sub" style="display:inline">지금은 삭제되어 내려받을 수 없습니다.</span>'}</div>`:''}
     </div>`;
@@ -367,9 +378,10 @@ function renderBlocked(){
 function render(){
   if(!task){renderAIOnly();return}
   const t=task,p=Math.min(100,Math.max(0,+t.progress||0)),edit=canEdit(t),attach=canAttach(t);
-  // 진행률 변경은 이 상세 페이지에서만 한다: '진행' 단계이고 아직 100%가 아니며 서비스 게시 전인 과제를 수정 권한이 있는 사람이
-  const progEditable=edit&&t.s==='doing'&&!t.registered&&p<100;
-  const req=FileStorage.checkRequired(files),okCnt=req.filter(r=>r.ok).length;
+  // 진행률 변경은 이 상세 페이지에서만 한다: 과제책임자(와 사이트관리자)가 게시 요청·서비스 게시 전까지 바꿀 수 있다.
+  // 첨부 파일과는 상관없이 과제책임자가 직접 정하고, 개발단계(기획중·개발중·개발완료)는 이 진행률을 따라간다.
+  const use=TaskState.useOf(t);
+  const progEditable=edit&&(use==='개발진행중'||use==='신청대기중');
   const sorted=[...files].sort((a,b)=>String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   const hist=[...(t.history||[])].reverse();
   document.title=`TaskFlow · ${t.title}`;
@@ -380,7 +392,7 @@ function render(){
         ${edit?`<span class="actions"><button type="button" id="btnEdit">수정</button><button type="button" class="del" id="btnDelete">삭제</button></span>`:''}</div>
       <dl>
         <div><dt>과제책임자</dt><dd>${esc(t.assignee)||'-'}</dd></div>
-        <div><dt>단계</dt><dd>${STAGE[t.s]||esc(t.s)||'-'}</dd></div>
+        <div><dt>개발단계</dt><dd>${devTag(t)} <span class="sub" style="display:inline">진행률 기준</span></dd></div>
         <div><dt>진행률</dt><dd><div class="pbar"><div><i style="width:${p}%"></i></div><b>${p}%</b></div></dd></div>
         <div><dt>우선순위</dt><dd>${PRI[t.priority]||'-'}</dd></div>
         <div><dt>등록일</dt><dd>${esc(t.date)||'-'}</dd></div>
@@ -388,8 +400,9 @@ function render(){
         <div><dt>서비스 게시일</dt><dd>${esc(t.registeredAt)||'-'}</dd></div>
         <div><dt>승인자</dt><dd>${esc(t.approver)||'-'}</dd></div>
         <div style="grid-column:1/-1"><dt>과제참여자 <span class="sub" style="display:inline">${(t.participants||[]).length}명</span></dt>
-          <dd class="parts">${(t.participants||[]).length?t.participants.map(u=>`<span class="pchip" title="${esc(u.dept||'')} · 사번 ${esc(u.empNo||'')}">${esc(u.name)}${u.dept?` <em>${esc(u.dept)}</em>`:''}</span>`).join(''):'<span class="sub" style="display:inline">지정된 과제참여자가 없습니다.</span>'}
-            ${edit?'<button type="button" id="btnParts" class="p">+ 참여자 초대</button>':''}</dd></div>
+          <dd class="parts">${(t.participants||[]).length?t.participants.map(u=>`<span class="pchip" title="${esc(u.dept||'')} · 사번 ${esc(u.empNo||'')}">${esc(u.name)}${u.dept?` <em>${esc(u.dept)}</em>`:''}${edit?`<button type="button" class="px" data-rmpart="${esc(u.empNo||'')}" title="${esc(u.name)} 님을 과제참여자에서 제외" aria-label="${esc(u.name)} 님을 과제참여자에서 제외">×</button>`:''}</span>`).join(''):'<span class="sub" style="display:inline">지정된 과제참여자가 없습니다.</span>'}
+            ${edit?'<button type="button" id="btnParts" class="p">+ 참여자 초대</button>':''}
+            ${edit&&(t.participants||[]).length?'<span class="sub" style="display:inline">이름 옆 ×를 누르면 그 사람을 참여자에서 제외합니다.</span>':''}</dd></div>
         <div style="grid-column:1/-1"><dt>게시 사유</dt><dd>${esc(t.regReason)||'-'}</dd></div>
         ${t.memo?`<div style="grid-column:1/-1"><dt>메모</dt><dd>${esc(t.memo)}</dd></div>`:''}
       </dl>
@@ -397,15 +410,23 @@ function render(){
         <b>진행률 변경</b>
         <input type="range" min="0" max="100" step="5" value="${p}" id="pgRange" aria-label="진행률"><output id="pgOut">${p}%</output>
         <button type="button" class="p" id="pgSave">저장</button><button type="button" id="pgFull">100% 완료</button>
-        <span class="sub">저장하면 변경 이력에 기록됩니다. 100%가 되면 '서비스 게시 대기'로 옮겨집니다.</span>
-      </div>`:(edit?`<div class="progedit"><span class="sub">진행률은 '진행' 단계이고 100% 미만인 과제만 여기서 바꿀 수 있습니다.</span></div>`:'')}
+        <span class="sub">저장하면 변경 이력에 기록됩니다. 100%가 되면 '신청대기중'이 되고, 게시 요청을 할 수 있습니다.</span>
+      </div>`:(edit?`<div class="progedit"><span class="sub">${use==='게시검토중'?'게시 요청 중에는 진행률을 바꿀 수 없습니다. 바꾸려면 게시 요청을 취소하세요.':'서비스 게시된 과제는 진행률을 바꿀 수 없습니다.'}</span></div>`:'')}
+      ${edit&&use==='신청대기중'?`<div class="progedit">
+        <b>게시 요청</b>
+        <button type="button" class="p" id="pubReq">게시 요청</button>
+        <span class="sub">진행률 100%를 달성했습니다. 게시 요청을 하면 '게시검토중'이 되고, 사이트관리자가 서비스 게시하면 '게시활용중'이 됩니다.</span>
+      </div>`:''}
+      ${edit&&use==='게시검토중'?`<div class="progedit">
+        <b>게시검토중</b>
+        <button type="button" id="pubCancel">게시 요청 취소</button>
+        <span class="sub">사이트관리자의 서비스 게시를 기다리고 있습니다${me()&&me().role==='admin'?" — 서비스 게시는 <a class=\"tlink\" href=\"progress.html\">내 과제 진행률</a>의 '② 신청대기·게시검토'에서 합니다":''}.</span>
+      </div>`:''}
     </div>
     <div class="grid2">
       <div class="card">
         <h2>첨부 파일 <em>${files.length}개</em></h2>
-        <p class="desc">필수 첨부 3종은 파일 확장자로만 확인합니다(내용은 보지 않음).${attach?' 파일 1개당 20MB까지 올릴 수 있습니다.':' 이 과제의 과제책임자·과제참여자가 아니라 내려받기만 할 수 있습니다.'}</p>
-        <div class="req">${req.map(r=>`<div class="${r.ok?'ok':'no'}"><span>${esc(r.label)}</span>${r.ok?'<span class="tag ok">있음</span>':'<span class="tag no">없음</span>'}</div>`).join('')}</div>
-        <div class="sub" style="margin:-8px 0 16px">필수 첨부 ${okCnt}/3${okCnt===3?' — 모두 갖춰졌습니다.':' — 빠진 파일이 있습니다.'}</div>
+        <p class="desc">${attach?'파일 1개당 20MB까지 올릴 수 있습니다.':'이 과제의 과제책임자·과제참여자가 아니라 내려받기만 할 수 있습니다.'}</p>
         ${attach?`<div class="uploader">
           <label for="upNote">세부 설명 <span class="sub" style="display:inline">(선택, 500자까지 — 함께 올리는 파일에 붙습니다)</span></label>
           <textarea id="upNote" maxlength="500" placeholder="올리는 파일에 대한 설명을 적어 주세요. 예: 무슨 파일인지, 버전, 참고할 점">${esc(pendingNote)}</textarea>
@@ -414,8 +435,8 @@ function render(){
           <div class="upbtns"><span class="sub" style="display:inline">${pending.length?`선택한 파일 ${pending.length}개 — '올리기'를 눌러야 올라갑니다.`:'파일을 고른 뒤 올리기를 누르세요.'}</span><button type="button" class="p" id="upSave"${pending.length?'':' disabled'}>올리기</button></div>
         </div>`:''}
         ${sorted.length?`<div class="tablewrap"><table>
-          <thead><tr><th>파일</th><th>종류</th><th style="text-align:right">크기</th><th>올린 시각</th><th></th></tr></thead>
-          <tbody>${sorted.map(f=>`<tr><td>${esc(f.name)}${f.note?`<div class="fnote">${esc(f.note)}</div>`:''}</td><td>${f.kind==='기타'?'<span class="sub">기타</span>':esc(f.kind)}</td><td class="num">${size(f.size)}</td><td class="sub">${when(f.uploadedAt)}</td>
+          <thead><tr><th>파일</th><th>형식</th><th style="text-align:right">크기</th><th>올린 시각</th><th></th></tr></thead>
+          <tbody>${sorted.map(f=>`<tr><td>${esc(f.name)}${f.note?`<div class="fnote">${esc(f.note)}</div>`:''}</td><td class="sub">${esc(FileStorage.kindOf(f.name))}</td><td class="num">${size(f.size)}</td><td class="sub">${when(f.uploadedAt)}</td>
             <td class="act"><button data-dl="${esc(f.id)}">내려받기</button>${attach?` <button class="del" data-rm="${esc(f.id)}">삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
           :'<div class="empty">올라간 파일이 없습니다.</div>'}
       </div>
@@ -472,7 +493,7 @@ async function doUpload(){
 
 // ---------- 과제 수정·삭제 (사이트관리자 · 이 과제의 과제책임자) ----------
 // AI 과제가 기준이고 서버가 과제 진행을 AI 과제에 맞춰 동기화하므로 이렇게 처리한다.
-//  · 수정: 명칭·목적·분류·AI 과제 단계는 AI 과제에, 마감일·우선순위·메모는 과제 진행에 저장한다 (과제명은 서버가 진행 기록에도 맞춤).
+//  · 수정: 명칭·목적·분류는 AI 과제에(개발단계는 진행률로 정해지므로 고치지 않는다), 마감일·우선순위·메모는 과제 진행에 저장한다 (과제명은 서버가 진행 기록에도 맞춤).
 //  · 삭제: AI 과제를 지운다 → 서버가 연결된 과제 진행(첨부 파일·이력 포함)도 정리한다. (진행 기록만 지우면 서버가 다시 만들어 버림)
 async function loadCategories(cur){
   let cats=['개발','법률','노사','IT'];
@@ -490,7 +511,6 @@ async function openEdit(){
     $('eTitle').value=a.title||'';$('ePurpose').value=a.purpose||'';
     const cats=await loadCategories(a.category);
     $('eCat').innerHTML=cats.map(c=>`<option${c===a.category?' selected':''}>${esc(c)}</option>`).join('');
-    $('eStage').innerHTML=AI_STAGES.map(s=>`<option${s===a.stage?' selected':''}>${s}</option>`).join('');
     $('eOwner').value=a.ownerName||'';$('eDept').value=a.ownerDept||'';
     const acc=AI_ACCESS.includes(a.access)||!a.access?AI_ACCESS:[...AI_ACCESS,a.access];
     $('eAccess').innerHTML=acc.map(s=>`<option${s===a.access?' selected':''}>${esc(s)}</option>`).join('');
@@ -507,8 +527,8 @@ $('editForm').addEventListener('submit',async e=>{
   const f={due:$('eDue').value,priority:$('ePri').value,memo:$('eMemo').value.trim()};
   let af=null;
   if(a){
-    af={title:$('eTitle').value.trim(),purpose:$('ePurpose').value.trim(),category:$('eCat').value,stage:$('eStage').value,ownerName:$('eOwner').value.trim(),ownerDept:$('eDept').value.trim(),access:$('eAccess').value};
-    for(const [k,l] of [['title','명칭'],['purpose','목적'],['category','분류'],['stage','단계'],['ownerName','과제책임자 이름'],['ownerDept','소속부서'],['access','공개 여부']]){
+    af={title:$('eTitle').value.trim(),purpose:$('ePurpose').value.trim(),category:$('eCat').value,ownerName:$('eOwner').value.trim(),ownerDept:$('eDept').value.trim(),access:$('eAccess').value};
+    for(const [k,l] of [['title','명칭'],['purpose','목적'],['category','분류'],['ownerName','과제책임자 이름'],['ownerDept','소속부서'],['access','공개 여부']]){
       if(!af[k]){$('eErr').textContent=`${l}을(를) 입력하세요.`;return}
     }
   }
@@ -548,8 +568,20 @@ async function saveProgress(v){
     await TaskStorage.update(task.id,{progress:v});
     await reload();
     busy=false;render();
-    showOk(v===100?'100%를 달성했습니다. 서비스 게시 대기로 이동했습니다.':'진행률을 저장했습니다.');
+    showOk(v===100?"100%를 달성했습니다. 활용상태가 '신청대기중'이 됐습니다. 게시 요청을 할 수 있습니다.":'진행률을 저장했습니다.');
   }catch(err){busy=false;showError('저장하지 못했습니다: '+err.message)}
+}
+// 게시 요청 / 취소: 과제책임자(와 사이트관리자)가 100% 과제를 '게시검토중'으로 올리거나 되돌린다. 서버도 같은 규칙으로 검사한다.
+async function setPubRequest(on){
+  if(!task||!canEdit(task)||busy)return;
+  if(!on&&!confirm('게시 요청을 취소할까요? 활용상태가 신청대기중으로 돌아갑니다.'))return;
+  busy=true;showError('');
+  try{
+    await TaskStorage.update(task.id,{pubRequested:on});
+    await reload();
+    busy=false;render();
+    showOk(on?"게시 요청을 했습니다. 활용상태가 '게시검토중'이 됐습니다.":'게시 요청을 취소했습니다.');
+  }catch(err){busy=false;showError((on?'게시 요청을 하지 못했습니다: ':'취소하지 못했습니다: ')+err.message)}
 }
 document.addEventListener('input',e=>{
   if(e.target.id==='upNote')pendingNote=e.target.value;   // 화면을 다시 그려도 적던 설명이 남도록
@@ -563,7 +595,10 @@ document.addEventListener('click',async e=>{
   if(hrow&&!e.target.closest('button,a')){const i=+hrow.dataset.hist;openHist=openHist===i?null:i;render();return}
   if(e.target.id==='pgSave')saveProgress(+$('pgRange').value);
   if(e.target.id==='pgFull')saveProgress(100);
+  if(e.target.id==='pubReq')setPubRequest(true);
+  if(e.target.id==='pubCancel')setPubRequest(false);
   if(e.target.id==='btnParts')openParts();
+  if(d.rmpart){removePart(d.rmpart);return}
   if(e.target.id==='pCancel')$('partDlg').close();
   if(e.target.id==='btnEdit')openEdit();
   if(e.target.id==='btnDelete')deleteTask();

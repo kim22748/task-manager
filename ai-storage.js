@@ -25,7 +25,19 @@ const AIStorage = (() => {
 
   // 서버 없는 화면: 과제 진행(storage.js 의 'tasks-v1')을 AI 과제와 1:1 로 맞춘다 — 서버의 sync_tasks_with_projects 와 같은 규칙
   const TASK_KEY = 'tasks-v1';
-  const STAGE_TO_TASK = { '기획중': ['todo', 0], '승인요청': ['todo', 0], '개발중': ['doing', 30], '승인검토중': ['doing', 90], '활용중': ['done', 100], '활용종료': ['done', 100] };
+  // 새 AI 과제의 진행 기록 시작값. 개발단계(stage)는 그 뒤로 진행률을 따라간다 (storage.js 의 TaskState.devOf)
+  const STAGE_TO_TASK = { '기획중': ['todo', 0], '개발중': ['doing', 30], '개발완료': ['done', 100] };
+  const STAGE_OLD = { '승인요청': '기획중', '승인검토중': '개발중', '활용중': '개발완료', '활용종료': '개발완료' };   // 예전 단계 6종 → 개발단계 3종
+  const devOf = t => { const p = Math.min(100, Math.max(0, +t.progress || 0)); return p >= 100 ? '개발완료' : p > 0 ? '개발중' : '기획중'; };
+  // 서버 없는 화면: AI 과제의 개발단계를 연결된 과제 진행의 진행률에 맞춰 돌려준다
+  function withStage(items) {
+    let tasks = [];
+    try { tasks = JSON.parse(localStorage.getItem(TASK_KEY)) || []; } catch (e) {}
+    const byPid = new Map(tasks.filter(t => t.projectId != null).map(t => [t.projectId, t]));
+    const key = (a, b) => String(a || '').trim() + '\u0000' + String(b || '').trim();
+    const byKey = new Map(tasks.map(t => [key(t.title, t.assignee), t]));
+    return items.map(p => { const t = byPid.get(p.id) || byKey.get(key(p.title, p.ownerName)); return { ...p, stage: t ? devOf(t) : (STAGE_OLD[p.stage] || p.stage || '기획중') }; });
+  }
   function mirrorTasks(projects) {
     let tasks;
     try { tasks = JSON.parse(localStorage.getItem(TASK_KEY)) || []; } catch (e) { return; }
@@ -41,7 +53,7 @@ const AIStorage = (() => {
       let t = byPid.get(p.id);
       if (!t) { const c = loose.get(key(p.title, p.ownerName)); if (c && c.length) { t = c.shift(); t.projectId = p.id; } }
       if (!t) {
-        const [s, progress] = STAGE_TO_TASK[p.stage] || ['todo', 0];
+        const [s, progress] = STAGE_TO_TASK[STAGE_OLD[p.stage] || p.stage] || ['todo', 0];
         t = { id: nextId++, projectId: p.id, title: p.title, s, date: String(p.createdAt || now).slice(0, 10), assignee: p.ownerName || '',
               due: '', priority: 'mid', memo: '', progress, history: [{ at: now, text: 'AI 과제와 함께 생성' }] };
       } else if (t.title !== p.title || t.assignee !== p.ownerName) {
@@ -104,13 +116,13 @@ const AIStorage = (() => {
     },
 
     async list() {
-      const items = await (mode === 'server' ? request('GET', API) : readLocal());
+      const items = mode === 'server' ? await request('GET', API) : withStage(readLocal());   // 서버는 개발단계를 맞춰서 준다
       // 예전 접근권한범위 3종 → 공개/비공개
       const OLD = { '전사': '공개', '소속부서': '비공개', '사용자별 지정': '비공개' };
       return items.map(p => OLD[p.access] ? { ...p, access: OLD[p.access] } : p);
     },
 
-    /** fields: { title, purpose, category, stage, ownerName, ownerDept, access } */
+    /** fields: { title, purpose, category, ownerName, ownerDept, access } — 개발단계(stage)는 안 보내도 된다(기획중에서 시작, 이후 진행률을 따라감) */
     async create(fields) {
       if (mode === 'server') return request('POST', API, fields);
       const items = readLocal();

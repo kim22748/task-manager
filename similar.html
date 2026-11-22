@@ -8,7 +8,7 @@
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
-  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;align-self:flex-start}   /* 스크롤해도 메뉴는 제자리에 */
   aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
   aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
   aside a.on{background:var(--primary);color:#fff}
@@ -50,6 +50,16 @@
   .chip.pub{background:#e6fffb;color:#08979c;border:1px solid #87e8de}
   .group{border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-top:12px;background:#fff}
   .group.confirmed{border-color:#b7eb8f}
+  /* 그룹마다 연번과 색(--gc)을 붙여 서로 구분한다: 왼쪽 띠 · 번호 배지 · 머리줄 바탕 · 유사도 막대가 같은 색 */
+  .group{border-left:6px solid var(--gc,#d9d9d9);scroll-margin-top:12px}
+  .group .ghead{margin:-16px -20px 12px;padding:10px 20px;border-radius:0 8px 0 0;background:color-mix(in srgb,var(--gc,#d9d9d9) 9%,#fff);border-bottom:1px solid color-mix(in srgb,var(--gc,#d9d9d9) 25%,#fff)}
+  .gno{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 7px;border-radius:13px;background:var(--gc,#8c8c8c);color:#fff;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;flex-shrink:0}
+  .group .ghead .gname{color:color-mix(in srgb,var(--gc,#000) 70%,#000)}
+  .group .bar i{background:var(--gc,var(--primary))}
+  /* 그룹 바로가기: 번호를 누르면 그 그룹으로 이동 */
+  .gnav{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 4px}
+  .gnav a{text-decoration:none}
+  .gnav a:hover .gno{outline:2px solid color-mix(in srgb,var(--gc) 45%,#fff);outline-offset:1px}
   .ghead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
   .ghead .gname{font-weight:600;font-size:15px}
   .ghead .gact{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
@@ -91,7 +101,7 @@
 
     <div class="card" id="aiCard">
       <h2>AI로 유사과제 찾기 <span class="chip auto" id="aiState">확인 중…</span></h2>
-      <p class="desc">LLM이 AI 과제의 명칭(과 목적)을 읽고 비슷한 과제끼리 묶은 뒤 그룹명과 묶은 이유를 씁니다. 결과는 아래 그룹 목록에 나오고, 조정·확정은 그대로 할 수 있습니다. AI 결과는 <b>이 브라우저에만 저장</b>되며 다른 사람과 공유되지 않습니다.</p>
+      <p class="desc">LLM이 AI 과제의 명칭(과 목적)을 읽고 비슷한 과제끼리 묶은 뒤 그룹명과 묶은 이유를 씁니다. 결과는 아래 그룹 목록에 나오고, 그룹 조정·확정은 사이트관리자가 합니다. AI 결과는 <b>이 브라우저에만 저장</b>되며 다른 사람과 공유되지 않습니다.</p>
       <div class="notice warn" id="aiNotice" style="margin-bottom:12px">비교할 AI 과제의 <b>명칭(목적을 체크하면 목적도)이 외부 AI 서비스<span id="aiProv"></span>로 전송</b>됩니다. 지금은 더미데이터 탐색용으로 허용되어 있습니다. 실제 업무 자료는 보안 반출 승인 후에만 사용하세요.</div>
       <div class="opts">
         <button class="p" id="aiRun" disabled><svg class="aiicon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg><span id="aiRunLabel">AI로 유사과제 묶기</span></button>
@@ -118,8 +128,8 @@
     <div class="stats" id="stats"></div>
 
     <div class="card">
-      <h2>유사 과제 그룹 <em id="cntG"></em> <span class="chip dashed" title="PRD: 그룹 확인·조정은 사이트관리자가 하는지 아직 확정되지 않음">사이트관리자 확인·조정 (검토 중)</span></h2>
-      <p class="desc">비슷한 과제끼리 묶은 결과입니다. '조정'으로 그룹명을 고치거나 과제를 넣고 빼서 '확정'할 수 있습니다.</p>
+      <h2>유사 과제 그룹 <em id="cntG"></em> <span class="chip conf" title="그룹명 고치기·과제 넣고 빼기(조정)와 확정·확정 해제는 사이트관리자만 할 수 있습니다">조정·확정은 사이트관리자만</span></h2>
+      <p class="desc">비슷한 과제끼리 묶은 결과입니다.</p>
       <div id="groups"></div>
     </div>
 
@@ -241,6 +251,12 @@ let R=null;
 const shared=(i,j)=>[...R.docs[i].set].filter(w=>R.docs[j].set.has(w)).sort((a,b)=>R.idf(b)-R.idf(a)).slice(0,6);
 const pct=v=>Math.round(v*100)+'%';
 
+// 그룹 조정(그룹명 고치기·과제 넣고 빼기)·확정·확정 해제는 사이트관리자만 한다. 일반회원은 결과를 보기만 한다.
+// (서버 없는 디자인 미리보기는 사이트관리자 화면 기준으로 보여 준다)
+const canAdjust=()=>typeof Auth==='undefined'||!Auth.user||Auth.user.role==='admin';
+// 그룹 색: 번호마다 색상환을 황금각(137.5°)씩 돌려 이웃한 번호끼리 뚜렷이 다른 색이 나오게 한다 (그룹이 몇 개든 겹치지 않음)
+const groupColor=n=>`hsl(${Math.round((210+n*137.508)%360)} 62% 42%)`;
+
 /* ---------- 화면 ---------- */
 function memberRow(g,i){
   const d=R.docs[i],t=d.t;
@@ -266,20 +282,20 @@ function editBox(g){
     <div class="row"><b>과제 추가</b><select id="eAdd"><option value="">과제 선택</option>${cand.map(i=>`<option value="${i}">${esc(R.docs[i].t.title)}</option>`).join('')}</select><button class="sm" data-eadd="1">추가</button></div>
     <div class="row"><button class="g sm" data-esave="1">저장하고 확정</button><button class="sm" data-ecancel="1">취소</button><span class="sub" id="eErr" style="color:#cf1322"></span></div></div>`;
 }
-function groupCard(g){
-  const isEdit=editing&&editing.key===g.key;
+function groupCard(g,n){
+  const isEdit=canAdjust()&&editing&&editing.key===g.key,adj=canAdjust();
   const kwHtml=g.kws.length?g.kws.map(w=>`<span class="chip kw">${esc(w)}</span>`).join('')+'<span class="sub">2건 이상의 과제에 공통으로 나온 단어</span>':'<span class="sub">공통 단어 없음'+(g.reason?'':' (직접 조정한 그룹)')+'</span>';
   const why=(g.reason?`<div class="why"><b>묶인 근거${g.confirmed?' (확정 당시 AI)':' (AI)'}</b>${esc(g.reason)}</div>`:'')
     +`<div class="why"><b>${g.reason?'겹친 단어':'묶인 근거'}</b>${kwHtml}</div>`;
-  return `<div class="group ${g.confirmed?'confirmed':''}">
-    <div class="ghead"><span class="gname">${esc(g.name)}</span>
+  return `<div class="group ${g.confirmed?'confirmed':''}" id="grp-${n+1}" style="--gc:${groupColor(n)}">
+    <div class="ghead"><span class="gno" title="그룹 ${n+1}">${n+1}</span><span class="gname">${esc(g.name)}</span>
       <span class="chip ${g.confirmed?'conf':g.ai?'ai':'auto'}">${g.confirmed?'확정 '+esc(g.at||''):g.ai?'AI 묶음':'키워드 묶음'}</span>
       <span class="sub">과제 ${g.idx.length}건${g.confirmed||g.ai?'':' · 평균 유사도 '+pct(g.avg)}</span>
       <span class="gact"><button class="sm" data-detail="${esc(g.key)}">${open.has(g.key)?'근거 접기':'근거 상세'}</button>
-        <button class="sm" data-edit="${esc(g.key)}">조정</button>
-        ${g.confirmed?`<button class="sm" data-unconf="${g.gid}">확정 해제</button>`:`<button class="g sm" data-conf="${esc(g.key)}">확정</button>`}</span></div>
+        ${adj?`<button class="sm" data-edit="${esc(g.key)}">조정</button>
+        ${g.confirmed?`<button class="sm" data-unconf="${g.gid}">확정 해제</button>`:`<button class="g sm" data-conf="${esc(g.key)}">확정</button>`}`:''}</span></div>
     ${isEdit?editBox(g):''}
-    <div class="tablewrap"><table><thead><tr><th>소속 AI 과제 (명칭·목적)</th><th>분류</th><th>과제책임자</th><th>단계</th><th>${g.ai||g.reason?'키워드 유사도 (참고)':'그룹 내 유사도'}</th></tr></thead>
+    <div class="tablewrap"><table><thead><tr><th>소속 AI 과제 (명칭·목적)</th><th>분류</th><th>과제책임자</th><th>개발단계</th><th>${g.ai||g.reason?'키워드 유사도 (참고)':'그룹 내 유사도'}</th></tr></thead>
       <tbody>${g.idx.map(i=>memberRow(g,i)).join('')}</tbody></table></div>
     ${why}
     ${open.has(g.key)?detail(g):''}</div>`;
@@ -299,13 +315,14 @@ function render(){
   if(!docs.length)empty='<div class="empty">비교할 AI 과제가 없습니다. 에서 AI 과제를 먼저 등록하세요.</div>';
   else if(docs.length<2)empty='<div class="empty">AI 과제가 2건 이상이어야 서로 비교할 수 있습니다. 에서 더 등록하세요.</div>';
   else if(!groups.length)empty=R.haveAI?'<div class="empty">AI가 비슷한 과제를 찾지 못했습니다.</div>':'<div class="empty">기준 이상으로 비슷한 과제가 없습니다. 유사도 기준을 낮춰 보세요.</div>';
-  let html=groups.length?groups.map(groupCard).join(''):'';
+  // 그룹 바로가기(번호 배지) + 그룹 카드: 번호와 색은 화면에 나오는 순서대로 붙인다
+  let html=groups.length?`<div class="gnav"><span class="sub">그룹 바로가기</span>${groups.map((g,n)=>`<a href="#grp-${n+1}" style="--gc:${groupColor(n)}" title="${n+1}. ${esc(g.name)} (과제 ${g.idx.length}건)"><span class="gno">${n+1}</span></a>`).join('')}</div>`+groups.map(groupCard).join(''):'';
   if(pend)html+=llm===null?'<div class="empty">AI 연결 상태를 확인하는 중입니다…</div>':'<div class="empty">아직 AI가 묶은 결과가 없습니다. 위의 <b>AI로 유사과제 묶기</b>를 누르면 LLM이 AI 과제의 명칭과 목적을 읽고 비슷한 과제를 묶습니다.</div>';
   else if(!groups.length)html=empty;
   $('groups').innerHTML=html;
   $('singles').innerHTML=pend?'<div class="empty">AI 결과가 나오면 표시됩니다.</div>':singles.length?`<div class="singles">${singles.map(i=>{const d=docs[i];return `<div class="single">${esc(d.t.title)}${d.tok.length?'':' <span class="sub">(비교할 글자 없음)</span>'}</div>`}).join('')}</div>`:'<div class="empty">모든 과제가 그룹에 속해 있습니다.</div>';
   $('calcAt').textContent=calcAt?'계산 시각 '+calcAt:'';
-  const adj=" '조정'으로 그룹명을 고치거나 과제를 넣고 빼서 '확정'할 수 있습니다.";
+  const adj=canAdjust()?" '조정'으로 그룹명을 고치거나 과제를 넣고 빼서 '확정'할 수 있습니다.":' 그룹 조정·확정은 사이트관리자만 할 수 있습니다.';
   $('groups').previousElementSibling.textContent=R.haveAI?'AI(LLM)가 AI 과제의 명칭·목적을 읽고 묶은 결과입니다.'+adj
     :R.pending?'AI 결과를 기다리고 있습니다. 확정한 그룹은 그대로 표시됩니다.'
     :R.fallback?'AI를 쓸 수 없어(서버 없이 열었거나 API 키가 없음) 키워드 방식으로 대신 보여 주는 참고용 결과입니다.'+adj
@@ -384,6 +401,8 @@ function bindSettings(){
 document.addEventListener('click',e=>{
   const d=e.target.dataset;
   if(d.detail){open.has(d.detail)?open.delete(d.detail):open.add(d.detail);render()}
+  // 조정·확정·확정 해제는 사이트관리자만 (버튼도 숨기지만 여기서 한 번 더 막는다)
+  if((d.edit||d.conf||d.unconf||d.esave||d.eadd||d.ecancel||d.erem!==undefined)&&!canAdjust()){e.preventDefault();return}
   if(d.edit){const g=find(d.edit);if(g){editing={key:g.key,gid:g.gid||null,name:g.name,reason:g.reason||'',idx:[...g.idx]};render()}}
   if(d.ecancel){editing=null;render()}
   if(d.erem!==undefined){e.preventDefault();editing.name=$('eName').value;editing.idx=editing.idx.filter(i=>i!==+d.erem);render()}

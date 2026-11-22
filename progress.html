@@ -8,7 +8,7 @@
   :root{--primary:#1677ff;--bg:#f5f5f5;--text:rgba(0,0,0,.88);--sub:rgba(0,0,0,.45);--border:#f0f0f0;--done:#52c41a}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
-  aside{width:208px;background:#001529;color:#fff;flex-shrink:0}
+  aside{width:208px;background:#001529;color:#fff;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;align-self:flex-start}   /* 스크롤해도 메뉴는 제자리에 */
   aside h1{font-size:18px;margin:0;padding:16px 24px;height:64px;line-height:32px}
   aside a{display:block;padding:10px 24px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px}
   aside a.on{background:var(--primary);color:#fff}
@@ -22,14 +22,40 @@
   .card h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
   .card h2 em{font-style:normal;font-weight:400;font-size:13px;color:var(--sub)}
   .desc{color:var(--sub);font-size:13px;margin:0 0 12px}
-  .flow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
-  .step{flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:12px 16px;background:#fafafa}
-  .step b{display:block;font-size:14px;margin-bottom:2px}
+  /* 묶음 색: 내 AI 과제(보라) · ① 개발진행중(파랑) · ② 신청대기중·게시검토중(주황) · ③ 게시활용중·활용종료(초록).
+     요약 카드, 진행 흐름 단계, 아래 목록 카드가 같은 색(--c)을 써서 서로 짝이 보이게 한다. */
+  .c-ai{--c:#722ed1}.c-a{--c:#1677ff}.c-b{--c:#fa8c16}.c-c{--c:#52c41a}.c-p{--c:#13c2c2}   /* c-p = 참여 과제(청록) */
+  .flow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;padding:12px 16px}
+  .step{flex:1;min-width:180px;border:1px solid color-mix(in srgb,var(--c) 35%,#fff);border-left:4px solid var(--c);border-radius:8px;padding:8px 14px;
+    background:color-mix(in srgb,var(--c) 7%,#fff);color:inherit;text-decoration:none;display:block}
+  .step:hover{background:color-mix(in srgb,var(--c) 14%,#fff)}
+  .step b{display:block;font-size:14px;margin-bottom:2px;color:var(--c)}
+  .step b em{font-style:normal;font-weight:400;font-size:12px;margin-left:6px;color:var(--sub)}
   .step span{font-size:12px;color:var(--sub)}
   .arrow{align-self:center;color:var(--sub)}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
-  .stat span{color:var(--sub);font-size:14px}
-  .stat b{display:block;font-size:30px;margin-top:4px}
+  /* 요약 카드: 한 줄짜리 작은 카드 */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+  .card.stat{padding:8px 14px;display:flex;align-items:baseline;justify-content:space-between;gap:8px;border-left:4px solid var(--c);color:inherit;text-decoration:none;cursor:pointer}
+  .card.stat:hover{background:color-mix(in srgb,var(--c) 8%,#fff)}
+  .card.stat:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .stat span{color:var(--sub);font-size:13px;white-space:nowrap}
+  .stat b{font-size:20px;color:var(--c);font-variant-numeric:tabular-nums}
+  /* 접었다 펴는 목록 카드 (details) */
+  details.sec{padding:0;border-left:4px solid var(--c);scroll-margin-top:12px}
+  details.sec>summary{list-style:none;cursor:pointer;padding:14px 24px;display:flex;align-items:center;gap:8px;user-select:none}
+  details.sec>summary::-webkit-details-marker{display:none}
+  details.sec>summary::before{content:'▸';color:var(--c);font-size:14px;width:14px;transition:transform .15s}
+  details.sec[open]>summary::before{transform:rotate(90deg)}
+  details.sec>summary:hover{background:#fafafa;border-radius:0 8px 8px 0}
+  details.sec>summary h2{margin:0;flex:1;color:var(--c)}
+  details.sec>summary h2 em{color:var(--sub)}
+  details.sec .secbody{padding:0 24px 16px}
+  tr.over{display:none}
+  .morebar{text-align:center;margin-top:8px}
+  .morebar:empty{display:none}
+  .morebar button{font-size:13px;padding:4px 14px;color:var(--primary);border-color:#91caff;background:#f0f7ff}
+  .who .grow{flex:1}
+  .who .allbtn{font-size:13px;padding:4px 12px}
   table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
   th{background:#fafafa;font-weight:600}
@@ -71,7 +97,6 @@
   a.tlink{color:var(--primary);text-decoration:none;font-weight:600}
   a.tlink:hover{text-decoration:underline}
   a.btnlink{display:inline-block;padding:6px 12px;border:1px solid var(--primary);border-radius:6px;color:var(--primary);text-decoration:none;font-size:14px;margin-left:4px}
-  .att-ok{background:var(--done)}.att-no{background:#fa8c16}
   tr.flash td{background:#fffbe6}
   .pbar{display:flex;align-items:center;gap:8px;min-width:170px}
   .pbar div{flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
@@ -83,7 +108,6 @@
   .seg i{flex:1;height:5px;border-radius:2px;background:#f0f0f0}
   .seg i.on{background:var(--c)}
   .aipurpose{max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .card h2 a.goai{margin-left:auto;font-size:13px;font-weight:400;color:var(--primary);text-decoration:none}
   .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 24px}
   .who label{font-weight:600;font-size:14px}
   .who select{font:inherit;font-size:14px;padding:4px 10px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;min-width:200px}
@@ -99,60 +123,87 @@
       <label for="who">과제책임자</label>
       <select id="who" title="누구의 내 과제 진행률을 볼지 고릅니다"></select>
       <span class="sub" id="whoInfo"></span>
+      <span class="grow"></span>
+      <button type="button" class="allbtn" id="openAll" title="아래 목록 카드를 모두 펼칩니다">모두 펼치기</button>
+      <button type="button" class="allbtn" id="closeAll" title="아래 목록 카드를 모두 접습니다">모두 접기</button>
     </div>
     <div class="notice warn" id="warn" hidden>지금은 <b>이 브라우저에만 임시 저장</b>됩니다. 파일로 영구 저장하려면 터미널에서 <code>python3 server.py</code>를 실행한 뒤 <code>http://localhost:8885</code>으로 접속하세요.</div>
     <div class="notice err" id="err" hidden></div>
     <div class="notice ok" id="okmsg" hidden></div>
 
-    <div class="card">
-      <div class="flow">
-        <div class="step"><b>① 진행률 관리</b><span>'진행' 단계인 과제의 진행률(%)을 과제 상세에서 갱신합니다.</span></div>
-        <div class="arrow">→</div>
-        <div class="step"><b>② 100% 달성</b><span>진행률이 100%가 되면 '서비스 게시 대기'로 옮겨집니다.</span></div>
-        <div class="arrow">→</div>
-        <div class="step"><b>③ 서비스 게시</b><span>게시하면 서비스에 게시된 과제로 기록됩니다.</span></div>
-      </div>
-    </div>
-
     <div class="stats" id="stats"></div>
 
-    <div class="card">
-      <h2>내 AI 과제 <em id="cntAI"></em><a class="goai" href="overall.html">세부 진행 현황에서 관리 →</a></h2>
-      <p class="desc">세부 진행 현황에 <b>과제책임자</b>로 등록한 과제입니다. 단계는 과제 상세의 '수정'에서 바꿉니다.</p>
+    <details class="card sec c-ai" id="secAI" open>
+      <summary><h2>내 AI 과제 <em id="cntAI"></em></h2><a class="goai" href="overall.html" style="font-size:13px;color:var(--primary);text-decoration:none">세부 진행 현황에서 관리 →</a></summary>
+      <div class="secbody">
+      <p class="desc">세부 진행 현황에 <b>과제책임자</b>로 등록한 과제입니다. 개발단계는 진행률에 따라 자동으로 바뀝니다(0% 기획중 · 1~99% 개발중 · 100% 개발완료).</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>명칭</th><th>분류</th><th>진행 단계</th><th>소속부서</th><th>공개 여부</th><th>최종 수정</th><th></th></tr></thead>
+        <thead><tr><th>명칭</th><th>분류</th><th>개발단계</th><th>소속부서</th><th>공개 여부</th><th>최종 수정</th><th></th></tr></thead>
         <tbody id="rowsAI"></tbody>
       </table></div>
+      <div class="morebar" id="moreAI"></div>
+      </div>
+    </details>
+
+    <!-- 진행 흐름: 단계 색이 아래 ①②③ 목록 카드와 같다. 누르면 그 목록으로 이동(접혀 있으면 펼침) -->
+    <div class="card flow">
+      <a class="step c-a" href="#secA" data-go="secA"><b>① 진행률 관리<em id="stepA"></em></b><span><b style="display:inline;font-size:12px">개발진행중</b> — 과제책임자가 과제 상세에서 진행률(%)을 갱신합니다.</span></a>
+      <div class="arrow">→</div>
+      <a class="step c-b" href="#secB" data-go="secB"><b>② 100% 달성 · 게시 요청<em id="stepB"></em></b><span>100%가 되면 <b style="display:inline;font-size:12px">신청대기중</b>, 과제책임자가 게시 요청하면 <b style="display:inline;font-size:12px">게시검토중</b>이 됩니다.</span></a>
+      <div class="arrow">→</div>
+      <a class="step c-c" href="#secC" data-go="secC"><b>③ 서비스 게시<em id="stepC"></em></b><span>사이트관리자가 게시하면 <b style="display:inline;font-size:12px">게시활용중</b>, 활용이 끝나면 <b style="display:inline;font-size:12px">활용종료</b>가 됩니다.</span></a>
     </div>
 
-    <div class="card">
-      <h2>① 진행 중 과제 <em id="cntA"></em></h2>
+    <details class="card sec c-a" id="secA" open>
+      <summary><h2>① 개발진행중 과제 <em id="cntA"></em></h2></summary>
+      <div class="secbody">
       <p class="desc">진행률은 여기서 <b>표시만</b> 됩니다. 바꾸려면 과제명이나 '상세'를 눌러 <b>과제 상세</b>에서 변경하세요. 변경 내용은 과제의 변경 이력에 기록됩니다.</p>
       <div class="tablewrap"><table>
         <thead><tr><th>과제</th><th>과제책임자</th><th>마감일</th><th>진행률</th><th></th></tr></thead>
         <tbody id="rowsA"></tbody>
       </table></div>
+      <div class="morebar" id="moreA"></div>
       <div class="sub" id="reviewNote" style="margin-top:8px"></div>
-    </div>
+      </div>
+    </details>
 
-    <div class="card">
-      <h2>② 서비스 게시 대기 <em id="cntB"></em></h2>
-      <p class="desc">진행률 100%를 달성했지만 아직 서비스 게시되지 않은 과제입니다.</p>
-      <div class="bulk"><button class="g" id="bulkReg" disabled>선택 과제 서비스 게시</button><span class="sub" id="selInfo"></span></div>
+    <details class="card sec c-b" id="secB" open>
+      <summary><h2>② 신청대기중 · 게시검토중 <em id="cntB"></em></h2></summary>
+      <div class="secbody">
+      <p class="desc">진행률 100%를 달성했지만 아직 서비스 게시되지 않은 과제입니다. <b>신청대기중</b> 과제는 과제책임자가 '게시 요청'을 하면 <b>게시검토중</b>이 되고, 사이트관리자가 '서비스 게시'를 하면 게시활용중이 됩니다.</p>
+      <div class="bulk" id="bulkBar"><button class="g" id="bulkReg" disabled>선택 과제 서비스 게시</button><span class="sub" id="selInfo"></span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th style="width:32px"><input type="checkbox" id="chkAll" title="전체 선택"></th><th>과제</th><th>과제책임자</th><th>단계</th><th>마감일</th><th></th></tr></thead>
+        <thead><tr><th style="width:32px"><input type="checkbox" id="chkAll" title="전체 선택"></th><th>과제</th><th>과제책임자</th><th>활용상태</th><th>마감일</th><th></th></tr></thead>
         <tbody id="rowsB"></tbody>
       </table></div>
-    </div>
+      <div class="morebar" id="moreB"></div>
+      </div>
+    </details>
 
-    <div class="card">
-      <h2>③ 서비스 게시 완료 <em id="cntC"></em></h2>
-      <p class="desc">서비스 게시된 과제입니다. 과제명이나 '상세'를 누르면 올라간 파일과 상세 현황을 볼 수 있습니다. 잘못 게시했다면 '게시 해제'로 되돌릴 수 있습니다.</p>
+    <details class="card sec c-c" id="secC" open>
+      <summary><h2>③ 게시활용중 · 활용종료 <em id="cntC"></em></h2></summary>
+      <div class="secbody">
+      <p class="desc">서비스 게시된 과제입니다. 과제명이나 '상세'를 누르면 올라간 파일과 상세 현황을 볼 수 있습니다. 사이트관리자는 잘못 게시했다면 '게시 해제'로 되돌리고, 활용이 끝난 과제는 '활용 종료'로 표시합니다.</p>
       <div class="tablewrap"><table>
-        <thead><tr><th>과제</th><th>과제책임자</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th>첨부</th><th></th></tr></thead>
+        <thead><tr><th>과제</th><th>과제책임자</th><th>활용상태</th><th>게시일</th><th>승인자</th><th>게시 사유</th><th>첨부</th><th></th></tr></thead>
         <tbody id="rowsC"></tbody>
       </table></div>
-    </div>
+      <div class="morebar" id="moreC"></div>
+      </div>
+    </details>
+
+    <!-- 참여 과제: 과제책임자는 아니지만 과제참여자로 초대된 과제 (조회·첨부만 가능, 진행률은 과제책임자가 바꿈) -->
+    <details class="card sec c-p" id="secP" open>
+      <summary><h2>참여 과제 <em id="cntP"></em></h2></summary>
+      <div class="secbody">
+      <p class="desc" id="descP"></p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>과제</th><th>과제책임자</th><th>상태</th><th>진행률</th><th>마감일</th><th></th></tr></thead>
+        <tbody id="rowsP"></tbody>
+      </table></div>
+      <div class="morebar" id="moreP"></div>
+      </div>
+    </details>
   </div>
 </div>
 <dialog id="regDlg">
@@ -175,7 +226,6 @@
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const STAGE={todo:'검토',doing:'진행',done:'종료'};
 const prog=t=>Math.min(100,Math.max(0,+t.progress||0));
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
 function dday(t){
@@ -187,16 +237,31 @@ function dday(t){
 }
 const dueTag=t=>{const d=dday(t);return d?`<span class="tag ${d.cls}">${d.txt}</span>`:'-'};
 let tasks=[],selected=new Set(),fileMap={},aiItems=[];
-// 세부 진행 현황(overall.html)의 단계와 색상 — 단계가 뒤로 갈수록 진행이 많이 된 것
-const AI_STAGES=['기획중','개발중','승인요청','승인검토중','활용중','활용종료'];
-const AI_COLOR={'기획중':'#8c8c8c','개발중':'#1677ff','승인요청':'#fa8c16','승인검토중':'#722ed1','활용중':'#52c41a','활용종료':'#bfbfbf'};
+// 개발단계(진행률로 정해짐)와 활용상태는 storage.js 의 TaskState 를 쓴다 (모든 화면 같은 기준)
+const AI_STAGES=TaskState.DEV_NAMES;
+const AI_COLOR=TaskState.DEV_COLOR;
 async function loadFiles(){try{fileMap=await FileStorage.listMany(tasks)}catch(e){fileMap={}}}
 // 누구의 과제를 볼지: '' = 전체. 로그인했으면 처음엔 내 이름(과제책임자)의 과제를 보여 준다.
 let who='';
 const WHO_KEY='progress-who';
 const myName=()=>(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview&&Auth.user.name)||'';
 // 선택 상자의 사람 목록: 과제 과제책임자 + AI 과제 책임자
-const assignees=()=>[...new Set([...tasks.map(t=>(t.assignee||'').trim()),...aiItems.map(p=>(p.ownerName||'').trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+// (과제를 등록하지 않고 참여만 하는 사람도 고를 수 있게 과제참여자 이름도 넣는다)
+const assignees=()=>[...new Set([...tasks.map(t=>(t.assignee||'').trim()),...aiItems.map(p=>(p.ownerName||'').trim()),...tasks.flatMap(t=>(t.participants||[]).map(p=>(p.name||'').trim()))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+// 참여 과제: 선택한 사람이 과제참여자로 들어 있는 과제. 로그인한 본인은 사번으로, 다른 사람은 이름(사용자 목록에 있으면 그 사번)으로 맞춘다.
+const partOf=t=>{
+  if(!who)return false;
+  const ps=t.participants||[],u=(typeof Auth!=='undefined'&&Auth.user&&!Auth.preview)?Auth.user:null;
+  if(u&&who===(u.name||'').trim())return ps.some(p=>p.empNo===u.empNo);
+  const emps=empNos[who];
+  return ps.some(p=>emps?emps.includes(String(p.empNo)):(p.name||'').trim()===who);
+};
+const STATE_COLOR=TaskState.USE_COLOR;
+const statusOf=TaskState.useOf;
+const useTag=t=>{const u=statusOf(t);return `<span class="tag" style="background:${STATE_COLOR[u]}">${u}</span>`};
+// 누가 무엇을 누를 수 있나 (서버도 같은 규칙으로 막는다): 게시 요청·취소 = 그 과제의 과제책임자와 사이트관리자, 서비스 게시·해제·활용 종료 = 사이트관리자
+const isAdmin=()=>typeof Auth==='undefined'||!Auth.user||Auth.user.role==='admin';
+const canReq=t=>isAdmin()||(!!myName()&&(t.assignee||'').trim()===myName());
 const mine=t=>!who||(t.assignee||'').trim()===who;
 // 세부 진행 현황에도 같은 명칭·같은 책임자로 등록된 과제인지 (진행률 과제와 AI 과제의 연결 기준)
 const sameKey=s=>String(s||'').trim();
@@ -217,6 +282,7 @@ function focusRow(){
   if(!focusId)return;
   const tr=document.querySelector(`tr[data-row="${CSS.escape(focusId)}"]`);
   if(!tr)return;
+  const sec=tr.closest('details');if(sec)sec.open=true;   // 접혀 있으면 펼친다
   tr.classList.add('flash');
   tr.scrollIntoView({block:'center'});
   setTimeout(()=>tr.classList.remove('flash'),4000);
@@ -239,9 +305,11 @@ function renderWho(){
   $('who').innerHTML=(me?`<option value="${esc(me)}">내 과제 · ${esc(withEmp(me))}</option>`:'')+'<option value="">전체</option>'+names.map(n=>`<option value="${esc(n)}">${esc(withEmp(n))}</option>`).join('');
   $('who').value=who;
 }
-const inA=t=>t.s==='doing'&&prog(t)<100&&!t.registered;
-const inB=t=>prog(t)===100&&!t.registered;
-const inC=t=>!!t.registered;
+// 목록 묶음: ① 개발진행중 / ② 신청대기중·게시검토중 / ③ 게시활용중·활용종료
+const inA=t=>statusOf(t)==='개발진행중';
+const inB=t=>['신청대기중','게시검토중'].includes(statusOf(t));
+const inC=t=>['게시활용중','활용종료'].includes(statusOf(t));
+const inReview=t=>statusOf(t)==='게시검토중';   // 서비스 게시를 할 수 있는 과제
 
 function showError(m){$('err').textContent=m||'';$('err').hidden=!m}
 let okTimer;function showOk(m){$('okmsg').textContent=m;$('okmsg').hidden=!m;clearTimeout(okTimer);if(m)okTimer=setTimeout(()=>$('okmsg').hidden=true,4000)}
@@ -250,35 +318,54 @@ async function persist(fn,okText){
   catch(e){showError('저장하지 못했습니다: '+e.message)}
   try{tasks=await TaskStorage.list()}catch(e){}
   await loadFiles();
-  selected=new Set([...selected].filter(id=>tasks.some(t=>String(t.id)===id&&inB(t))));
+  selected=new Set([...selected].filter(id=>tasks.some(t=>String(t.id)===id&&inReview(t))));
   render();
 }
 
 function render(){
   renderWho();
   const mt=tasks.filter(mine);
-  const A=mt.filter(inA),B=mt.filter(inB),C=mt.filter(inC),review=mt.filter(t=>t.s==='todo'&&!t.registered).length;
+  const A=mt.filter(inA),B=mt.filter(inB),C=mt.filter(inC);
   const avg=A.length?Math.round(A.reduce((s,t)=>s+prog(t),0)/A.length):0;
   const all=mt.length?Math.round(mt.reduce((s,t)=>s+prog(t),0)/mt.length):0;
   const mp=aiItems.filter(mineAI).sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
-  $('whoInfo').textContent=(mt.length?`${who?who+' 님의 ':'전체 '}과제 ${mt.length}건 · 전체 평균 진행률 ${all}%`:`${who?who+' 님의 ':''}과제가 없습니다.`)+` · AI 과제 ${mp.length}건`;
+  const P=tasks.filter(partOf).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  $('whoInfo').textContent=(mt.length?`${who?who+' 님의 ':'전체 '}과제 ${mt.length}건 · 전체 평균 진행률 ${all}%`:`${who?who+' 님의 ':''}과제가 없습니다.`)+` · AI 과제 ${mp.length}건`+(who?` · 참여 과제 ${P.length}건`:'');
   $('stats').innerHTML=
-    `<div class="card stat"><span>내 AI 과제</span><b style="color:#722ed1">${mp.length}</b></div>`+
-    `<div class="card stat"><span>진행 중 과제</span><b>${A.length}</b></div>`+
-    `<div class="card stat"><span>진행 중 평균 진행률</span><b>${A.length?avg+'%':'-'}</b></div>`+
-    `<div class="card stat"><span>서비스 게시 대기</span><b style="color:${B.length?'#fa8c16':'inherit'}">${B.length}</b></div>`+
-    `<div class="card stat"><span>서비스 게시 완료</span><b style="color:var(--done)">${C.length}</b></div>`;
+    // 요약 카드를 누르면 같은 색의 아래 목록으로 이동한다(접혀 있으면 펼침)
+    `<a class="card stat c-ai" href="#secAI" data-go="secAI" title="내 AI 과제 목록으로 이동"><span>내 AI 과제</span><b>${mp.length}</b></a>`+
+    `<a class="card stat c-a" href="#secA" data-go="secA" title="① 개발진행중 과제 목록으로 이동"><span>개발진행중 과제</span><b>${A.length}</b></a>`+
+    `<a class="card stat c-a" href="#secA" data-go="secA" title="① 개발진행중 과제 목록으로 이동"><span>개발진행중 평균 진행률</span><b>${A.length?avg+'%':'-'}</b></a>`+
+    `<a class="card stat c-b" href="#secB" data-go="secB" title="② 신청대기중·게시검토중 목록으로 이동"><span>신청대기 · 게시검토</span><b>${B.filter(t=>!inReview(t)).length} · ${B.filter(inReview).length}</b></a>`+
+    `<a class="card stat c-c" href="#secC" data-go="secC" title="③ 게시활용중·활용종료 목록으로 이동"><span>게시활용중</span><b>${C.filter(t=>!t.useEnded).length}</b></a>`+
+    (who?`<a class="card stat c-p" href="#secP" data-go="secP" title="참여 과제 목록으로 이동"><span>참여 과제</span><b>${P.length}</b></a>`:'');
+  // 참여 과제 (한 사람을 골랐을 때만. '전체'에서는 위 목록에 모든 과제가 이미 나온다)
+  $('secP').hidden=!who;
+  $('cntP').textContent=P.length+'건';
+  $('descP').innerHTML=`${esc(who)} 님이 <b>과제참여자</b>로 초대된 과제입니다. 세부사항을 보고 첨부를 올릴 수 있으며, 진행률은 그 과제의 과제책임자가 바꿉니다.`;
+  $('rowsP').innerHTML=P.length?P.map(t=>{
+    const dh=detailHref(t);
+    return `<tr data-row="${t.id}" data-href="${dh}" class="clickrow" title="누르면 과제 상세로 이동합니다">
+    <td><a class="tlink" href="${dh}">${esc(t.title)}</a>${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+    <td>${esc(t.assignee)||'-'}</td>
+    <td>${useTag(t)}</td>
+    <td><div class="pbar"><div><i style="width:${prog(t)}%"></i></div><b>${prog(t)}%</b></div></td>
+    <td>${dueTag(t)}</td>
+    <td class="act"><a class="btnlink" href="${dh}">상세</a></td></tr>`}).join('')
+    :`<tr><td colspan="6" class="empty">${esc(who)} 님이 과제참여자로 초대된 과제가 없습니다.</td></tr>`;
+  $('stepA').textContent=A.length+'건';$('stepB').textContent=B.length+'건';$('stepC').textContent=C.length+'건';
   $('cntA').textContent=A.length+'건';$('cntB').textContent=B.length+'건';$('cntC').textContent=C.length+'건';
   $('cntAI').textContent=mp.length+'건';
   $('rowsAI').innerHTML=mp.length?mp.map(p=>{
-    const idx=Math.max(0,AI_STAGES.indexOf(p.stage)),col=AI_COLOR[p.stage]||'#8c8c8c';
     // 과제 상세로 이동: 연결된 진행률 과제(같은 명칭·책임자)가 있으면 그 과제 상세(+AI 과제 정보), 없으면 AI 과제 정보만 있는 상세
     const lt=tasks.find(t=>sameKey(t.title)===sameKey(p.title)&&sameKey(t.assignee)===sameKey(p.ownerName));
+    // 개발단계는 연결된 과제의 진행률로 정한다 (연결된 과제가 없으면 저장된 값)
+    const stg=lt?TaskState.devOf(lt):(p.stage||AI_STAGES[0]),idx=Math.max(0,AI_STAGES.indexOf(stg)),col=AI_COLOR[stg]||'#8c8c8c';
     const href=lt?`task-detail.html?id=${encodeURIComponent(lt.id)}&from=progress`:`task-detail.html?ai=${encodeURIComponent(p.id)}&from=progress`;
     return `<tr data-ai="${esc(p.id)}" data-href="${href}" class="clickrow" title="누르면 과제 상세로 이동합니다">
       <td><a class="tlink" href="${href}">${esc(p.title)}</a>${p.purpose?`<div class="sub aipurpose">${esc(p.purpose)}</div>`:''}</td>
       <td>${esc(p.category)||'-'}</td>
-      <td><span class="tag" style="background:${col}">${esc(p.stage)}</span> <span class="sub">${idx+1}/${AI_STAGES.length}</span>
+      <td><span class="tag" style="background:${col}">${esc(stg)}</span> <span class="sub">${idx+1}/${AI_STAGES.length}${lt?' · '+prog(lt)+'%':''}</span>
         <div class="seg" style="--c:${col}" title="${AI_STAGES.map((s,i)=>(i===idx?'● ':'')+s).join(' → ')}">${AI_STAGES.map((s,i)=>`<i class="${i<=idx?'on':''}"></i>`).join('')}</div></td>
       <td>${esc(p.ownerDept)||'-'}</td><td>${esc(p.access)||'-'}</td>
       <td class="sub">${esc(String(p.updatedAt||p.createdAt||'').slice(0,10))||'-'}</td>
@@ -294,33 +381,73 @@ function render(){
     <td>${dueTag(t)}</td>
     <td><div class="pbar"><div><i style="width:${prog(t)}%"></i></div><b>${prog(t)}%</b></div></td>
     <td class="act"><a class="btnlink" href="${dh}">상세</a></td></tr>`}).join('')
-    :`<tr><td colspan="5" class="empty">${who?`${esc(who)} 님의 진행 중인 과제가 없습니다.`:'진행 중인 과제가 없습니다. 과제 목록에서 단계를 \'진행\'으로 바꾸면 여기에 나타납니다.'}</td></tr>`;
-  $('reviewNote').textContent=review?`검토 단계 과제 ${review}건은 과제 목록에서 '진행'으로 바꾸면 이 목록에 나타납니다.`:'';
+    :`<tr><td colspan="5" class="empty">${who?`${esc(who)} 님의 개발진행중인 과제가 없습니다.`:'개발진행중인 과제가 없습니다.'}</td></tr>`;
+  $('reviewNote').textContent='';
 
-  $('rowsB').innerHTML=B.length?B.map(t=>`<tr data-row="${t.id}">
-    <td><input type="checkbox" data-chk="${t.id}" ${selected.has(String(t.id))?'checked':''}></td>
-    <td>${esc(t.title)}${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
+  // ② 신청대기중: 과제책임자가 '게시 요청' → 게시검토중: 사이트관리자가 '서비스 게시'(체크해서 한 번에도 가능), 과제책임자는 '요청 취소'
+  const admin=isAdmin(),R=B.filter(inReview);
+  B.sort((a,b)=>inReview(b)-inReview(a)||(a.due||'9999').localeCompare(b.due||'9999'));   // 게시검토중을 위로
+  $('rowsB').innerHTML=B.length?B.map(t=>{
+    const rv=inReview(t),dh=detailHref(t),req=canReq(t);
+    return `<tr data-row="${t.id}">
+    <td>${rv&&admin?`<input type="checkbox" data-chk="${t.id}" ${selected.has(String(t.id))?'checked':''}>`:''}</td>
+    <td><a class="tlink" href="${dh}">${esc(t.title)}</a>${aiBadge(t)}${t.memo?`<div class="sub">${esc(t.memo)}</div>`:''}</td>
     <td>${esc(t.assignee)||'-'}</td>
-    <td><span class="tag st">${STAGE[t.s]||esc(t.s)}</span></td>
+    <td>${useTag(t)}</td>
     <td>${dueTag(t)}</td>
-    <td class="act"><button class="g" data-reg="${t.id}">서비스 게시</button></td></tr>`).join('')
-    :'<tr><td colspan="6" class="empty">서비스 게시를 기다리는 과제가 없습니다.</td></tr>';
-  $('chkAll').checked=B.length>0&&B.every(t=>selected.has(String(t.id)));
-  $('chkAll').disabled=!B.length;
+    <td class="act">${rv
+      ?(admin?`<button class="g" data-reg="${t.id}">서비스 게시</button>`:'')+(req?`<button data-pubcancel="${t.id}">요청 취소</button>`:'')+(!admin&&!req?'<span class="sub">게시 검토 중</span>':'')
+      :(req?`<button class="p" data-pubreq="${t.id}">게시 요청</button>`:'<span class="sub">과제책임자의 게시 요청 대기</span>')}</td></tr>`}).join('')
+    :'<tr><td colspan="6" class="empty">신청대기중·게시검토중인 과제가 없습니다.</td></tr>';
+  $('bulkBar').hidden=!admin;
+  $('chkAll').hidden=!admin;
+  $('chkAll').checked=R.length>0&&R.every(t=>selected.has(String(t.id)));
+  $('chkAll').disabled=!R.length;
   $('bulkReg').disabled=!selected.size;
   $('selInfo').textContent=selected.size?`${selected.size}건 선택됨`:'';
 
   $('rowsC').innerHTML=C.length?C.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||'')).map(t=>{
-    const fs=fileMap[String(t.id)]||[],req=FileStorage.checkRequired(fs).filter(r=>r.ok).length,href=`task-detail.html?id=${encodeURIComponent(t.id)}&from=progress`;
+    const fs=fileMap[String(t.id)]||[],href=`task-detail.html?id=${encodeURIComponent(t.id)}&from=progress`;
     return `<tr data-row="${t.id}">
     <td><a class="tlink" href="${href}">${esc(t.title)}</a>${aiBadge(t)}</td><td>${esc(t.assignee)||'-'}</td>
+    <td>${useTag(t)}</td>
     <td>${esc(t.registeredAt)||'-'}</td>
     <td>${esc(t.approver)||'-'}</td>
     <td class="reason">${esc(t.regReason)||'-'}</td>
-    <td title="필수 첨부 3종 중 ${req}종 / 전체 ${fs.length}개"><span class="tag ${req===3?'att-ok':'att-no'}">필수 ${req}/3</span> <span class="sub">${fs.length}개</span></td>
-    <td class="act"><a class="btnlink" href="${href}">상세</a><button data-unreg="${t.id}">게시 해제</button></td></tr>`}).join('')
-    :'<tr><td colspan="7" class="empty">서비스 게시된 과제가 없습니다.</td></tr>';
+    <td title="첨부 파일 ${fs.length}개">${fs.length?`${fs.length}개`:'<span class="sub">없음</span>'}</td>
+    <td class="act"><a class="btnlink" href="${href}">상세</a>${admin?(t.useEnded?`<button data-resume="${t.id}">활용 재개</button>`:`<button data-end="${t.id}">활용 종료</button>`)+`<button data-unreg="${t.id}">게시 해제</button>`:''}</td></tr>`}).join('')
+    :'<tr><td colspan="8" class="empty">서비스 게시된 과제가 없습니다.</td></tr>';
+  ['AI','A','B','C','P'].forEach(limitRows);
 }
+
+/* ---------- 펼치기·접기 ----------
+ * 1) 목록 카드(내 AI 과제·①·②·③)는 제목 줄을 누르면 접히고 펴진다. '모두 펼치기 / 모두 접기' 버튼도 있다.
+ * 2) 한 목록이 ROW_LIMIT 건을 넘으면 처음 ROW_LIMIT 건만 보이고 '나머지 n건 더 보기'로 펼친다('전체'로 볼 때 스크롤이 길어지지 않게).
+ * 접힘 상태는 이 브라우저에 기억한다(저장할 수 없는 환경이면 기억하지 않을 뿐 동작은 같다). */
+const ROW_LIMIT=10,SEC_KEY='progress-sections',SECS=['secAI','secA','secB','secC','secP'];
+const showAll={};   // 목록별 '더 보기'를 눌렀는지 (화면을 다시 열면 처음 상태로)
+function limitRows(k){
+  const rows=[...$('rows'+k).children].filter(tr=>!tr.querySelector('.empty')),bar=$('more'+k);
+  // '세부 진행 현황'에서 넘어온 과제가 숨겨지는 쪽에 있으면 그 목록은 처음부터 다 보여 준다
+  if(focusId&&rows.slice(ROW_LIMIT).some(tr=>tr.dataset.row===focusId))showAll[k]=true;
+  const over=rows.length-ROW_LIMIT;
+  rows.forEach((tr,i)=>tr.classList.toggle('over',!showAll[k]&&i>=ROW_LIMIT));
+  bar.innerHTML=over>0?`<button type="button" data-more="${k}">${showAll[k]?`처음 ${ROW_LIMIT}건만 보기 ▲`:`나머지 ${over}건 더 보기 ▼`}</button>`:'';
+}
+function saveSecs(){try{localStorage.setItem(SEC_KEY,JSON.stringify(Object.fromEntries(SECS.map(id=>[id,$(id).open]))))}catch(e){}}
+function loadSecs(){
+  try{const st=JSON.parse(localStorage.getItem(SEC_KEY)||'{}');SECS.forEach(id=>{if(typeof st[id]==='boolean')$(id).open=st[id]})}catch(e){}
+  SECS.forEach(id=>$(id).addEventListener('toggle',saveSecs));
+}
+function setAllSecs(open){SECS.forEach(id=>$(id).open=open);saveSecs()}
+document.addEventListener('click',e=>{
+  const more=e.target.closest('button[data-more]');
+  if(more){const k=more.dataset.more;showAll[k]=!showAll[k];limitRows(k);if(!showAll[k])$('sec'+k).scrollIntoView({block:'nearest'});return}
+  if(e.target.id==='openAll')setAllSecs(true);
+  if(e.target.id==='closeAll')setAllSecs(false);
+  const go=e.target.closest('a[data-go]');   // 진행 흐름 단계를 누르면 그 목록을 펼쳐서 보여 준다
+  if(go){e.preventDefault();const sec=$(go.dataset.go);sec.open=true;sec.scrollIntoView({behavior:'smooth',block:'start'})}
+});
 
 // '내 AI 과제' 줄 어디를 눌러도 과제 상세로 이동 (링크·버튼을 직접 누른 경우는 그 동작을 따름)
 document.addEventListener('click',e=>{
@@ -330,7 +457,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
   const d=e.target.dataset;
   if(d.chk){e.target.checked?selected.add(d.chk):selected.delete(d.chk);render()}
-  if(e.target.id==='chkAll'){selected=new Set(e.target.checked?tasks.filter(inB).filter(mine).map(t=>String(t.id)):[]);render()}
+  if(e.target.id==='chkAll'){selected=new Set(e.target.checked?tasks.filter(inReview).filter(mine).map(t=>String(t.id)):[]);render()}
   if(e.target.id==='who'){
     who=e.target.value;selected=new Set();
     if(!myName()){try{localStorage.setItem(WHO_KEY,who)}catch(err){}}   // 로그인 없이 볼 때는 마지막 선택을 기억
@@ -340,6 +467,11 @@ document.addEventListener('change',e=>{
 document.addEventListener('click',e=>{
   const d=e.target.dataset,task=id=>tasks.find(t=>String(t.id)===String(id));
   if(d.reg)openReg([d.reg]);
+  // 게시 요청 / 취소 (과제책임자·사이트관리자), 활용 종료 / 재개 (사이트관리자)
+  if(d.pubreq){const t=task(d.pubreq);if(t&&confirm(`'${t.title}' 과제의 게시를 요청할까요?\n\n활용상태가 '게시검토중'이 되고, 사이트관리자가 서비스 게시하면 '게시활용중'이 됩니다.`))persist(()=>TaskStorage.update(d.pubreq,{pubRequested:true}),"게시 요청을 했습니다. 활용상태가 '게시검토중'이 됐습니다.")}
+  if(d.pubcancel){const t=task(d.pubcancel);if(t&&confirm(`'${t.title}' 과제의 게시 요청을 취소할까요? 활용상태가 신청대기중으로 돌아갑니다.`))persist(()=>TaskStorage.update(d.pubcancel,{pubRequested:false}),'게시 요청을 취소했습니다.')}
+  if(d.end){const t=task(d.end);if(t&&confirm(`'${t.title}' 과제를 활용 종료로 바꿀까요?`))persist(()=>TaskStorage.update(d.end,{useEnded:true}),"활용상태를 '활용종료'로 바꿨습니다.")}
+  if(d.resume){const t=task(d.resume);if(t&&confirm(`'${t.title}' 과제를 다시 게시활용중으로 바꿀까요?`))persist(()=>TaskStorage.update(d.resume,{useEnded:false}),"활용상태를 '게시활용중'으로 되돌렸습니다.")}
   if(d.unreg){const t=task(d.unreg);if(t&&confirm(`'${t.title}' 과제의 서비스 게시를 해제할까요?`))persist(()=>TaskStorage.update(d.unreg,{registered:false}),'서비스 게시를 해제했습니다.')}
   if(e.target.id==='bulkReg'&&selected.size)openReg([...selected]);
   if(e.target.id==='regCancel')$('regDlg').close();
@@ -348,7 +480,7 @@ document.addEventListener('click',e=>{
 // 서비스 게시 입력창: 승인자·게시 사유가 모두 있어야 게시된다 (여러 건이면 같은 값을 적용)
 let regIds=[];
 function openReg(ids){
-  regIds=ids.filter(id=>{const t=tasks.find(x=>String(x.id)===String(id));return t&&inB(t)});
+  regIds=ids.filter(id=>{const t=tasks.find(x=>String(x.id)===String(id));return t&&inReview(t)});   // 게시검토중(게시 요청된) 과제만
   if(!regIds.length)return;
   $('regTargets').innerHTML=`대상 ${regIds.length}건<ul>${regIds.map(id=>`<li>${esc(tasks.find(t=>String(t.id)===String(id)).title)}</li>`).join('')}</ul>`;
   $('approver').value='';$('regReason').value='';$('dlgErr').textContent='';
@@ -370,6 +502,7 @@ $('regForm').addEventListener('submit',e=>{
   await loadFiles();
   try{aiItems=await AIStorage.init()}catch(e){aiItems=[]}   // 세부 진행 현황 (내가 과제책임자로 등록한 과제를 보여 주기 위해)
   await loadEmpNos();
+  loadSecs();
   pickWho();
   render();
   focusRow();

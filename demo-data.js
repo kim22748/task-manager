@@ -27,9 +27,8 @@ const DemoData = (() => {
     const tasks = demo.tasks.map((d, i) => {
       const n = d.daysAgo, s = d.s, prog = d.progress || 0;
       const history = [{ at: at(n, 10), text: '과제 등록' }];
-      if (s !== 'todo') history.push({ at: at(Math.floor(n * 0.8), 11), text: '단계: 검토 → 진행' });
       if (prog) history.push({ at: at(Math.floor(n * 0.5), 14), text: `진행률: 0% → ${prog}%` });
-      if (s === 'done') history.push({ at: at(Math.floor(n * 0.3), 16), text: '단계: 진행 → 종료' });
+      if (d.pubRequested) history.push({ at: at(Math.floor(n * 0.3), 16), text: '게시 요청: 없음 → 요청', by: d.assignee || '' });
       const t = {
         id: atDate(n, 10).getTime() + i, title: d.title, s, date: ymd(day(n)),
         assignee: d.assignee || '', due: 'dueInDays' in d ? ymd(day(-d.dueInDays)) : '',
@@ -40,6 +39,8 @@ const DemoData = (() => {
         history.push({ at: at(r, 17), text: `서비스 게시: 해제 → 게시 / 승인자: 없음 → ${d.approver} / 게시 사유: 없음 → ${d.regReason}` });
         Object.assign(t, { registered: true, approver: d.approver, regReason: d.regReason, registeredAt: ymd(day(r)) });
       }
+      if (d.pubRequested) t.pubRequested = true;
+      if (d.useEnded) { history.push({ at: at(Math.max(0, (d.registeredDaysAgo || 0) - 1), 9), text: '활용 종료: 활용 중 → 종료' }); t.useEnded = true; }
       if ((parts[d.title] || []).length) t.participants = parts[d.title];
       t.history = history;
       return t;
